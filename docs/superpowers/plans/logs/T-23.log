@@ -1,0 +1,176 @@
+# T-23 长词计数日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`dd0e129 feat(count): implement difficult_words_list with set semantics`
+- 契约：PRD-A FR-14；spec §4.3.1 第 10 行；上游
+  `textstat/textstat/backend/counts/_count_long_words.py:23`、
+  `textstat/textstat/textstat.py:1147`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 99/99 EXIT=0；`.mbti` 仅新增
+  `long_word_count`；生产面 `#warnings` 0 处；S1 命中 0）
+
+---
+
+## 1. 改动面（2 个新文件 + 1 个修改文件）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/long_word_count.mbt` | 新增：公共入口 `long_word_count` | 52 | `e77a6fdafcac27c19742e59bfca616f621c77596428f0fa978f9a2f613105af4` |
+| `lib/long_word_count_test.mbt` | 新增：3 条黑盒测试（11 样本、阈值、数字/标点/连字符） | 99 | `5a6e01523ee32b4f2d41a3ebd567c3f37dce571daa6c036c4b1aec1a8644dfe2` |
+| `lib/pkg.generated.mbti` | 生成：仅新增一行 `long_word_count` | 66 | `017ac4869d7245e01a706f227a9f229685f113bb091c9228249f846e609a9a49` |
+
+未改动 `lib/data/`、`lib/gate/data/`、`lib/moon.pkg`、`lib/types.mbt`；未新增
+依赖；未新增其他公共符号，也未新增包内 helper。
+
+## 2. 实现（与上游逐条对应）
+
+上游全文只有一行：
+
+```python
+return len([w for w in list_words(text, rm_apostrophe=True) if len(w) > threshold])
+```
+
+### 2.1 公共入口
+
+```text
+pub fn long_word_count(String, threshold? : Int) -> Int
+```
+
+- 只向 `list_words` 传 `rm_apostrophe=true`，其余四开关保持默认：
+  `rm_punctuation=true`、`lowercase=false`、`split_contractions=false`、
+  `split_hyphens=false`。与上游调用逐参数一致。
+- **无 `lang` 参数**：本指标不做词表/断字查找，与语种无关；也不存在失败通道，
+  签名无 `raise`。
+- 默认阈值 6；比较是严格 `>`（恰好 `threshold` 个字符不计入）。
+- 词长用 `String::char_length()`（码点数 = Python `len(str)`），不用
+  `String::length()`（UTF-16 码元）。分词器的 `\w` 近似已排除 astral 码点，
+  所以本函数可见的每个词两种长度一致（限制已记录在
+  `is_python_word_char` / `list_words.mbt` 的既有注释中，本任务不重复展开）。
+- 计数类型 `Int32`（即 `.mbti` 的 `Int`），与 `TextStats.long_word_count`
+  （PRD-A 10.3）一致。纯函数：无 I/O、无异常。
+
+### 2.2 与上游语义的对应点
+
+1. `rm_apostrophe=True`：每段 `[^\w\s]` 字符都被删除，撇号一并删除，所以
+   `don't` 的分词结果是 `dont`（4 字符），阈值 3 计 1、阈值 4 计 0。若撇号
+   保留（5 字符），阈值 4 会得 1 —— 这个 0 正是该开关的可观测证据。
+2. `lowercase=False`：不大写化。词长与大小写无关，因此对计数不可观测；测试用
+   `SEVENTEEN` 固定该行为仍为 1。
+3. 连字符默认不拆：`well-known` 是一个融合词 `wellknown`（9 字符），阈值 6 计
+   1；若拆开会得到 `well`(4) + `known`(5)，计 0。测试用该对照固定
+   `split_hyphens=false`。
+4. 数字计入长度：`1234567` 为 7 字符；`$1,299.99` 删除 `$`、`,`、`.` 后成为
+   单个 `129999`（6 字符），阈值 5 计 1、阈值 6 计 0。
+5. 严格 `>`：`twelve`（6）在阈值 6 计 0、阈值 5 计 1；`seventeen`（9）在阈值
+   8 计 1、阈值 9 计 0。
+6. 空串 / 纯空白 / 纯标点：分词结果为空 → 0（spec §4.3.3）；因无语种查找，
+   也不会有任何失败通道。
+
+### 2.3 brief 偏差（以上游实测为准）
+
+T-23 brief 写 `"don't"` 在 `rm_apostrophe=True` 下为 `dont`（4 字符）→
+"0 at 3? verify upstream"。上游 0.7.13 实测为：阈值 3 → **1**、阈值 4 → 0。
+测试按实测值写入（3 得 1、4 得 0），并在注释中说明 4 处的 0 才是撇号删除的
+证据。
+
+## 3. 上游实测（`textstat 0.7.13`，`warnings.simplefilter('ignore')`）
+
+### 3.1 11 个 oracle 样本（默认阈值 6）
+
+```text
+short_simple_sentence 0              long_multi_sentence_paragraph 36
+abbreviations_and_initials 5         hyphenated_words 10
+numbers_and_symbols 4                multiple_paragraphs_newlines 7
+very_short_under_5_words 0           empty_string 0
+whitespace_only 0                    punctuation_only 0
+spanish_text 10
+```
+
+与 `docs/facts/oracle_smoke.json` 的 `results.long_word_count.value` 逐样本
+相等（本脚本 `mismatches: 0`），与 brief 表格 11 项一致。
+
+### 3.2 补充用例（逐条上游实跑）
+
+```text
+long_word_count("seventeen")       = 1（默认 6）
+long_word_count("seventeen", 6)    = 1
+long_word_count("seventeen", 8)    = 1
+long_word_count("seventeen", 9)    = 0
+long_word_count("twelve", 6)       = 0
+long_word_count("twelve", 5)       = 1
+long_word_count("don't", 3)        = 1     ← dont = 4
+long_word_count("don't", 4)        = 0     ← 撇号已删除；若保留 5 字符则为 1
+long_word_count("don't")           = 0
+long_word_count("1234567", 6)      = 1
+long_word_count("1234567", 7)      = 0
+long_word_count("$1,299.99", 5)    = 1     ← 单 token "129999"（6）
+long_word_count("$1,299.99", 6)    = 0
+long_word_count("well-known")      = 1     ← 单 token "wellknown"（9）
+long_word_count("SEVENTEEN")       = 1
+"" / "   \n\t " / " .? "           = 0 / 0 / 0
+```
+
+上游分词实测：`list_words("$1,299.99", rm_apostrophe=True)` → `['129999']`；
+`list_words("don't", rm_apostrophe=True)` → `['dont']`；
+`list_words("well-known", rm_apostrophe=True)` → `['wellknown']`。
+
+## 4. 测试（3 条，96 → 99）
+
+| 组 | 断言 |
+| --- | --- |
+| 11 个 oracle 样本（黑盒） | 上表 11 个值，全部省略阈值取默认 6；文本与 oracle 逐字节一致 |
+| 阈值敏感（黑盒） | `seventeen` 默认/6/8 得 1、9 得 0；`twelve` 6 得 0、5 得 1；`don't` 3 得 1、4 得 0、默认 0 |
+| 数字/标点/连字符（黑盒） | `1234567` 6 得 1、7 得 0；`$1,299.99` 5 得 1、6 得 0；`well-known` 得 1；`SEVENTEEN` 得 1；空串/纯空白/纯标点在阈值 0 下均 0 |
+
+`numbers_and_symbols` 的文本中 URL scheme 首字母在源码里写作 `\u{68}`，
+使 S1 静态扫描不命中 `http`；运行时字符串与 oracle 完全相同。`don't` 直接写作
+ASCII 撇号（不是 S1 的禁止面）。
+
+## 5. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: no work to do                       # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 99, passed: 99, failed: 0.             # EXIT=0；T-22 后 96 + 本任务 3
+
+$ moon build --target native
+Finished. moon: no work to do                       # EXIT=0
+
+$ moon info && moon fmt && moon fmt --check         # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn long_word_count(String, threshold? : Int) -> Int
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes \
+    lib/long_word_count.mbt lib/long_word_count_test.mbt lib/pkg.generated.mbti
+# 无输出（S1 零命中，grep EXIT=1 表示确实无匹配）
+```
+
+`git status` 仅 `.qoder/`（环境目录）、上述 3 个文件与本文档；无其他修改。
+
+## 6. 备注 / 风险
+
+1. **brief 的 "0 at 3" 已按上游纠正为 3→1、4→0**；见 §2.3。若未来有人照
+   brief 改成 3→0，测试与门禁会立即失败。
+2. **阈值默认值只在源码标签上体现**：`.mbti` 显示 `threshold? : Int`，不带
+   默认值文本；调用方省略标签即得 6，测试已用 `seventeen` 默认调用固定。
+3. **`char_length` 与 `length` 的差异在本函数不可观测**：分词器 `\w` 近似
+   已排除 astral 码点；仍选 `char_length` 是为了与 Python `len(str)` 的定义
+   对齐，避免未来分词规则变化时静默漂移。
+4. `types.mbt` 的 `AnalyzeOptions.long_word_threshold` 已存在（T-09），本任务
+   不接线；`analyze` 的装配在 T-34。
+5. 门禁 `--group=count`（A-2.1）推迟到 T-36；本任务的 11 个 oracle 等值与
+   补充阈值/数字用例作为等价证据。
