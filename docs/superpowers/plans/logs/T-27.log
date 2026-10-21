@@ -1,0 +1,199 @@
+# T-27 — Flesch-Kincaid 年级
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`cb47bf6 feat(formula): implement flesch_reading_ease with language constants`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-17（C-2 修正：系数固定、结果随语种经音节）；spec §4.4 表第 2 行
+与约束 1；上游 `backend/metrics/_flesch_kincaid_grade.py:9-39`、
+`_words_per_sentence.py`、`_syllables_per_word.py`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 111/111 EXIT=0（T-26 后 108 + 本任务 3）；`.mbti` 只新增
+> `flesch_kincaid_grade`；S1 零命中；11 个样本值按位相等（`==`，非容差）；
+> A-11.1 断言 `-3.01` 且非整数；门禁顺延至 T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/flesch_kincaid_grade.mbt` | 新增：公开 `flesch_kincaid_grade` | 57 | `c11e437d0d562fb6117f8fbcc3cfb7d929982161d238ae5ae4158a57cf5b7602` |
+| `lib/flesch_kincaid_grade_test.mbt` | 新增：3 条黑盒测试 | 117 | `ac2d244b91958a620db3427aa45c22335332e32c9b252e868a0f726fb97720fc` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `flesch_kincaid_grade` 一行 | — | — |
+
+### 1.2 `lib/flesch_kincaid_grade.mbt`
+
+```moonbit
+pub fn flesch_kincaid_grade(
+  text : String,
+  lang~ : String = "en_US",
+) -> Double raise TextstatError {
+  let sl = words_per_sentence(text)
+  let spw = syllables_per_word(text, lang)
+  if sl == 0.0 || spw == 0.0 {
+    return 0.0
+  }
+  0.39 * sl + 11.8 * spw - 15.59
+}
+```
+
+- 表达式即上游 `return (0.39 * sentence_length) + (11.8 * syllables) - 15.59`。
+  MoonBit 中 `*` 优先于 `+`/`-`，且 `+`/`-` 左结合，故解析树为
+  `((0.39 * sl) + (11.8 * spw)) - 15.59`；`moon fmt` 删除冗余括号但不改树
+  （§2.2 实测：重结合会让 4 个样本偏 1–2 ulp）。
+- **系数固定**：不调用 `lang_config`，`0.39/11.8/15.59` 是字面量；语种只经
+  `syllables_per_word` 影响结果（spec §4.4 第 2 行「仅音节（系数固定）」）。
+- 平均量复用 T-26 的包内 `words_per_sentence` / `syllables_per_word`
+  （`lib/averages.mbt`），公式层不自行分词（spec §2.1 约束 2）。
+- 零分支 `sl == 0.0 || spw == 0.0` → `0.0`，与上游守卫位置一致，先于任何公式
+  算术。
+- 失败通道：`syllables_per_word` 的 `syllable_count` 在守卫之前执行，非空文本
+  + 不支持语种 → `UnsupportedLanguage` 原样上抛；空串对任何语种都返回 0.0。
+- 默认 `lang = "en_US"`。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 空串与失败通道
+
+```console
+$ cd textstat && python - <<'PY'
+import warnings; warnings.simplefilter('ignore')
+from textstat.backend.metrics._flesch_kincaid_grade import flesch_kincaid_grade as f
+for t in ['', '   ', ' .? ', 'Hi there!', 'hello']:
+    for lang in ['en_US','ar']:
+        try: print(repr(t), lang, repr(f(t, lang)))
+        except Exception as e: print(repr(t), lang, type(e).__name__)
+PY
+'' en_US 0.0
+'' ar 0.0
+'   ' en_US 0.0
+'   ' ar KeyError
+' .? ' en_US 0.0
+' .? ' ar KeyError
+'Hi there!' en_US -3.01
+'Hi there!' ar KeyError
+'hello' en_US 8.400000000000002
+'hello' ar KeyError
+```
+
+即：**空串对 `ar` 不失败**（`count_syllables("")` 在语言解析前返回 0，随后
+`0/0` 落到守卫），空白 / 纯标点 / 有词文本对 `ar` 都在分子处抛
+`KeyError: None`。
+
+### 2.2 结合顺序确有可观察差异
+
+用上游计数对 11 个样本复算 `a = (0.39*sl)+(11.8*spw)-15.59` 与
+`b = 0.39*sl+(11.8*spw-15.59)`：
+
+```console
+short_simple_sentence           -1.4499999999999993 == -1.4499999999999993
+long_multi_sentence_paragraph   14.73990909090909   == 14.73990909090909
+abbreviations_and_initials      2.0314516129032256  != 2.031451612903227   ← 1 ulp
+hyphenated_words                14.101470588235298  != 14.101470588235296  ← 2 ulp
+numbers_and_symbols             2.6657142857142873  == 2.6657142857142873
+multiple_paragraphs_newlines    6.18266666666667    != 6.182666666666668   ← 2 ulp
+very_short_under_5_words        -3.01               != -3.009999999999999  ← 2 ulp
+empty/whitespace/punct          0.0（守卫）           —
+spanish_text                    8.931724137931035  == 8.931724137931035
+```
+
+（表中 `empty/whitespace/punct` 行按上游零守卫取 0.0；未守卫的裸式会把
+`0/0` 后的 `-15.59` 算出来，故复算脚本对这两类输入不具意义。）
+
+4 行样本在重结合下偏移，因此「逐字复刻、不得化简」在样本内可观察；实现保持
+左结合，全部 11 行按位命中。
+
+### 2.3 期望值位模式核对
+
+从 `lib/flesch_kincaid_grade_test.mbt` 的 `samples` 表剥离字符串字面量后按序
+抽取 11 个数字字面量，与 `docs/facts/oracle_smoke.json` 的
+`samples[].results.flesch_kincaid_grade.value` 用 `struct.pack('>d', …)` 比较：
+
+```console
+short_simple_sentence          -1.4499999999999993 bff7333333333330 MATCH
+long_multi_sentence_paragraph  14.73990909090909   402d7ad55d46ef6e MATCH
+abbreviations_and_initials     2.0314516129032256  40004069b4069b40 MATCH
+hyphenated_words               14.101470588235298  402c33f3f3f3f3f6 MATCH
+numbers_and_symbols            2.6657142857142873  4005536202ecfba0 MATCH
+multiple_paragraphs_newlines   6.18266666666667    4018bb0cf87d9c58 MATCH
+very_short_under_5_words       -3.01               c008147ae147ae14 MATCH
+empty_string                   0.0                 0000000000000000 MATCH
+whitespace_only                0.0                 0000000000000000 MATCH
+punctuation_only               0.0                 0000000000000000 MATCH
+spanish_text                   8.931724137931035  4021dd0af23a9d7c MATCH
+LEN 11 ALL True
+```
+
+字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`；测试内
+`assert_eq(expected, …)` 再证明运行期返回值与字面量逐位相等。
+
+### 2.4 样本语种口径
+
+`docs/facts/gen_oracle_smoke.py` 把 `flesch_kincaid_grade` 放在 `ONE_ARG`
+列表，即 11 个样本均按**默认 `en_US`** 取值（无 `lang` 实参）。`spanish_text`
+行也是 en_US 值：`sl = 9.666666666666666`，`spw(en_US) = 1.7586206896551724`
+→ `8.931724137931035`；若用 `es_ES` 则为 `spw = 2.0344827586206895` →
+`12.186896551724136`（不作为期望值，仅说明口径差异）。因此测试全部省略
+`lang`，另加一条显式 `lang="en_US"` 断言以固定「省略 = 默认」。
+
+## 3. 测试（`lib/flesch_kincaid_grade_test.mbt`，3 条，108 → 111）
+
+| 测试 | 断言 |
+| --- | --- |
+| `flesch_kincaid_grade matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`-1.4499999999999993, 14.73990909090909, 2.0314516129032256, 14.101470588235298, 2.6657142857142873, 6.18266666666667, -3.01, 0.0, 0.0, 0.0, 8.931724137931035`；样本序即 oracle 序；末尾再断言省略 `lang` 与显式 `en_US` 同值 |
+| `A-11.1: very_short_under_5_words is exactly -3.01 and not an integer` | `value == -3.01`；`value != value.floor()`；`value != value.trunc()`；`value - value.trunc() != 0.0`（拒绝取整/截断字段） |
+| `unsupported languages raise and the empty string stays zero` | `ar`/`xx_YY`：空串 → 0.0；`"Hi there!"`、`"The cat sat on the mat."`、`"hello"`、`" "`、`" .? "` → `UnsupportedLanguage(code)`，code 为调用方原始拼写 |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。A-11.1 的
+`-3.01` 是 oracle 的 `very_short_under_5_words` 值（也是本任务指定的期望值），
+`value.floor()` 为 `-3.0`、`value.trunc()` 为 `-3.0`，故三条不等式同时成立。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 111, passed: 111, failed: 0.          # EXIT=0；T-26 base 108 + 3
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn flesch_kincaid_grade(String, lang? : String) -> Double raise TextstatError
+# 仅此一行（含空行），无其他符号变化
+
+$ grep -c "#warnings" lib/flesch_kincaid_grade.mbt lib/flesch_kincaid_grade_test.mbt
+0
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/flesch_kincaid_grade.mbt lib/flesch_kincaid_grade_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ awk long-line check: max 603 字节（测试文件单行）< 65,535
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/flesch_kincaid_grade.mbt
+?? lib/flesch_kincaid_grade_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula`、A-11.1 的门禁用例形态由
+T-36/T-52 复验。本任务不宣称门禁等价，只把 A-11.1 的取值语义先固定在包测试
+里（值 `-3.01` 且非整数）。E-25 的 `en_US`/`pl_PL` 差异属 L3 语种单元格
+（A-4.1），不在本任务的手写断言内。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. 源码表达式原写作 `(0.39 * sl) + (11.8 * spw) - 15.59`；`moon fmt` 删除
+   冗余括号为 `0.39 * sl + 11.8 * spw - 15.59`。解析树与求值顺序不变
+   （`*` 优先、`+`/`-` 左结合），11 个样本 `==` 全部命中，故接受格式化结果，
+   并在文档注释里写明解析树与「不得重结合」。
+3. 新增 3 条测试：样本、A-11.1、失败/空串各一条，均为可追溯到
+   `oracle_smoke.json` / spec 的断言；无合成期望值，未新增 `pl_PL`/`pt` 断言
+   （`pt` 非验收，R-33 裁决 b）。
