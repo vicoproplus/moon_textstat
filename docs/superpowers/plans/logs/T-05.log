@@ -1,0 +1,359 @@
+# T-05 行尾与忽略面 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**，非仓库根）
+- 契约：design D-9；AD §7 DR-R8；spec §4.7 A-6.2；design §12.3「行尾与忽略」行
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)` / `moonc v0.10.15+943464bfa (2026-10-12)`
+- 未执行：`moon upgrade`、`moon add`、任何修改 `textstat/` 的命令、`git add -A`
+
+---
+
+## 1. 模块创建过程
+
+一次性目录 `F:/Temp/scaffold_1792546764`：
+
+```console
+$ moon new --name moon_textstat p
+Warning: failed to create file symlink: p\README.md -> README.mbt.md. You may need to enable developer mode or have administrator rights. 客户端没有所需的特权。 (os error 1314)
+Initialized empty Git repository in F:/Temp/scaffold_1792546764/p/.git/
+Created vicoproplus/moon_textstat at p
+NEW_EXIT=0
+```
+
+移入模块根前的清理与搬迁（**删除 `moon new` 自动创建的 `.git`**，模块不得自带仓库；同时删除模板的 `.github/`、`.githooks/`）：
+
+```console
+$ rm -rf "$SRC/.git" "$SRC/.github" "$SRC/.githooks"
+$ mkdir -p "F:/moonbit比赛/moon_textstat/lib"
+$ mv "$SRC"/* "$SRC"/.gitignore "F:/moonbit比赛/moon_textstat/lib"/
+MV_EXIT=0
+$ rm -rf 'F:/Temp/scaffold_1792546764'
+THROW_DELETED
+```
+
+创建后的模块布局（`find lib -maxdepth 2 -not -path 'lib/_build*' | sort`）：
+
+```console
+lib
+lib/AGENTS.md
+lib/cmd
+lib/cmd/main
+lib/.gitignore
+lib/LICENSE
+lib/moon.mod
+lib/moon.pkg
+lib/moon_textstat.mbt
+lib/moon_textstat_test.mbt
+lib/moon_textstat_wbtest.mbt
+lib/pkg.generated.mbti
+lib/README.mbt.md
+```
+
+模块内**不存在** `.git`（`[ -d lib/.git ]` 为假）；`docs/`、`textstat/`、`vendor/`、`tools/` 全部位于 `lib/` 之外。
+
+`lib/moon.mod` 关键三项（其余保持模板原值：`version = "0.1.0"`、`readme = "README.mbt.md"`、`keywords = []`、`description = ""`；**未添加 `files` 键**——T-02 已实测该键 EXIT=255）：
+
+```toml
+name = "vicoproplus/moon_textstat"
+license = "MIT"
+preferred_target = "native"
+```
+
+## 2. `.gitattributes`（仓库根，全文）
+
+```gitattributes
+# 默认：所有文本文件按 LF 归一化。
+* text=auto eol=lf
+
+# —— 二进制数据（字节身份是契约，git 绝不做行尾转换）——
+#
+# AD §1.2 以「工作区 CRLF 原字节」的 (字节数, SHA-256) 固定了上游易读词表的
+# 身份，A1-2 又要求「固定字节中 \r 出现次数为 0」。这些 CRLF 字节如果被
+# autocrlf / text=auto 归一化，工作区形态与 AD 固定值立刻不符，身份断言即
+# 失败。因此把固定身份的数据文件标为 -text（git 视为二进制、不改写），
+# 使工作区字节与 AD §1.2 表格逐字节一致；pyphen 的 .dic 与 CMUdict 同理，
+# 它们含非 UTF-8 高字节且身份也在 AD §1.2 固定，一律按二进制处理。
+vendor/upstream/easy_words/** -text
+vendor/upstream/pyphen/*.dic -text
+vendor/upstream/cmudict/cmudict -text
+
+# —— 文本源文件：显式声明，避免依赖 core.autocrlf 的全局配置 ——
+*.mbt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+```
+
+## 3. `.gitignore`
+
+仓库根 `.gitignore`（全文）：
+
+```gitignore
+# MoonBit build / gate artifacts (module root is lib/, but keep root-level
+# paths covered too so a stray build at the repo root can never be added).
+_build/
+target/
+_gate/
+.mooncakes/
+lib/_build/
+lib/target/
+lib/_gate/
+
+# Python development tooling (tools/ generators)
+__pycache__/
+*.pyc
+
+# Vendored upstream Python reference copy: it is its own git repository with
+# 499 commits. Adding it to this repo would ingest that entire history.
+textstat/
+```
+
+模块内 `lib/.gitignore`（全文；模板默认的 `.DS_Store`/`target`/`.moonagent/` 被替换为最小面）：
+
+```gitignore
+_build/
+target/
+_gate/
+.mooncakes/
+```
+
+## 4. 六项验证（原始输出 + 退出码）
+
+### 4.1 `moon check --target native`
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 5 tasks, now up to date
+CHECK_EXIT=0
+```
+
+### 4.2 `moon build --target native`
+
+```console
+$ cd lib && moon build --target native
+utf.c
+runtime.c
+env.c
+sync_io.c
+backtrace.c
+  正在创建库 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\build\cmd\main\main.lib 和对象 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\build\cmd\main\main.exp
+Finished. moon: ran 9 tasks, now up to date
+BUILD_EXIT=0
+```
+
+### 4.3 `moon test --target native`
+
+模板首次运行**没有测试**（`Warning: no test entry found.` / `Total tests: 0`），因此按任务要求补了一条平凡测试：
+
+```moonbit
+///|
+/// Scaffold smoke test: proves the module root builds and `moon test` runs a
+/// real test. Replaced by the metric tests in later plan tasks.
+test "scaffold smoke" {
+  assert_eq(1, 1)
+}
+```
+
+（写入 `lib/moon_textstat_test.mbt`，替换模板的纯注释文件。）复跑：
+
+```console
+$ cd lib && moon test --target native
+  正在创建库 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\test\moon_textstat.blackbox_test.lib 和对象 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\test\moon_textstat.blackbox_test.exp
+Total tests: 1, passed: 1, failed: 0.
+TEST_EXIT=0
+```
+
+### 4.4 `moon package` 与 zip 清单
+
+```console
+$ cd lib && moon package
+Warning: 'repository' field is not set or empty in module manifest
+Running moon check ...
+Finished. moon: ran 1 task, now up to date
+Check passed
+Package to F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+PACKAGE_EXIT=0
+```
+
+zip 条目（python `zipfile.namelist()`）：
+
+```console
+$ cd lib && python -c "import zipfile,glob;z=sorted(glob.glob('_build/publish/*.zip'))[-1];print(z);[print(n) for n in zipfile.ZipFile(z).namelist()]"
+_build/publish\vicoproplus-moon_textstat-0.1.0.zip
+AGENTS.md
+cmd/main/main.mbt
+cmd/main/moon.pkg
+LICENSE
+moon.mod
+moon.pkg
+moon_textstat.mbt
+moon_textstat_test.mbt
+moon_textstat_wbtest.mbt
+README.mbt.md
+COUNT=10
+LIST_EXIT=0
+```
+
+自动断言（前缀黑名单 + 必需项 + `*.mbt` 存在）：
+
+```console
+$ cd lib && python -c "..."
+ZIP=_build/publish\vicoproplus-moon_textstat-0.1.0.zip
+ENTRIES=10
+FORBIDDEN_PREFIX_HITS=[]
+REQUIRED_MISSING=[]
+MBT_ENTRIES=['cmd/main/main.mbt', 'moon_textstat.mbt', 'moon_textstat_test.mbt', 'moon_textstat_wbtest.mbt']
+VERDICT=PASS
+ASSERT_EXIT=0
+```
+
+即：`docs/`、`textstat/`、`vendor/`、`tools/` **均不在包内**；`moon.mod`、`moon.pkg`、4 个 `*.mbt`、`LICENSE`、`README.mbt.md` **均在包内**。`AGENTS.md` 是模板自带的模块内文件（模块目录内、未被忽略 → 按 AD §1.1 必然入包），本任务未删除它。
+
+### 4.5 `moon info`
+
+```console
+$ cd lib && moon info
+Finished. moon: ran 2 tasks, now up to date
+INFO_EXIT=0
+$ ls *.mbti
+pkg.generated.mbti
+```
+
+### 4.6 `git check-attr` 抽查（含 `_gate/` 忽略面）
+
+```console
+$ git -C F:/moonbit比赛/moon_textstat check-attr text eol -- \
+    vendor/upstream/easy_words/en/easy_words.txt \
+    vendor/upstream/pyphen/hyph_en_US.dic lib/moon.mod
+vendor/upstream/easy_words/en/easy_words.txt: text: unset
+vendor/upstream/easy_words/en/easy_words.txt: eol: lf
+vendor/upstream/pyphen/hyph_en_US.dic: text: unset
+vendor/upstream/pyphen/hyph_en_US.dic: eol: lf
+lib/moon.mod: text: auto
+lib/moon.mod: eol: lf
+ATTR_EXIT=0
+```
+
+说明（实测事实，非推断）：`-text` 行让 git 把这三类数据视为二进制 → 报 `text: unset`；同时仍会打印 `eol: lf`，那是通配行 `* text=auto eol=lf` 的属性值，**在 `text` 被 unset 时不生效**。该「不生效」由下一段的 blob 哈希等价证明，不靠文档推断：
+
+```console
+$ git hash-object --path=vendor/upstream/easy_words/en/easy_words.txt vendor/upstream/easy_words/en/easy_words.txt
+b5b163ddce95fa719fa611d7f2050ee99cd92e6d
+$ git hash-object --no-filters vendor/upstream/easy_words/en/easy_words.txt
+b5b163ddce95fa719fa611d7f2050ee99cd92e6d
+```
+
+带过滤器与不带过滤器得到**同一 blob 哈希** ⇒ 入库字节与工作区 CRLF 原字节逐字节相同，行尾未被改写（工作区该文件仍为 21,577 字节，见 4.7）。
+
+忽略规则命中：
+
+```console
+$ git check-ignore -v textstat lib/_build
+.gitignore:17:textstat/	textstat
+lib/.gitignore:1:_build/	lib/_build
+IGNORE_EXIT=0
+```
+
+`*.mbt` 规则同样实测命中：`lib/moon_textstat.mbt: text: set` / `eol: lf`。
+
+### 4.7 A-1.1 / A-1.2 / A-1.3 复跑（证明新属性未扰动数据）
+
+```console
+$ cd F:/moonbit比赛/moon_textstat && python tools/verify_l1.py
+DIC_CHECKED=10 DIC_MISMATCH=0 []
+WORDLIST_CHECKED=4 WORDLIST_MISMATCH=0 []
+CMUDICT_CHECKED=1 CMUDICT_MISMATCH=0 []
+CR: []
+VERIFY_EXIT=0
+```
+
+## 5. Git 卫生
+
+```console
+$ git -C F:/moonbit比赛/moon_textstat status --short
+?? .gitattributes
+?? .gitignore
+?? docs/
+?? lib/
+?? tools/
+?? vendor/
+?? 申报书-moon_textstat-文本可读性统计.md
+STATUS_EXIT=0
+```
+
+提交前：`textstat/` **不出现**（已被 `.gitignore` 第 17 行排除），`lib/_build/` **不出现**（被 `lib/.gitignore` 第 1 行排除）。
+
+提交（**只 add 三项**，未使用 `git add -A`）：
+
+```console
+$ git add .gitattributes .gitignore lib/
+A  .gitattributes
+A  .gitignore
+A  lib/.gitignore
+A  lib/AGENTS.md
+A  lib/LICENSE
+A  lib/README.mbt.md
+A  lib/cmd/main/main.mbt
+A  lib/cmd/main/moon.pkg
+A  lib/cmd/main/pkg.generated.mbti
+A  lib/moon.mod
+A  lib/moon.pkg
+A  lib/moon_textstat.mbt
+A  lib/moon_textstat_test.mbt
+A  lib/moon_textstat_wbtest.mbt
+A  lib/pkg.generated.mbti
+?? docs/
+?? tools/
+?? vendor/
+?? 申报书-moon_textstat-文本可读性统计.md
+```
+
+提交后：
+
+```console
+$ git log --oneline -3
+061bc9d feat(module): create MoonBit module root under lib/ with line-ending policy
+3e874a3 Initial commit
+COMMIT_EXIT=0
+$ git log -1 --format='%H%n%s'
+061bc9dc5289db32f8094708a9be96fd5641e95c
+feat(module): create MoonBit module root under lib/ with line-ending policy
+$ git status --short
+?? docs/
+?? tools/
+?? vendor/
+?? 申报书-moon_textstat-文本可读性统计.md
+```
+
+`git ls-tree -r --name-only HEAD` 共 16 行：`.gitattributes`、`.gitignore`、`LICENSE`、`lib/` 下 13 个文件；**无 `textstat/`、无 `vendor/`、无 `docs/`、无 `tools/`、无 `lib/_build/`**。
+
+工作区 `core.autocrlf` 仍为全局 `true`——本任务**未修改任何 git 配置**，数据字节的保全完全由 `.gitattributes` 的 `-text` 承担（4.6 的 blob 哈希等价即为证据）。
+
+## 判定
+
+| # | 项 | 结果 |
+| --- | --- | --- |
+| 1 | 模块根为 `lib/`（子目录），模块名 `vicoproplus/moon_textstat` | **PASS** |
+| 2 | `moon new` 的临时目录已删除，模块内无 `.git`（无第二个仓库） | **PASS** |
+| 3 | `moon.mod`：`preferred_target = "native"`、`license = "MIT"`、`version = "0.1.0"`、无 `files` 键 | **PASS** |
+| 4 | `lib/.gitignore` 忽略 `_build/`、`target/`、`_gate/`、`.mooncakes/` | **PASS** |
+| 5 | 根 `.gitattributes`：`* text=auto eol=lf` + 三类数据 `-text` + `*.mbt/*.md/*.json` | **PASS** |
+| 6 | 根 `.gitignore` 覆盖构建/门禁产物、`lib/*` 同名路径、`__pycache__/`、`*.pyc`、`textstat/` | **PASS** |
+| 7 | `moon check --target native` → EXIT=0 | **PASS** |
+| 8 | `moon build --target native` → EXIT=0 | **PASS** |
+| 9 | `moon test --target native` → EXIT=0，`Total tests: 1, passed: 1`（新增平凡测试 `assert_eq(1, 1)`） | **PASS** |
+| 10 | `moon package` → EXIT=0；zip 10 条；`docs/`/`textstat/`/`vendor/`/`tools/` 均不在包内 | **PASS** |
+| 11 | `moon info` → EXIT=0，生成 `pkg.generated.mbti` | **PASS** |
+| 12 | `git status --short` 不含 `textstat/`、不含 `lib/_build/` | **PASS** |
+| 13 | `git check-attr`：词表与 `.dic` 报 `text: unset`；`moon.mod` 报 `eol: lf` | **PASS** |
+| 14 | 过滤/不过滤 blob 哈希相等 ⇒ 数据 CRLF 未被改写 | **PASS** |
+| 15 | A-1.1/A-1.2/A-1.3 复跑：`DIC_CHECKED=10 DIC_MISMATCH=0 []`、`WORDLIST_CHECKED=4 WORDLIST_MISMATCH=0 []`、`CR: []`、EXIT=0 | **PASS** |
+| 16 | 单次提交 `061bc9d`，只含 `.gitattributes`、`.gitignore`、`lib/`；`docs/`/`vendor/`/`tools/` 仍为 untracked | **PASS** |
+
+**总判定：PASS（16/16）。** 无失败项，未改动 `textstat/`，未创建 `zh/`、`data/`、`cmd/gate/` 或任何生成器。
+
+### 遗留（非本任务缺陷，登记备查）
+
+- `moon package` 告警 `'repository' field is not set or empty in module manifest`：模板默认 `repository = ""`，按 T-44（发布元数据）处置，本任务未擅自填写。
+- `lib/AGENTS.md` 与 `lib/LICENSE`（模板 Apache-2.0 全文）随包入内：前者是模板自带模块内文件，后者将在 T-45 替换为项目 LICENSE/NOTICE 口径。`moon.mod` 已声明 `license = "MIT"`，与 `lib/LICENSE` 内容（Apache-2.0）暂不一致，属 T-45 范围。

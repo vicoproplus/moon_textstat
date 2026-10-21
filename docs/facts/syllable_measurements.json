@@ -1,0 +1,910 @@
+{
+  "universe": {
+    "distinct_words": 3023,
+    "from_samples": 147,
+    "from_easy_list": 2941
+  },
+  "word_level": {
+    "total_words": 3023,
+    "cmudict_hits": 2979,
+    "cmudict_misses": 44,
+    "mismatches_cmu_vs_pyphen": 314,
+    "mismatch_rate_pct_of_hits": 10.540449815374286,
+    "top_40": [
+      {
+        "word": "anybody",
+        "cmu": 4,
+        "pyphen": 2,
+        "delta": -2
+      },
+      {
+        "word": "arithmetic",
+        "cmu": 4,
+        "pyphen": 2,
+        "delta": -2
+      },
+      {
+        "word": "eleven",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "firearm",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "idea",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "ivory",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "medicine",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "overeat",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "overnight",
+        "cmu": 3,
+        "pyphen": 1,
+        "delta": -2
+      },
+      {
+        "word": "able",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "aboard",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "about",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "above",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "aching",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "acorn",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "acre",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "across",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "afar",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "afraid",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "again",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "against",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "ago",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "agree",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "ahead",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "airy",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "alarm",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "alike",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "alive",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "alone",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "along",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "aloud",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "already",
+        "cmu": 3,
+        "pyphen": 2,
+        "delta": -1
+      },
+      {
+        "word": "america",
+        "cmu": 4,
+        "pyphen": 3,
+        "delta": -1
+      },
+      {
+        "word": "american",
+        "cmu": 4,
+        "pyphen": 3,
+        "delta": -1
+      },
+      {
+        "word": "among",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "amount",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "anger",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "any",
+        "cmu": 2,
+        "pyphen": 1,
+        "delta": -1
+      },
+      {
+        "word": "anyhow",
+        "cmu": 3,
+        "pyphen": 2,
+        "delta": -1
+      },
+      {
+        "word": "anyone",
+        "cmu": 3,
+        "pyphen": 2,
+        "delta": -1
+      }
+    ]
+  },
+  "footprint": {
+    "pyphen_dic_path": "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen\\dictionaries\\hyph_en_US.dic",
+    "pyphen_dic_bytes": 106414,
+    "pyphen_dic_lines": 11130,
+    "pyphen_dic_sha256": "486fb6840b1049d5d252ef784be11cd4dc2be0bf296568b74b41e4f4e17cba7d",
+    "cmudict_path": "C:\\Users\\Administrator\\AppData\\Roaming\\nltk_data\\corpora\\cmudict\\cmudict",
+    "cmudict_bytes": 3820830,
+    "cmudict_entries": 123455,
+    "cmudict_file_lines": 133737,
+    "cmudict_sha256": "cad209c39eb87677d64e93d97f8eed10b7e6f9bdd42de8e7ca8efc8e17d62e8a"
+  },
+  "license_evidence": {
+    "pyphen_dist_info": "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen-0.17.2.dist-info",
+    "pyphen_dist_info_license_files": [
+      "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen-0.17.2.dist-info\\LICENSE",
+      "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen-0.17.2.dist-info\\COPYING.GPL",
+      "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen-0.17.2.dist-info\\COPYING.LGPL",
+      "D:\\Programs\\Python\\Python312\\Lib\\site-packages\\pyphen-0.17.2.dist-info\\COPYING.MPL"
+    ],
+    "pyphen_license_first_line": "Pyphen is released under the GPL 2.0+/LGPL 2.1+/MPL 1.1 tri-license.",
+    "pyphen_metadata_classifiers": [
+      "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+      "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+      "License :: OSI Approved :: Mozilla Public License 1.1 (MPL 1.1)"
+    ],
+    "cmudict_readme_path": "C:\\Users\\Administrator\\AppData\\Roaming\\nltk_data\\corpora\\cmudict\\README",
+    "cmudict_readme_exists": true,
+    "cmudict_license_files": [],
+    "cmudict_copyright_line": "Copyright (C) 1993-2008 Carnegie Mellon University. All rights reserved.",
+    "cmudict_redistribution_line": "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:"
+  },
+  "text_counts": {
+    "short_simple_sentence": {
+      "upstream": 6,
+      "pyphen_only": 6,
+      "cmu_only_no_fallback": 6
+    },
+    "long_multi_sentence_paragraph": {
+      "upstream": 175,
+      "pyphen_only": 166,
+      "cmu_only_no_fallback": 175
+    },
+    "abbreviations_and_initials": {
+      "upstream": 41,
+      "pyphen_only": 38,
+      "cmu_only_no_fallback": 35
+    },
+    "hyphenated_words": {
+      "upstream": 38,
+      "pyphen_only": 37,
+      "cmu_only_no_fallback": 15
+    },
+    "numbers_and_symbols": {
+      "upstream": 39,
+      "pyphen_only": 37,
+      "cmu_only_no_fallback": 27
+    },
+    "multiple_paragraphs_newlines": {
+      "upstream": 45,
+      "pyphen_only": 39,
+      "cmu_only_no_fallback": 45
+    },
+    "very_short_under_5_words": {
+      "upstream": 2,
+      "pyphen_only": 2,
+      "cmu_only_no_fallback": 2
+    },
+    "empty_string": {
+      "upstream": 0,
+      "pyphen_only": 0,
+      "cmu_only_no_fallback": 0
+    }
+  },
+  "formula_values": {
+    "short_simple_sentence": {
+      "flesch_reading_ease": 116.14500000000001,
+      "flesch_kincaid_grade": -1.4499999999999993,
+      "gunning_fog": 2.4000000000000004,
+      "smog_index": 3.1291,
+      "automated_readability_index": -4.300000000000001,
+      "coleman_liau_index": -4.299999999999997,
+      "linsear_write_formula": 2.0,
+      "dale_chall_readability_score": 0.2976
+    },
+    "long_multi_sentence_paragraph": {
+      "flesch_reading_ease": 20.732363636363658,
+      "flesch_kincaid_grade": 14.73990909090909,
+      "gunning_fog": 17.040000000000003,
+      "smog_index": 15.6451,
+      "automated_readability_index": 14.506022727272729,
+      "coleman_liau_index": 15.275000000000002,
+      "linsear_write_formula": 13.6,
+      "dale_chall_readability_score": 10.969005454545455
+    },
+    "abbreviations_and_initials": {
+      "flesch_reading_ease": 89.70051075268819,
+      "flesch_kincaid_grade": 2.0314516129032256,
+      "gunning_fog": 4.647311827956989,
+      "smog_index": 6.42735559955562,
+      "automated_readability_index": 1.2088172043010736,
+      "coleman_liau_index": 0.17419354838709644,
+      "linsear_write_formula": 1.9166666666666665,
+      "dale_chall_readability_score": 12.551798924731184
+    },
+    "hyphenated_words": {
+      "flesch_reading_ease": 9.101617647058845,
+      "flesch_kincaid_grade": 14.101470588235298,
+      "gunning_fog": 19.87058823529412,
+      "smog_index": 13.81666964889586,
+      "automated_readability_index": 24.37882352941177,
+      "coleman_liau_index": 25.75294117647059,
+      "linsear_write_formula": 6.75,
+      "dale_chall_readability_score": 14.275158823529411
+    },
+    "numbers_and_symbols": {
+      "flesch_reading_ease": 84.26261904761905,
+      "flesch_kincaid_grade": 2.6657142857142873,
+      "gunning_fog": 4.723809523809524,
+      "smog_index": 6.42735559955562,
+      "automated_readability_index": 5.799047619047617,
+      "coleman_liau_index": 4.37142857142857,
+      "linsear_write_formula": 1.6666666666666665,
+      "dale_chall_readability_score": 12.89082380952381
+    },
+    "multiple_paragraphs_newlines": {
+      "flesch_reading_ease": 60.35400000000001,
+      "flesch_kincaid_grade": 6.18266666666667,
+      "gunning_fog": 11.04888888888889,
+      "smog_index": 9.3871,
+      "automated_readability_index": 6.215555555555557,
+      "coleman_liau_index": 8.577777777777776,
+      "linsear_write_formula": 2.9,
+      "dale_chall_readability_score": 9.167673333333333
+    },
+    "very_short_under_5_words": {
+      "flesch_reading_ease": 120.20500000000001,
+      "flesch_kincaid_grade": -3.01,
+      "gunning_fog": 0.8,
+      "smog_index": 3.1291,
+      "automated_readability_index": -1.5899999999999999,
+      "coleman_liau_index": -10.299999999999999,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 11.630700000000001
+    },
+    "empty_string": {
+      "flesch_reading_ease": 0.0,
+      "flesch_kincaid_grade": 0.0,
+      "gunning_fog": 0.0,
+      "smog_index": 0.0,
+      "automated_readability_index": 0.0,
+      "coleman_liau_index": 0.0,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 0.0
+    }
+  },
+  "formula_values_pyphen_only": {
+    "short_simple_sentence": {
+      "flesch_reading_ease": 116.14500000000001,
+      "flesch_kincaid_grade": -1.4499999999999993,
+      "gunning_fog": 2.4000000000000004,
+      "smog_index": 3.1291,
+      "automated_readability_index": -4.300000000000001,
+      "coleman_liau_index": -4.299999999999997,
+      "linsear_write_formula": 2.0,
+      "dale_chall_readability_score": 0.2976
+    },
+    "long_multi_sentence_paragraph": {
+      "flesch_reading_ease": 29.38463636363636,
+      "flesch_kincaid_grade": 13.533090909090912,
+      "gunning_fog": 17.040000000000003,
+      "smog_index": 15.381575749822971,
+      "automated_readability_index": 14.506022727272729,
+      "coleman_liau_index": 15.275000000000002,
+      "linsear_write_formula": 13.4,
+      "dale_chall_readability_score": 10.969005454545455
+    },
+    "abbreviations_and_initials": {
+      "flesch_reading_ease": 97.88760752688172,
+      "flesch_kincaid_grade": 0.8895161290322591,
+      "gunning_fog": 4.647311827956989,
+      "smog_index": 6.42735559955562,
+      "automated_readability_index": 1.2088172043010736,
+      "coleman_liau_index": 0.17419354838709644,
+      "linsear_write_formula": 1.9166666666666665,
+      "dale_chall_readability_score": 12.551798924731184
+    },
+    "hyphenated_words": {
+      "flesch_reading_ease": 14.07808823529416,
+      "flesch_kincaid_grade": 13.407352941176473,
+      "gunning_fog": 19.87058823529412,
+      "smog_index": 13.81666964889586,
+      "automated_readability_index": 24.37882352941177,
+      "coleman_liau_index": 25.75294117647059,
+      "linsear_write_formula": 6.75,
+      "dale_chall_readability_score": 14.275158823529411
+    },
+    "numbers_and_symbols": {
+      "flesch_reading_ease": 90.3054761904762,
+      "flesch_kincaid_grade": 1.822857142857142,
+      "gunning_fog": 3.295238095238096,
+      "smog_index": 5.46131890053228,
+      "automated_readability_index": 5.799047619047617,
+      "coleman_liau_index": 4.37142857142857,
+      "linsear_write_formula": 1.5,
+      "dale_chall_readability_score": 12.89082380952381
+    },
+    "multiple_paragraphs_newlines": {
+      "flesch_reading_ease": 79.15400000000002,
+      "flesch_kincaid_grade": 3.560444444444446,
+      "gunning_fog": 3.641481481481482,
+      "smog_index": 5.683917801722854,
+      "automated_readability_index": 6.215555555555557,
+      "coleman_liau_index": 8.577777777777776,
+      "linsear_write_formula": 1.9,
+      "dale_chall_readability_score": 9.167673333333333
+    },
+    "very_short_under_5_words": {
+      "flesch_reading_ease": 120.20500000000001,
+      "flesch_kincaid_grade": -3.01,
+      "gunning_fog": 0.8,
+      "smog_index": 3.1291,
+      "automated_readability_index": -1.5899999999999999,
+      "coleman_liau_index": -10.299999999999999,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 11.630700000000001
+    },
+    "empty_string": {
+      "flesch_reading_ease": 0.0,
+      "flesch_kincaid_grade": 0.0,
+      "gunning_fog": 0.0,
+      "smog_index": 0.0,
+      "automated_readability_index": 0.0,
+      "coleman_liau_index": 0.0,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 0.0
+    }
+  },
+  "formula_values_cmu_only": {
+    "short_simple_sentence": {
+      "flesch_reading_ease": 116.14500000000001,
+      "flesch_kincaid_grade": -1.4499999999999993,
+      "gunning_fog": 2.4000000000000004,
+      "smog_index": 3.1291,
+      "automated_readability_index": -4.300000000000001,
+      "coleman_liau_index": -4.299999999999997,
+      "linsear_write_formula": 2.0,
+      "dale_chall_readability_score": 0.2976
+    },
+    "long_multi_sentence_paragraph": {
+      "flesch_reading_ease": 20.732363636363658,
+      "flesch_kincaid_grade": 14.73990909090909,
+      "gunning_fog": 17.040000000000003,
+      "smog_index": 15.6451,
+      "automated_readability_index": 14.506022727272729,
+      "coleman_liau_index": 15.275000000000002,
+      "linsear_write_formula": 13.6,
+      "dale_chall_readability_score": 10.969005454545455
+    },
+    "abbreviations_and_initials": {
+      "flesch_reading_ease": 106.07470430107527,
+      "flesch_kincaid_grade": -0.2524193548387075,
+      "gunning_fog": 4.647311827956989,
+      "smog_index": 6.42735559955562,
+      "automated_readability_index": 1.2088172043010736,
+      "coleman_liau_index": 0.17419354838709644,
+      "linsear_write_formula": 1.5,
+      "dale_chall_readability_score": 12.551798924731184
+    },
+    "hyphenated_words": {
+      "flesch_reading_ease": 123.5604411764706,
+      "flesch_kincaid_grade": -1.863235294117647,
+      "gunning_fog": 5.752941176470589,
+      "smog_index": 7.168621630094336,
+      "automated_readability_index": 24.37882352941177,
+      "coleman_liau_index": 25.75294117647059,
+      "linsear_write_formula": 2.0,
+      "dale_chall_readability_score": 14.275158823529411
+    },
+    "numbers_and_symbols": {
+      "flesch_reading_ease": 120.5197619047619,
+      "flesch_kincaid_grade": -2.3914285714285697,
+      "gunning_fog": 3.295238095238096,
+      "smog_index": 5.46131890053228,
+      "automated_readability_index": 5.799047619047617,
+      "coleman_liau_index": 4.37142857142857,
+      "linsear_write_formula": 0.8333333333333333,
+      "dale_chall_readability_score": 12.89082380952381
+    },
+    "multiple_paragraphs_newlines": {
+      "flesch_reading_ease": 60.35400000000001,
+      "flesch_kincaid_grade": 6.18266666666667,
+      "gunning_fog": 11.04888888888889,
+      "smog_index": 9.3871,
+      "automated_readability_index": 6.215555555555557,
+      "coleman_liau_index": 8.577777777777776,
+      "linsear_write_formula": 2.9,
+      "dale_chall_readability_score": 9.167673333333333
+    },
+    "very_short_under_5_words": {
+      "flesch_reading_ease": 120.20500000000001,
+      "flesch_kincaid_grade": -3.01,
+      "gunning_fog": 0.8,
+      "smog_index": 3.1291,
+      "automated_readability_index": -1.5899999999999999,
+      "coleman_liau_index": -10.299999999999999,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 11.630700000000001
+    },
+    "empty_string": {
+      "flesch_reading_ease": 0.0,
+      "flesch_kincaid_grade": 0.0,
+      "gunning_fog": 0.0,
+      "smog_index": 0.0,
+      "automated_readability_index": 0.0,
+      "coleman_liau_index": 0.0,
+      "linsear_write_formula": 0.0,
+      "dale_chall_readability_score": 0.0
+    }
+  },
+  "formula_deltas": {
+    "short_simple_sentence": {
+      "flesch_reading_ease": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "long_multi_sentence_paragraph": {
+      "flesch_reading_ease": {
+        "pyphen_only": 8.652272727272702,
+        "cmu_only_no_fallback": 0.0
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": -1.2068181818181785,
+        "cmu_only_no_fallback": 0.0
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": -0.26352425017702785,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": -0.1999999999999993,
+        "cmu_only_no_fallback": 0.0
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "abbreviations_and_initials": {
+      "flesch_reading_ease": {
+        "pyphen_only": 8.187096774193535,
+        "cmu_only_no_fallback": 16.374193548387083
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": -1.1419354838709666,
+        "cmu_only_no_fallback": -2.283870967741933
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": -0.4166666666666665
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "hyphenated_words": {
+      "flesch_reading_ease": {
+        "pyphen_only": 4.9764705882353155,
+        "cmu_only_no_fallback": 114.45882352941176
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": -0.6941176470588246,
+        "cmu_only_no_fallback": -15.964705882352945
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": -14.117647058823533
+      },
+      "smog_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": -6.648048018801525
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": -4.75
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "numbers_and_symbols": {
+      "flesch_reading_ease": {
+        "pyphen_only": 6.0428571428571445,
+        "cmu_only_no_fallback": 36.25714285714285
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": -0.8428571428571452,
+        "cmu_only_no_fallback": -5.057142857142857
+      },
+      "gunning_fog": {
+        "pyphen_only": -1.428571428571428,
+        "cmu_only_no_fallback": -1.428571428571428
+      },
+      "smog_index": {
+        "pyphen_only": -0.9660366990233396,
+        "cmu_only_no_fallback": -0.9660366990233396
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": -0.16666666666666652,
+        "cmu_only_no_fallback": -0.8333333333333333
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "multiple_paragraphs_newlines": {
+      "flesch_reading_ease": {
+        "pyphen_only": 18.80000000000001,
+        "cmu_only_no_fallback": 0.0
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": -2.6222222222222236,
+        "cmu_only_no_fallback": 0.0
+      },
+      "gunning_fog": {
+        "pyphen_only": -7.407407407407407,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": -3.703182198277146,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": -1.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "very_short_under_5_words": {
+      "flesch_reading_ease": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    },
+    "empty_string": {
+      "flesch_reading_ease": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "flesch_kincaid_grade": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "gunning_fog": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "smog_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "automated_readability_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "coleman_liau_index": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "linsear_write_formula": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      },
+      "dale_chall_readability_score": {
+        "pyphen_only": 0.0,
+        "cmu_only_no_fallback": 0.0
+      }
+    }
+  },
+  "max_abs_formula_delta": 114.45882352941176,
+  "minimal_table": {
+    "entries": 3023,
+    "entries_ne_1": 1403,
+    "format": "word<TAB>count\\n",
+    "bytes_utf8": 25362,
+    "sha256": "75ca62be8da26299a0e1656ae97b45da35c4e5d51748b98045790faa0326cad2"
+  },
+  "misses": {
+    "count": 44,
+    "words": [
+      "125",
+      "129999",
+      "2024",
+      "314",
+      "42",
+      "5",
+      "7",
+      "8000",
+      "armful",
+      "baa",
+      "bobwhite",
+      "bow-wow",
+      "bumblebee",
+      "chipmunk",
+      "codfish",
+      "coffeepot",
+      "costeffective",
+      "cross-eyed",
+      "cupful",
+      "ding-dong",
+      "eg",
+      "far-off",
+      "fib",
+      "flip-flop",
+      "good-by",
+      "good-looking",
+      "hairpin",
+      "highperformance",
+      "hobbit",
+      "housetop",
+      "httpsexamplecomabc1",
+      "maypole",
+      "nightgown",
+      "old-fashioned",
+      "prof",
+      "redbreast",
+      "selfcontained",
+      "shan't",
+      "stateoftheart",
+      "toadstool",
+      "tolkien",
+      "twentyfiveyearold",
+      "userfriendly",
+      "wellknown"
+    ]
+  },
+  "delta_distribution_top40": {
+    "-2": 9,
+    "-1": 31
+  }
+}

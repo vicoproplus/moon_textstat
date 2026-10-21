@@ -1,0 +1,5011 @@
+{
+  "textstat_version": "0.7.13",
+  "textstat_version_tuple": [
+    0,
+    7,
+    13
+  ],
+  "textstat_package_dir": "F:\\moonbit比赛\\moon_textstat\\textstat",
+  "python_version": "3.12.10",
+  "python_full_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "generation_command": "cd F:/moonbit比赛/moon_textstat && python -m pip install nltk && python -c \"import nltk; nltk.download('cmudict', quiet=True)\" && python docs/facts/gen_oracle_smoke.py docs/facts/oracle_smoke.json",
+  "deps": {
+    "Pyphen": "0.17.2",
+    "nltk": "3.10.3",
+    "setuptools": "80.9.0",
+    "nltk_cmudict_path": "C:\\Users\\Administrator\\AppData\\Roaming\\nltk_data\\corpora\\cmudict",
+    "nltk_cmudict_lookup_error": null,
+    "pyphen_language_count": 85
+  },
+  "public_api": [
+    {
+      "name": "automated_readability_index",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 656,
+      "kind": "method"
+    },
+    {
+      "name": "avg_character_per_word",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 415,
+      "kind": "method"
+    },
+    {
+      "name": "avg_letter_per_word",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 431,
+      "kind": "method"
+    },
+    {
+      "name": "avg_sentence_length",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 365,
+      "kind": "method"
+    },
+    {
+      "name": "avg_sentence_per_word",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 447,
+      "kind": "method"
+    },
+    {
+      "name": "avg_syllables_per_word",
+      "signature": "(text: 'str', interval: 'int | None' = None) -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 392,
+      "kind": "method"
+    },
+    {
+      "name": "char_count",
+      "signature": "(text: 'str', ignore_spaces: 'bool' = True) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 191,
+      "kind": "method"
+    },
+    {
+      "name": "coleman_liau_index",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 632,
+      "kind": "method"
+    },
+    {
+      "name": "count_arabic_long_words",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 530,
+      "kind": "method"
+    },
+    {
+      "name": "count_arabic_syllables",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 496,
+      "kind": "method"
+    },
+    {
+      "name": "count_complex_arabic_words",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 479,
+      "kind": "method"
+    },
+    {
+      "name": "count_faseeh",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 514,
+      "kind": "method"
+    },
+    {
+      "name": "crawford",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1087,
+      "kind": "method"
+    },
+    {
+      "name": "dale_chall_readability_score",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 829,
+      "kind": "method"
+    },
+    {
+      "name": "dale_chall_readability_score_v2",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 964,
+      "kind": "method"
+    },
+    {
+      "name": "difficult_words",
+      "signature": "(text: 'str', syllable_threshold: 'int' = 2, unique: 'bool' = True) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 723,
+      "kind": "method"
+    },
+    {
+      "name": "difficult_words_list",
+      "signature": "(text: 'str', syllable_threshold: 'int' = 2, unique: 'bool' = True) -> 'list[str]'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 751,
+      "kind": "method"
+    },
+    {
+      "name": "fernandez_huerta",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1035,
+      "kind": "method"
+    },
+    {
+      "name": "flesch_kincaid_grade",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 562,
+      "kind": "method"
+    },
+    {
+      "name": "flesch_reading_ease",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 547,
+      "kind": "method"
+    },
+    {
+      "name": "gulpease_index",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1131,
+      "kind": "method"
+    },
+    {
+      "name": "gunning_fog",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 865,
+      "kind": "method"
+    },
+    {
+      "name": "gutierrez_polini",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1071,
+      "kind": "method"
+    },
+    {
+      "name": "is_difficult_word",
+      "signature": "(word: 'str', syllable_threshold: 'int' = 2) -> 'bool'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 778,
+      "kind": "method"
+    },
+    {
+      "name": "is_easy_word",
+      "signature": "(word: 'str', syllable_threshold: 'int' = 2) -> 'bool'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 806,
+      "kind": "method"
+    },
+    {
+      "name": "letter_count",
+      "signature": "(text: 'str', ignore_spaces: 'bool | None' = None) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 209,
+      "kind": "method"
+    },
+    {
+      "name": "lexicon_count",
+      "signature": "(text: 'str', removepunct: 'bool' = True, split_contractions: 'bool' = False, split_hyphens: 'bool' = False) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 262,
+      "kind": "method"
+    },
+    {
+      "name": "linsear_write_formula",
+      "signature": "(text: 'str', strict_lower: 'bool' = False, strict_upper: 'bool' = True) -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 680,
+      "kind": "method"
+    },
+    {
+      "name": "lix",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 880,
+      "kind": "method"
+    },
+    {
+      "name": "long_word_count",
+      "signature": "(text: 'str', threshold: 'int' = 6) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1147,
+      "kind": "method"
+    },
+    {
+      "name": "mcalpine_eflaw",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1200,
+      "kind": "method"
+    },
+    {
+      "name": "miniword_count",
+      "signature": "(text: 'str', max_size: 'int' = 3) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 301,
+      "kind": "method"
+    },
+    {
+      "name": "monosyllabcount",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1164,
+      "kind": "method"
+    },
+    {
+      "name": "osman",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1115,
+      "kind": "method"
+    },
+    {
+      "name": "polysyllabcount",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 586,
+      "kind": "method"
+    },
+    {
+      "name": "reading_time",
+      "signature": "(text: 'str', ms_per_char: 'float' = 14.69) -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1017,
+      "kind": "method"
+    },
+    {
+      "name": "remove_punctuation",
+      "signature": "(text: 'str') -> 'str'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 239,
+      "kind": "method"
+    },
+    {
+      "name": "rix",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 908,
+      "kind": "method"
+    },
+    {
+      "name": "sentence_count",
+      "signature": "(text: 'str') -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 349,
+      "kind": "method"
+    },
+    {
+      "name": "set_lang",
+      "signature": "(lang: 'str') -> 'None'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 174,
+      "kind": "method"
+    },
+    {
+      "name": "set_rm_apostrophe",
+      "signature": "(rm_apostrophe: 'bool') -> 'None'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 156,
+      "kind": "method"
+    },
+    {
+      "name": "set_rounding",
+      "signature": "(rounding: 'bool', points: 'int | None' = None) -> 'None'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 122,
+      "kind": "method"
+    },
+    {
+      "name": "set_rounding_points",
+      "signature": "(points: 'int | None') -> 'None'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 105,
+      "kind": "method"
+    },
+    {
+      "name": "smog_index",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 607,
+      "kind": "method"
+    },
+    {
+      "name": "spache_readability",
+      "signature": "(text: 'str', float_output: 'bool' = True) -> 'float | int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 941,
+      "kind": "method"
+    },
+    {
+      "name": "syllable_count",
+      "signature": "(text: 'str', lang: 'str | None' = None) -> 'int'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 319,
+      "kind": "method"
+    },
+    {
+      "name": "szigriszt_pazos",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1053,
+      "kind": "method"
+    },
+    {
+      "name": "text_standard",
+      "signature": "(text: 'str', float_output: 'bool' = False) -> 'float | str'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 981,
+      "kind": "method"
+    },
+    {
+      "name": "wiener_sachtextformel",
+      "signature": "(text: 'str', variant: 'int') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 1179,
+      "kind": "method"
+    },
+    {
+      "name": "words_per_sentence",
+      "signature": "(text: 'str') -> 'float'",
+      "defined_in": "textstat/textstat/textstat.py",
+      "def_line": 463,
+      "kind": "method"
+    }
+  ],
+  "call_shapes": {
+    "one_arg": [
+      "automated_readability_index",
+      "avg_character_per_word",
+      "avg_letter_per_word",
+      "avg_sentence_length",
+      "avg_sentence_per_word",
+      "avg_syllables_per_word",
+      "char_count",
+      "coleman_liau_index",
+      "count_arabic_long_words",
+      "count_arabic_syllables",
+      "count_complex_arabic_words",
+      "count_faseeh",
+      "crawford",
+      "dale_chall_readability_score",
+      "dale_chall_readability_score_v2",
+      "difficult_words",
+      "difficult_words_list",
+      "fernandez_huerta",
+      "flesch_kincaid_grade",
+      "flesch_reading_ease",
+      "gulpease_index",
+      "gunning_fog",
+      "gutierrez_polini",
+      "is_difficult_word",
+      "is_easy_word",
+      "letter_count",
+      "lexicon_count",
+      "lix",
+      "long_word_count",
+      "mcalpine_eflaw",
+      "miniword_count",
+      "monosyllabcount",
+      "osman",
+      "polysyllabcount",
+      "reading_time",
+      "remove_punctuation",
+      "rix",
+      "sentence_count",
+      "smog_index",
+      "spache_readability",
+      "syllable_count",
+      "szigriszt_pazos",
+      "text_standard",
+      "words_per_sentence"
+    ],
+    "extra_kwargs": {
+      "linsear_write_formula": {},
+      "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+        "strict_lower": true,
+        "strict_upper": true
+      },
+      "lexicon_count[removepunct=False]": {
+        "removepunct": false
+      },
+      "lexicon_count[split_contractions=True]": {
+        "split_contractions": true
+      },
+      "lexicon_count[split_hyphens=True]": {
+        "split_hyphens": true
+      },
+      "char_count[ignore_spaces=False]": {
+        "ignore_spaces": false
+      },
+      "spache_readability[float_output=False]": {
+        "float_output": false
+      },
+      "text_standard[float_output=True]": {
+        "float_output": true
+      },
+      "avg_syllables_per_word[interval=100]": {
+        "interval": 100
+      },
+      "wiener_sachtextformel[variant=1]": {
+        "variant": 1
+      },
+      "wiener_sachtextformel[variant=4]": {
+        "variant": 4
+      }
+    },
+    "resolved": [
+      {
+        "call_id": "automated_readability_index",
+        "callable": "automated_readability_index",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "avg_character_per_word",
+        "callable": "avg_character_per_word",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "avg_letter_per_word",
+        "callable": "avg_letter_per_word",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "avg_sentence_length",
+        "callable": "avg_sentence_length",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "avg_sentence_per_word",
+        "callable": "avg_sentence_per_word",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "avg_syllables_per_word",
+        "callable": "avg_syllables_per_word",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "char_count",
+        "callable": "char_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "coleman_liau_index",
+        "callable": "coleman_liau_index",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "count_arabic_long_words",
+        "callable": "count_arabic_long_words",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "count_arabic_syllables",
+        "callable": "count_arabic_syllables",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "count_complex_arabic_words",
+        "callable": "count_complex_arabic_words",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "count_faseeh",
+        "callable": "count_faseeh",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "crawford",
+        "callable": "crawford",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "dale_chall_readability_score",
+        "callable": "dale_chall_readability_score",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "dale_chall_readability_score_v2",
+        "callable": "dale_chall_readability_score_v2",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "difficult_words",
+        "callable": "difficult_words",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "difficult_words_list",
+        "callable": "difficult_words_list",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "fernandez_huerta",
+        "callable": "fernandez_huerta",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "flesch_kincaid_grade",
+        "callable": "flesch_kincaid_grade",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "flesch_reading_ease",
+        "callable": "flesch_reading_ease",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "gulpease_index",
+        "callable": "gulpease_index",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "gunning_fog",
+        "callable": "gunning_fog",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "gutierrez_polini",
+        "callable": "gutierrez_polini",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "is_difficult_word",
+        "callable": "is_difficult_word",
+        "first_arg_name": "word",
+        "kwargs": {}
+      },
+      {
+        "call_id": "is_easy_word",
+        "callable": "is_easy_word",
+        "first_arg_name": "word",
+        "kwargs": {}
+      },
+      {
+        "call_id": "letter_count",
+        "callable": "letter_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "lexicon_count",
+        "callable": "lexicon_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "lix",
+        "callable": "lix",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "long_word_count",
+        "callable": "long_word_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "mcalpine_eflaw",
+        "callable": "mcalpine_eflaw",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "miniword_count",
+        "callable": "miniword_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "monosyllabcount",
+        "callable": "monosyllabcount",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "osman",
+        "callable": "osman",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "polysyllabcount",
+        "callable": "polysyllabcount",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "reading_time",
+        "callable": "reading_time",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "remove_punctuation",
+        "callable": "remove_punctuation",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "rix",
+        "callable": "rix",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "sentence_count",
+        "callable": "sentence_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "smog_index",
+        "callable": "smog_index",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "spache_readability",
+        "callable": "spache_readability",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "syllable_count",
+        "callable": "syllable_count",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "szigriszt_pazos",
+        "callable": "szigriszt_pazos",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "text_standard",
+        "callable": "text_standard",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "words_per_sentence",
+        "callable": "words_per_sentence",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "linsear_write_formula",
+        "callable": "linsear_write_formula",
+        "first_arg_name": "text",
+        "kwargs": {}
+      },
+      {
+        "call_id": "linsear_write_formula[strict_lower=True,strict_upper=True]",
+        "callable": "linsear_write_formula",
+        "first_arg_name": "text",
+        "kwargs": {
+          "strict_lower": true,
+          "strict_upper": true
+        }
+      },
+      {
+        "call_id": "lexicon_count[removepunct=False]",
+        "callable": "lexicon_count",
+        "first_arg_name": "text",
+        "kwargs": {
+          "removepunct": false
+        }
+      },
+      {
+        "call_id": "lexicon_count[split_contractions=True]",
+        "callable": "lexicon_count",
+        "first_arg_name": "text",
+        "kwargs": {
+          "split_contractions": true
+        }
+      },
+      {
+        "call_id": "lexicon_count[split_hyphens=True]",
+        "callable": "lexicon_count",
+        "first_arg_name": "text",
+        "kwargs": {
+          "split_hyphens": true
+        }
+      },
+      {
+        "call_id": "char_count[ignore_spaces=False]",
+        "callable": "char_count",
+        "first_arg_name": "text",
+        "kwargs": {
+          "ignore_spaces": false
+        }
+      },
+      {
+        "call_id": "spache_readability[float_output=False]",
+        "callable": "spache_readability",
+        "first_arg_name": "text",
+        "kwargs": {
+          "float_output": false
+        }
+      },
+      {
+        "call_id": "text_standard[float_output=True]",
+        "callable": "text_standard",
+        "first_arg_name": "text",
+        "kwargs": {
+          "float_output": true
+        }
+      },
+      {
+        "call_id": "avg_syllables_per_word[interval=100]",
+        "callable": "avg_syllables_per_word",
+        "first_arg_name": "text",
+        "kwargs": {
+          "interval": 100
+        }
+      },
+      {
+        "call_id": "wiener_sachtextformel[variant=1]",
+        "callable": "wiener_sachtextformel",
+        "first_arg_name": "text",
+        "kwargs": {
+          "variant": 1
+        }
+      },
+      {
+        "call_id": "wiener_sachtextformel[variant=4]",
+        "callable": "wiener_sachtextformel",
+        "first_arg_name": "text",
+        "kwargs": {
+          "variant": 4
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "id": "short_simple_sentence",
+      "note": "one short simple sentence, 6 words, single terminator",
+      "lang": "en_US",
+      "text": "The cat sat on the mat.",
+      "char_len": 23,
+      "results": {
+        "automated_readability_index": {
+          "value": -4.300000000000001,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 3.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 2.8333333333333335,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 6.0,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.16666666666666666,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 18,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": -4.299999999999997,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 15,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": -1.9236666666666657,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 0.2976,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 0.2976,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 140.72,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": -1.4499999999999993,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 116.14500000000001,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 109.0,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 2.4000000000000004,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 65.61666666666667,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 17,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 6.0,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 12.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 134.24849999999998,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 0.26442,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "The cat sat on the mat",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 3.1291,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 1.6849999999999998,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 138.53500000000003,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "1st and 2nd grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 6.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 23,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 100.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": -3.1418,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": -0.09940000000000015,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "long_multi_sentence_paragraph",
+      "note": "long paragraph, many sentences of varying length",
+      "lang": "en_US",
+      "text": "Readability is the ease with which a reader can understand a written text. In natural language, the readability of text depends on its content, specifically the complexity of its vocabulary and syntax. The formal definition of readability has been studied extensively, and a number of formulas have been proposed to quantify it. Because comprehension is a cognitive process, no single formula captures every aspect of it. Nevertheless, simple measures such as average sentence length and average syllable count correlate remarkably well with observed reading difficulty across many populations.",
+      "char_len": 594,
+      "results": {
+        "automated_readability_index": {
+          "value": 14.506022727272729,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 5.761363636363637,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 5.6477272727272725,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 17.6,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.056818181818181816,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.9886363636363635,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 507,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 15.275000000000002,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 45,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 495,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 5.172545454545455,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 10.969005454545455,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 10.430710000000001,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 31,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "readability",
+            "specifically",
+            "natural",
+            "syntax",
+            "extensively",
+            "definition",
+            "process",
+            "syllable",
+            "content",
+            "comprehension",
+            "vocabulary",
+            "formal",
+            "cognitive",
+            "aspect",
+            "studied",
+            "populations",
+            "depends",
+            "proposed",
+            "captures",
+            "quantify",
+            "correlate",
+            "remarkably",
+            "difficulty",
+            "Readability",
+            "measures",
+            "average",
+            "formulas",
+            "observed",
+            "formula",
+            "complexity",
+            "Nevertheless"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 69.56981818181819,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 14.73990909090909,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 20.732363636363658,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 48.43181818181817,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 17.040000000000003,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 34.25704545454546,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 497,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 88,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 58.50909090909091,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 36,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 23.4,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 42,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 34.54359090909088,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 24,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 7.44783,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "Readability is the ease with which a reader can understand a written text In natural language the readability of text depends on its content specifically the complexity of its vocabulary and syntax The formal definition of readability has been studied extensively and a number of formulas have been proposed to quantify it Because comprehension is a cognitive process no single formula captures every aspect of it Nevertheless simple measures such as average sentence length and average syllable count correlate remarkably well with observed reading difficulty across many populations",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 7.2,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 5,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 15.6451,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 6.5456,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 175,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 65.34295454545457,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "14th and 15th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 17.6,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 13.6,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 88,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 88,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 88,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 594,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 15.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 198.86363636363635,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 11.09022,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 10.465196363636364,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "abbreviations_and_initials",
+      "note": "abbreviations Dr. / Prof. / p.m. / U.S. / e.g. and initials",
+      "lang": "en_US",
+      "text": "Dr. Smith went to Washington. He met Prof. Jones at 5 p.m. on Tue. They discussed the U.S. economy, e.g. tariffs and trade. J. R. R. Tolkien wrote about a hobbit.",
+      "char_len": 162,
+      "results": {
+        "automated_readability_index": {
+          "value": 1.2088172043010736,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 4.258064516129032,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 3.7419354838709675,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 5.166666666666667,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.1935483870967742,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.3225806451612903,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 132,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 0.17419354838709644,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 114,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": -0.8940967741935486,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 12.551798924731184,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 6.948895698924732,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "pm",
+            "economy",
+            "discussed",
+            "tariffs",
+            "Washington",
+            "hobbit"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 122.2151612903226,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 2.0314516129032256,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 89.70051075268819,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 104.48387096774194,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 4.647311827956989,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 57.09489247311829,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 116,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 31,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 21.295698924731184,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 5,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 8.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 17,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 24,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 101.9429623655914,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 1.93908,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "Dr Smith went to Washington He met Prof Jones at 5 pm on Tue They discussed the US economy eg tariffs and trade J R R Tolkien wrote about a hobbit",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.8333333333333334,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 6.42735559955562,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 3.232016129032258,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 41,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 119.27155913978496,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "1st and 2nd grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 5.166666666666667,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 1.9166666666666665,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 31,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 31,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 31,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 162,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 3,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 132.25806451612902,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 0.7975763440860217,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 1.449589247311828,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "hyphenated_words",
+      "note": "many hyphenated compounds, default counting keeps them as single words",
+      "lang": "en_US",
+      "text": "The well-known state-of-the-art system is a self-contained, long-term solution. It is a twenty-five-year-old, user-friendly, cost-effective, high-performance product.",
+      "char_len": 166,
+      "results": {
+        "automated_readability_index": {
+          "value": 24.37882352941177,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 8.823529411764707,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 7.764705882352941,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 8.5,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.11764705882352941,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 2.235294117647059,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 150,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 25.75294117647059,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 11,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 142,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 5.134176470588235,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 14.275158823529411,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 14.275158823529411,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 11,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "costeffective",
+            "longterm",
+            "selfcontained",
+            "twentyfiveyearold",
+            "userfriendly",
+            "highperformance",
+            "product",
+            "wellknown",
+            "stateoftheart",
+            "system",
+            "solution"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 64.05235294117647,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 14.101470588235298,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 9.101617647058845,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 36.058823529411754,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 19.87058823529412,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 16.907352941176477,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 132,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 17,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 67.3235294117647,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 10,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 11.5,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": -25.46550000000002,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 7,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 2.2035,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "The wellknown stateoftheart system is a selfcontained longterm solution It is a twentyfiveyearold userfriendly costeffective highperformance product",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 5.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 13.81666964889586,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 7.602205882352941,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 38,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 59.07617647058825,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "13th and 14th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 8.5,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 6.75,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 17,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 17,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 166,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 7,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 14.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 223.52941176470588,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 14.989141176470588,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 11.863423529411765,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "numbers_and_symbols",
+      "note": "digits, decimals, percentages, currency, and a URL",
+      "lang": "en_US",
+      "text": "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See https://example.com/a-b?c=1 for details.",
+      "char_len": 175,
+      "results": {
+        "automated_readability_index": {
+          "value": 5.799047619047617,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 5.285714285714286,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 4.571428571428571,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 4.666666666666667,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.21428571428571427,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.3928571428571428,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 148,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 4.37142857142857,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 8,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 134,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": -0.9748571428571422,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 12.89082380952381,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 7.815466666666667,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 7,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "details",
+            "visits",
+            "apples",
+            "traffic",
+            "httpsexamplecomabc1",
+            "oranges",
+            "Prices"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 118.50857142857143,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 2.6657142857142873,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 84.26261904761905,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 100.42857142857142,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 4.723809523809524,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 49.223809523809535,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 128,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 28,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 18.952380952380953,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 4,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 6.666666666666667,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 12,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 21,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 73.42211904761903,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 2.17412,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "There were 42 apples 314 pies and 7 oranges in 2024 Prices rose 125 to 129999 while traffic fell to 8000 visits per day See httpsexamplecomabc1 for details",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.6666666666666666,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 6.42735559955562,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 3.647,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 39,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 115.39333333333335,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "5th and 6th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 4.666666666666667,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 1.6666666666666665,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 28,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 28,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 175,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 3,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 6.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 139.28571428571428,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 0.6877666666666671,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 1.5064666666666668,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "multiple_paragraphs_newlines",
+      "note": "embedded newlines and blank lines between paragraphs",
+      "lang": "en_US",
+      "text": "First paragraph line one.\nFirst paragraph line two is a little longer.\n\nSecond paragraph starts here. It also has two sentences!\n\n\nThird paragraph ends without a terminator",
+      "char_len": 172,
+      "results": {
+        "automated_readability_index": {
+          "value": 6.215555555555557,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 5.296296296296297,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 5.148148148148148,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 5.4,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.18518518518518517,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.6666666666666667,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 143,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 8.577777777777776,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 11,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 137,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 0.963370370370372,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 9.167673333333333,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 7.998043703703703,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 4,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "sentences",
+            "terminator",
+            "paragraph",
+            "longer"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 101.33200000000001,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 6.18266666666667,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 60.35400000000001,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 91.59259259259258,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 11.04888888888889,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 43.37296296296297,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 139,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 27,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 31.32592592592593,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 7,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 7.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 8,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 16,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 62.762296296296284,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 2.10067,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "First paragraph line one\nFirst paragraph line two is a little longer\n\nSecond paragraph starts here It also has two sentences\n\n\nThird paragraph ends without a terminator",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 1.4,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 5,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 9.3871,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 3.8300296296296295,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 45,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 97.60166666666667,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "8th and 9th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 5.4,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 2.9,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 27,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 27,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 27,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 172,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 3,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 9.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 166.66666666666669,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 5.752694814814814,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 5.8390177777777765,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "very_short_under_5_words",
+      "note": "pathological: fewer than 5 words",
+      "lang": "en_US",
+      "text": "Hi there!",
+      "char_len": 9,
+      "results": {
+        "automated_readability_index": {
+          "value": -1.5899999999999999,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 4.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 3.5,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 2.0,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.5,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 8,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": -10.299999999999999,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 5,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": -8.757,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 11.630700000000001,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 0.0992,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 144.8,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": -3.01,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 120.20500000000001,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 199.0,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 0.8,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 60.550000000000004,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 7,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 3.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 138.30849999999998,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 0.11752,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "Hi there",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 3.1291,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 1.121,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 142.53500000000003,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "0th and 1st grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 9,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 100.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": -3.8106,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": -1.1618,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "empty_string",
+      "note": "pathological: empty string",
+      "lang": "en_US",
+      "text": "",
+      "char_len": 0,
+      "results": {
+        "automated_readability_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 0.0,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": -2,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "0th and 1st grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "whitespace_only",
+      "note": "pathological: whitespace only",
+      "lang": "en_US",
+      "text": "   \n\t ",
+      "char_len": 6,
+      "results": {
+        "automated_readability_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 0.0,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": -2,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "   \n\t ",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 3.1291,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "0th and 1st grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "punctuation_only",
+      "note": "pathological: punctuation only, no letters",
+      "lang": "en_US",
+      "text": " .? ",
+      "char_len": 4,
+      "results": {
+        "automated_readability_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 2.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 0.0,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": -2,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": true,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 0.02938,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "  ",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 3.1291,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "0th and 1st grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": -1.0,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 4,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 1,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "spanish_text",
+      "note": "non-English (es) text, exercises the es easy-words vocabulary and es pyphen",
+      "lang": "es_ES",
+      "text": "La legibilidad es la facilidad con la que un lector puede comprender un texto escrito. Depende del vocabulario y de la sintaxis. Muchas fórmulas se han propuesto para medirla.",
+      "char_len": 175,
+      "results": {
+        "automated_readability_index": {
+          "value": 7.278160919540227,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 5.068965517241379,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 4.9655172413793105,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 9.666666666666666,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.10344827586206896,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 1.7586206896551724,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 147,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 9.937931034482759,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 12,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 142,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 3.089551724137931,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 19.905966666666664,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 11.194242528735632,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 13,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "texto",
+            "fórmulas",
+            "lector",
+            "facilidad",
+            "legibilidad",
+            "escrito",
+            "propuesto",
+            "sintaxis",
+            "se",
+            "para",
+            "vocabulario",
+            "comprender",
+            "Depende"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 91.46275862068966,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 8.931724137931035,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 48.244022988505776,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 69.34482758620689,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 10.7632183908046,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 43.651149425287365,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 144,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 44.14942528735632,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 10,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 14.333333333333334,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 14,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 16,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 62.569885057471254,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 5,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 2.15943,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "La legibilidad es la facilidad con la que un lector puede comprender un texto escrito Depende del vocabulario y de la sintaxis Muchas fórmulas se han propuesto para medirla",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 3.3333333333333335,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 3,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 10.504223727775692,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 6.0571724137931025,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 51,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 87.60626436781611,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "10th and 11th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 9.666666666666666,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 5.5,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 175,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 6,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 11.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 175.86206896551724,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 6.745749425287357,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 5.605501149425287,
+          "error": null,
+          "warnings": []
+        }
+      },
+      "results_es": {
+        "automated_readability_index": {
+          "value": 7.278160919540227,
+          "error": null,
+          "warnings": []
+        },
+        "avg_character_per_word": {
+          "value": 5.068965517241379,
+          "error": null,
+          "warnings": []
+        },
+        "avg_letter_per_word": {
+          "value": 4.9655172413793105,
+          "error": null,
+          "warnings": []
+        },
+        "avg_sentence_length": {
+          "value": 9.666666666666666,
+          "error": null,
+          "warnings": [
+            "DeprecationWarning: The 'avg_sentence_length' method has been deprecated due to being the same as 'words_per_sentence'. This method will be removed in thefuture."
+          ]
+        },
+        "avg_sentence_per_word": {
+          "value": 0.10344827586206896,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word": {
+          "value": 2.0344827586206895,
+          "error": null,
+          "warnings": []
+        },
+        "char_count": {
+          "value": 147,
+          "error": null,
+          "warnings": []
+        },
+        "coleman_liau_index": {
+          "value": 9.937931034482759,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_long_words": {
+          "value": 12,
+          "error": null,
+          "warnings": []
+        },
+        "count_arabic_syllables": {
+          "value": 142,
+          "error": null,
+          "warnings": []
+        },
+        "count_complex_arabic_words": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "count_faseeh": {
+          "value": 0,
+          "error": null,
+          "warnings": []
+        },
+        "crawford": {
+          "value": 4.441275862068966,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score": {
+          "value": 5.204932183908046,
+          "error": null,
+          "warnings": []
+        },
+        "dale_chall_readability_score_v2": {
+          "value": 5.204932183908046,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "difficult_words_list": {
+          "value": [
+            "legibilidad",
+            "medirla"
+          ],
+          "error": null,
+          "warnings": []
+        },
+        "fernandez_huerta": {
+          "value": 74.91103448275864,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_kincaid_grade": {
+          "value": 12.186896551724136,
+          "error": null,
+          "warnings": []
+        },
+        "flesch_reading_ease": {
+          "value": 74.91103448275865,
+          "error": null,
+          "warnings": []
+        },
+        "gulpease_index": {
+          "value": 69.34482758620689,
+          "error": null,
+          "warnings": []
+        },
+        "gunning_fog": {
+          "value": 6.625287356321839,
+          "error": null,
+          "warnings": []
+        },
+        "gutierrez_polini": {
+          "value": 43.651149425287365,
+          "error": null,
+          "warnings": []
+        },
+        "is_difficult_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "is_easy_word": {
+          "value": false,
+          "error": null,
+          "warnings": []
+        },
+        "letter_count": {
+          "value": 144,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lix": {
+          "value": 44.14942528735632,
+          "error": null,
+          "warnings": []
+        },
+        "long_word_count": {
+          "value": 10,
+          "error": null,
+          "warnings": []
+        },
+        "mcalpine_eflaw": {
+          "value": 14.333333333333334,
+          "error": null,
+          "warnings": []
+        },
+        "miniword_count": {
+          "value": 14,
+          "error": null,
+          "warnings": []
+        },
+        "monosyllabcount": {
+          "value": 14,
+          "error": null,
+          "warnings": []
+        },
+        "osman": {
+          "value": 62.569885057471254,
+          "error": null,
+          "warnings": []
+        },
+        "polysyllabcount": {
+          "value": 10,
+          "error": null,
+          "warnings": []
+        },
+        "reading_time": {
+          "value": 2.15943,
+          "error": null,
+          "warnings": []
+        },
+        "remove_punctuation": {
+          "value": "La legibilidad es la facilidad con la que un lector puede comprender un texto escrito Depende del vocabulario y de la sintaxis Muchas fórmulas se han propuesto para medirla",
+          "error": null,
+          "warnings": []
+        },
+        "rix": {
+          "value": 3.3333333333333335,
+          "error": null,
+          "warnings": []
+        },
+        "sentence_count": {
+          "value": 3,
+          "error": null,
+          "warnings": []
+        },
+        "smog_index": {
+          "value": 13.5591,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability": {
+          "value": 2.795103448275862,
+          "error": null,
+          "warnings": []
+        },
+        "syllable_count": {
+          "value": 59,
+          "error": null,
+          "warnings": []
+        },
+        "szigriszt_pazos": {
+          "value": 70.42505747126438,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard": {
+          "value": "6th and 7th grade",
+          "error": null,
+          "warnings": []
+        },
+        "words_per_sentence": {
+          "value": 9.666666666666666,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula": {
+          "value": 7.166666666666666,
+          "error": null,
+          "warnings": []
+        },
+        "linsear_write_formula[strict_lower=True,strict_upper=True]": {
+          "value": 0.0,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[removepunct=False]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_contractions=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "lexicon_count[split_hyphens=True]": {
+          "value": 29,
+          "error": null,
+          "warnings": []
+        },
+        "char_count[ignore_spaces=False]": {
+          "value": 175,
+          "error": null,
+          "warnings": []
+        },
+        "spache_readability[float_output=False]": {
+          "value": 2,
+          "error": null,
+          "warnings": []
+        },
+        "text_standard[float_output=True]": {
+          "value": 7.0,
+          "error": null,
+          "warnings": []
+        },
+        "avg_syllables_per_word[interval=100]": {
+          "value": 203.44827586206895,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=1]": {
+          "value": 10.307473563218393,
+          "error": null,
+          "warnings": []
+        },
+        "wiener_sachtextformel[variant=4]": {
+          "value": 10.336535632183908,
+          "error": null,
+          "warnings": []
+        }
+      }
+    }
+  ],
+  "lang_probes": {
+    "en": {
+      "syllable_count": {
+        "value": 22,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -109.45499999999998,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": []
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "en",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "en_US": {
+      "syllable_count": {
+        "value": 22,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -109.45499999999998,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": []
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "en",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "en_GB": {
+      "syllable_count": {
+        "value": 22,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -109.45499999999998,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": []
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "en",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "de_DE": {
+      "syllable_count": {
+        "value": 25,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -69.75000000000003,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for de, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "de",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "es_ES": {
+      "syllable_count": {
+        "value": 23,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -29.28,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 22.400000000000002,
+        "error": null,
+        "warnings": []
+      },
+      "difficult_words": {
+        "value": 3,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 20000,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "es",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "fr_FR": {
+      "syllable_count": {
+        "value": 23,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -81.22333333333333,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for fr, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "fr",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "it_IT": {
+      "syllable_count": {
+        "value": 22,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -10.800000000000011,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for it, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "it",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "nl_NL": {
+      "syllable_count": {
+        "value": 26,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -132.41166666666663,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for nl, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "nl",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "pl_PL": {
+      "syllable_count": {
+        "value": 22,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -109.45499999999998,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 29.06666666666667,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for pl, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "pl",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "ru_RU": {
+      "syllable_count": {
+        "value": 6,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": 138.935,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 2.4000000000000004,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for ru, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 0,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 0,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 6,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "ru",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "hu_HU": {
+      "syllable_count": {
+        "value": 23,
+        "error": null,
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": -23.504999999999995,
+        "error": null,
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": 22.400000000000002,
+        "error": null,
+        "warnings": [
+          "Warning: There is no easy words vocabulary for hu, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": 4,
+        "error": null,
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": 2,
+        "error": null,
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "hu",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "ar": {
+      "syllable_count": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": [
+          "Warning: There is no easy words vocabulary for ar, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "ar",
+        "error": null,
+        "warnings": []
+      }
+    },
+    "xx_YY": {
+      "syllable_count": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "flesch_reading_ease": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "gunning_fog": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": [
+          "Warning: There is no easy words vocabulary for xx, using english."
+        ]
+      },
+      "difficult_words": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "polysyllabcount": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "monosyllabcount": {
+        "value": null,
+        "error": "KeyError: None",
+        "warnings": []
+      },
+      "count_arabic_syllables": {
+        "value": 53,
+        "error": null,
+        "warnings": []
+      },
+      "osman": {
+        "value": -35.01850000000002,
+        "error": null,
+        "warnings": []
+      },
+      "easy_words_count": {
+        "value": 2941,
+        "error": null,
+        "warnings": []
+      },
+      "lang_root": {
+        "value": "xx",
+        "error": null,
+        "warnings": []
+      }
+    }
+  }
+}

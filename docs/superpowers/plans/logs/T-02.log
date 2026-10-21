@@ -1,0 +1,319 @@
+# T-02 编译探针 日志
+
+- 执行时间：2026-10-21
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash，代码页 65001
+- 探针目录（仓库外，一次性）：`F:/Temp/t02_probe_1228522639`
+- 仓库内唯一新增文件：本日志 `docs/superpowers/plans/logs/T-02.log`
+- 未执行：`moon upgrade`、`moon add`、任何修改 `C:\Users\Administrator\.moon` 的命令；未修改 `textstat/` 下任何文件
+
+## 结果表
+
+| 检查 | 命令 | 退出码 | 结果 |
+| --- | --- | --- | --- |
+| 1 模块创建 | `moon new --name moon_textstat p` | 0 | 生成 `vicoproplus/moon_textstat`；有 `README.md -> README.mbt.md` 符号链接告警（os error 1314），非致命 |
+| 2 多包布局 check | `moon check --target native` | 0 | `Finished. moon: ran 7 tasks, now up to date` |
+| 2 多包布局 info | `moon info` | 0 | `sub/pkg.generated.mbti` 首行 `package "vicoproplus/moon_textstat/sub"` |
+| 3 分块字面量 check | `moon check --target native -d --no-render` | 0 | 4,000 × 1,000 字符（4,024,088 字节源码），0.431s |
+| 3 分块字面量 build | `moon build --target native` | 0 | 0.999s |
+| 3 单行边界（`let` + 使用点，前缀 17） | `moon check --target native -d --no-render` | 65,515 → 0；65,516 → 255 | 边界：**65,515 通过 / 65,516 起 `E0033`**（第 65,535 列） |
+| 3 单行边界（`pub let`，前缀 21） | 同上 | 65,511 → 0；65,512 → 255 | 边界：**65,511 通过 / 65,512 起 `E0033`**（第 65,535 列） |
+| 4 `files` 键 | `moon check --target native`（`moon.mod` 追加 `files = ["moon.pkg"]`） | 255 | `Unexpected key 'files' found in moon.mod.` |
+| 5 工具链版本 | `moon version; moonc -v` | 0 / 0 | `moon 0.1.20261012 (748b63c 2026-10-12)`；`v0.10.15+943464bfa (2026-10-12)` |
+| B0 前置：native 测试通过 | `moon test --target native`（1 条真实测试） | 0 | `Total tests: 1, passed: 1, failed: 0.` |
+| B0 前置：native 测试失败 | `moon test --target native`（1 通过 + 1 故意失败） | 2 | `Total tests: 2, passed: 1, failed: 1.` |
+
+## 原始输出
+
+### 1. 模块创建
+
+```console
+$ PROBE="F:/Temp/t02_probe_1228522639"; mkdir -p "$PROBE"; cd "$PROBE"; pwd; moon new --name moon_textstat p; echo "EXIT_CODE=$?"
+F:\Temp\t02_probe_1228522639
+Warning: failed to create file symlink: p\README.md -> README.mbt.md. You may need to enable developer mode or have administrator privileges. 客户端没有所需的特权。 (os error 1314)
+Initialized empty Git repository in F:/Temp/t02_probe_1228522639/p/.git/
+Created vicoproplus/moon_textstat at p
+EXIT_CODE=0
+```
+
+生成的 `moon.mod`（原文）：
+
+```toml
+// Learn more about moon.mod configuration:
+// https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html
+//
+// To add a dependency, run this command in your terminal:
+//   moon add moonbitlang/x
+//
+// Or manually declare it in `import`, for example:
+// import {
+//   "moonbitlang/x@0.4.6",
+// }
+
+name = "vicoproplus/moon_textstat"
+
+version = "0.1.0"
+
+readme = "README.mbt.md"
+
+repository = ""
+
+license = "Apache-2.0"
+
+keywords = []
+
+preferred_target = "wasm"
+
+description = ""
+```
+
+生成的文件列表（`find . -path ./.git -prune -o -type f -print | sort`）：
+
+```console
+./AGENTS.md
+./cmd/main/main.mbt
+./cmd/main/moon.pkg
+./.githooks/pre-commit
+./.githooks/README.md
+./.github/workflows/copilot-setup-steps.yml
+./.gitignore
+./LICENSE
+./moon.mod
+./moon.pkg
+./moon_textstat.mbt
+./moon_textstat_test.mbt
+./moon_textstat_wbtest.mbt
+./README.mbt.md
+```
+
+`moon.pkg`（根）为 0 字节；`cmd/main/moon.pkg` 为 `pkgtype(kind: "executable")`。
+
+### 2. 多包布局
+
+```console
+$ mkdir -p sub && : > sub/moon.pkg && printf 'pub fn hello() -> Int { 1 }\n' > sub/a.mbt && wc -c sub/moon.pkg
+0 sub/moon.pkg
+
+$ moon check --target native; echo "EXIT_CODE=$?"
+Finished. moon: ran 7 tasks, now up to date
+EXIT_CODE=0
+
+$ moon info; echo "INFO_EXIT=$?"
+Finished. moon: ran 6 tasks, now up to date
+INFO_EXIT=0
+
+$ find . -name '*.mbti' -not -path './_build/*' | sort
+./cmd/main/pkg.generated.mbti
+./pkg.generated.mbti
+./sub/pkg.generated.mbti
+
+$ cat sub/pkg.generated.mbti
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/sub"
+
+// Values
+pub fn hello() -> Int
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+```
+
+### 3a. 分块字面量容量（4,000 × 1,000 字符）
+
+生成器（`chunks.mbt`，`pub let chunks : Array[String]`，4,000 条 1,000 字符字面量）：
+
+```console
+bytes: 4024088
+lines: 4007
+$ wc -c chunks.mbt; awk '{ if (length($0) > m) m = length($0) } END { print "max_line_len="m }' chunks.mbt
+4024088 chunks.mbt
+max_line_len=1005
+```
+
+```console
+$ time moon check --target native -d --no-render; echo "CHECK_EXIT=$?"
+Finished. moon: ran 7 tasks, now up to date
+
+real	0m0.431s
+user	0m0.000s
+sys	0m0.000s
+CHECK_EXIT=0
+
+$ time moon build --target native; echo "BUILD_EXIT=$?"
+utf.c
+runtime.c
+sync_io.c
+env.c
+backtrace.c
+  正在创建库 F:\Temp\t02_probe_1228522639\p\_build\native\debug\build\cmd\main\main.lib 和对象 F:\Temp\t02_probe_1228522639\p\_build\native\debug\build\cmd\main\main.exp
+Finished. moon: ran 9 tasks, now up to date
+
+real	0m0.999s
+user	0m0.000s
+sys	0m0.000s
+BUILD_EXIT=0
+```
+
+### 3b. 单行边界（逐长度二分，`-d --no-render`）
+
+形态 A（`let` + 使用点，声明前缀 `let a : String = "` 共 17 字符）：
+
+```moonbit
+let a : String = "<L 个小写字母>"
+
+pub fn a_len() -> Int {
+  a.length()
+}
+```
+
+```console
+$ # 二分 + 关键点复核（每次单独一次 moon check，跑前清 _build）
+--- form=let+usesite, literal len 65515 ---
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+--- form=let+usesite, literal len 65516 ---
+F:\Temp\t02_probe_1228522639\p\boundary.mbt:1:65535-1:65536 [E0033] Error Warning (text_segment_excceed): Text segment is about to exceed the column limit. Consider add line breaks to reduce the length of this line.
+F:\Temp\t02_probe_1228522639\p\boundary.mbt:1:65535-1:65536 [E0033] Error Warning (text_segment_excceed): Text segment is about to exceed the column limit. Consider add line breaks to reduce the length of this line.
+Failed with 0 warnings, 0 errors.
+Error: failed to run check for target Native
+
+Caused by:
+    failed when checking project
+EXIT=255
+```
+
+二分过程（形态 A，区间 60,000–70,000，`E0033` 首次出现处）：
+
+```console
+L=65000 exit=0 clean
+L=65313 exit=0 clean
+L=65469 exit=0 clean
+L=65508 exit=0 clean
+L=65513 exit=0 clean
+L=65515 exit=0 clean
+L=65516 exit=255 E0033
+L=65518 exit=255 E0033
+...
+```
+
+形态 B（`pub let`，声明前缀 `pub let b : String = "` 共 21 字符）：
+
+```moonbit
+pub let b : String = "<L 个小写字母>"
+```
+
+```console
+--- form=publet, literal len 65511 ---
+Finished. moon: ran 7 tasks, now up to date
+EXIT=0
+--- form=publet, literal len 65512 ---
+F:\Temp\t02_probe_1228522639\p\boundary.mbt:1:65535-1:65536 [E0033] Error Warning (text_segment_excceed): Text segment is about to exceed the column limit. Consider add line breaks to reduce the length of this line.
+F:\Temp\t02_probe_1228522639\p\boundary.mbt:1:65535-1:65536 [E0033] Error Warning (text_segment_excceed): Text segment is about to exceed the column limit. Consider add line breaks to reduce the length of this line.
+Failed with 0 warnings, 0 errors.
+Error: failed to run check for target Native
+
+Caused by:
+    failed when checking project
+EXIT=255
+```
+
+二分过程（形态 B）：
+
+```console
+L=65000 exit=0 clean
+L=65313 exit=0 clean
+L=65469 exit=0 clean
+L=65508 exit=0 clean
+L=65511 exit=0 clean
+L=65512 exit=255 E0033
+...
+```
+
+> 注：`E0033` 行在输出中出现两次，是 `moon` 对同一诊断的重复渲染（`-error-format json` 的 render 回显），不是两个不同位置；两条位置完全相同（`1:65535-1:65536`）。
+>
+> 注：探针形态必须给绑定使用点；无使用点的裸 `let` 在 `-d` 下先报 `E0002`（unused_value），边界不可复现（与 design DR-R4 一致）。
+
+### 4. `moon.mod` 拒绝 `files`
+
+```console
+$ cp moon.mod moon.mod.bak && printf '\nfiles = ["moon.pkg"]\n' >> moon.mod && tail -3 moon.mod
+description = ""
+
+files = ["moon.pkg"]
+
+$ moon check --target native; echo "EXIT_CODE=$?"
+Error: Failed to calculate build plan
+
+Caused by:
+    0: Failed to resolve the module dependency graph
+    1: Unexpected key 'files' found in moon.mod.
+EXIT_CODE=255
+```
+
+（随后 `cp moon.mod.bak moon.mod` 还原。）
+
+### 5. 工具链版本
+
+```console
+$ moon version; echo "VERSION_EXIT=$?"
+moon 0.1.20261012 (748b63c 2026-10-12)
+
+Feature flags enabled: rr_moon_mod,rr_moon_pkg
+VERSION_EXIT=0
+
+$ moonc -v; echo "MOONC_EXIT=$?"
+v0.10.15+943464bfa (2026-10-12)
+MOONC_EXIT=0
+```
+
+### 附：`moon test --target native`（B0 前置）
+
+```console
+$ # 一条真实通过的测试
+$ printf '///|\ntest "real pass" {\n  assert_eq(1, 1)\n}\n' > moon_textstat_test.mbt
+$ moon test --target native; echo "TEST_PASS_EXIT=$?"
+  正在创建库 F:\Temp\t02_probe_1228522639\p\_build\native\debug\test\moon_textstat.internal_test.lib 和对象 ...\moon_textstat.internal_test.exp
+  ...（各测试库创建日志略）
+Total tests: 1, passed: 1, failed: 0.
+TEST_PASS_EXIT=0
+```
+
+```console
+$ # 追加一条故意失败
+$ moon test --target native; echo "TEST_FAIL_EXIT=$?"
+  正在创建库 ...\moon_textstat.blackbox_test.lib 和对象 ...\moon_textstat.blackbox_test.exp
+[vicoproplus/moon_textstat] test moon_textstat_test.mbt:7 ("deliberate failure") failed: moon_textstat_test.mbt:8:3-8:18@vicoproplus/moon_textstat FAILED: `1 != 2`
+diff:
+-1 +2
+Total tests: 2, passed: 1, failed: 1.
+TEST_FAIL_EXIT=2
+```
+
+### 清理
+
+```console
+$ rm -rf /f/Temp/t02_probe_1228522639; echo "RM_EXIT=$?"
+RM_EXIT=0
+$ ls -d /f/Temp/t02_probe_1228522639
+ls: cannot access '/f/Temp/t02_probe_1228522639': No such file or directory
+LS_EXIT=2
+```
+
+## 判定
+
+| 检查 | 判定 | 依据 |
+| --- | --- | --- |
+| 1 模块创建 | **PASS** | EXIT=0；模块名 `vicoproplus/moon_textstat`；`README.md` 符号链接告警（os error 1314）为非致命已知项 |
+| 2 多包布局 | **PASS** | `moon check --target native` EXIT=0；`moon info` EXIT=0；`sub/pkg.generated.mbti` 声明 `package "vicoproplus/moon_textstat/sub"` |
+| 3 分块字面量容量 | **PASS** | 4,000 × 1,000 字符（4,024,088 字节）`check -d` EXIT=0（0.431s）、`build` EXIT=0（0.999s）；单行边界 `let`+使用点 65,515/65,516，`pub let` 65,511/65,512，均在第 65,535 列触发 `E0033` |
+| 4 `files` 键 | **PASS** | EXIT=255，报错串逐字匹配 `Unexpected key 'files' found in moon.mod.` |
+| 5 工具链版本 | **PASS** | `moon 0.1.20261012 (748b63c 2026-10-12)`、`moonc v0.10.15+943464bfa (2026-10-12)`，与 spec E-1 一致 |
+| 附：native 测试 | **PASS** | 通过 EXIT=0；断言失败 EXIT=2 |
+
+**B0 可以继续。** 五项探针全部 PASS，且 `moon test --target native` 在生成工程内可运行、失败可反映为退出码 2（满足 AD-3 门禁的退出码语义前提）。未触发决策门（补环境 / 换布局 / ASK-USER）。
+
+约束提示（供 B0 及生成器执行）：单行长度按**列**计，阈值固定为第 65,535 列；生成代码必须保证每行 < 65,535 列（按 ≤ 1,000 字符/行分块有 65× 余量），且门禁/生成校验若使用 `-d`，任何超限行都会成为硬失败。

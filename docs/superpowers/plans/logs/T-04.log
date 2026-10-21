@@ -1,0 +1,119 @@
+# T-04 日志 — L1 采集与身份固化
+
+- 任务：《moon_textstat 移植 — 核心库 Implementation Plan》`### T-04 L1 采集与身份固化`
+- 契约：AD-1；《数据与门禁约定》§1.2 身份表；spec §4.7 A-1.1/A-1.2/A-1.3
+- 落点：`vendor/upstream/`（模块目录之外，design §12.3 "AD-1 的 L1" 行）
+- 执行时间：2026-10-21
+- 运行环境：Python 3.12.10；Pyphen 0.17.2（`D:\Programs\Python\Python312\Lib\site-packages\pyphen`）；nltk 3.10.3（`C:\Users\Administrator\AppData\Roaming\nltk_data\corpora\cmudict`）
+
+## 1. 命令
+
+```console
+$ python -c "import sys,pyphen,nltk;print(sys.version);print(pyphen.__file__);print(nltk.data.find('corpora/cmudict'))"
+3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]
+D:\Programs\Python\Python312\Lib\site-packages\pyphen\__init__.py
+C:\Users\Administrator\AppData\Roaming\nltk_data\corpora\cmudict
+
+$ ls "C:/Users/Administrator/AppData/Roaming/nltk_data/corpora/cmudict/"
+README
+cmudict
+
+$ python - <<'PY'   # 采集：shutil.copyfile（二进制逐字节拷贝，不做行尾/编码转换）
+import os, shutil, pyphen
+D = os.path.join(os.path.dirname(pyphen.__file__), 'dictionaries')
+dest = 'vendor/upstream/pyphen'
+os.makedirs(dest, exist_ok=True)
+names = ['hyph_en_US.dic','hyph_en_GB.dic','hyph_de_DE.dic','hyph_es.dic','hyph_fr.dic',
+         'hyph_it_IT.dic','hyph_nl_NL.dic','hyph_pl_PL.dic','hyph_ru_RU.dic','hyph_hu_HU.dic']
+for n in names:
+    shutil.copyfile(os.path.join(D, n), os.path.join(dest, n))
+
+cm = r'C:\Users\Administrator\AppData\Roaming\nltk_data\corpora\cmudict'
+cdst = 'vendor/upstream/cmudict'
+os.makedirs(cdst, exist_ok=True)
+for f in os.listdir(cm):
+    if f in ('cmudict','README','LICENSE','LICENSE.txt','cmudict.dict'):
+        shutil.copyfile(os.path.join(cm,f), os.path.join(cdst,f))
+
+for lang in ('en','es'):
+    src = f'textstat/textstat/resources/{lang}/easy_words.txt'
+    dst = f'vendor/upstream/easy_words/{lang}/easy_words.txt'
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copyfile(src, dst)
+PY
+
+$ python tools/verify_l1.py ; echo EXIT=$?
+```
+
+> `shutil.copyfile` 只搬运字节，不做换行归一化/重编码；两份易读词表因此保持 CRLF 原字节（`\r` 计数见 §4 的 `CR:` 行仅覆盖非词表固定字节，词表的 CRLF 是身份的一部分）。
+
+## 2. 采集清单（路径 / 字节数 / SHA-256 原字节）
+
+| # | 路径 | 字节数 | SHA-256（原字节） |
+| --- | --- | --- | --- |
+| 1 | `vendor/upstream/pyphen/hyph_en_US.dic` | 106,414 | `486fb6840b1049d5d252ef784be11cd4dc2be0bf296568b74b41e4f4e17cba7d` |
+| 2 | `vendor/upstream/pyphen/hyph_en_GB.dic` | 107,031 | `9fdc97f7faabcda30c15a9d53bc7fbf21daec795fb3c9a9588f7bdb30c563f41` |
+| 3 | `vendor/upstream/pyphen/hyph_de_DE.dic` | 1,093,611 | `2e2f5ffea6bc53f67ffe8c076921c7b1b34a2ec2b9ec57a4608374bb65a1a1e1` |
+| 4 | `vendor/upstream/pyphen/hyph_es.dic` | 5,699 | `b2e170c3c25f5de25447ca0acf6bc8baf9dd761e228e9646e2c25f2e7c47f4f6` |
+| 5 | `vendor/upstream/pyphen/hyph_fr.dic` | 23,631 | `476ca60b958400c8b3fbe55764b4900df87acf60394ef62362705d9c701db191` |
+| 6 | `vendor/upstream/pyphen/hyph_it_IT.dic` | 2,308 | `8c25b6fb62c2fb97586c6f7c6fb48f29f49e90a5c33c09ac9112dba6942b50cd` |
+| 7 | `vendor/upstream/pyphen/hyph_nl_NL.dic` | 116,507 | `0a97b76b259ed4165d094dedf9b6fb98c57734a437df0b5b263ee13e262d5f8f` |
+| 8 | `vendor/upstream/pyphen/hyph_pl_PL.dic` | 37,931 | `9fe3917ec1fb09b7ffa560e85fb810e098d45a9a45ad6d5c08311544dd92a100` |
+| 9 | `vendor/upstream/pyphen/hyph_ru_RU.dic` | 35,415 | `e9a6ae92765fc7e63d879f2ccf3f50f2b95bc8ed7618a6f31c34ce7d39844c83` |
+| 10 | `vendor/upstream/pyphen/hyph_hu_HU.dic` | 937,807 | `354939e518b838dbfe01ab617c25c94586b1accc2d5bdcf57ba07406e8d1fee9` |
+| 11 | `vendor/upstream/cmudict/cmudict` | 3,820,830 | `cad209c39eb87677d64e93d97f8eed10b7e6f9bdd42de8e7ca8efc8e17d62e8a` |
+| 12 | `vendor/upstream/cmudict/README` | 3,808 | `b0556be7a2b12bea6a667277b75864f802dd4854480657ce298c62e6897e766b` |
+| 13 | `vendor/upstream/easy_words/en/easy_words.txt` | 21,577 | `2b28f55183638dd3804737f55e18f0fd2d8775772c344063a698df5e225deb26` |
+| 14 | `vendor/upstream/easy_words/es/easy_words.txt` | 208,126 | `1324cf749816d639916fa1b958fb70bbeca7c98482ed060c4cef06360ced82a9` |
+
+- 合计 14 个文件、**6,520,695 字节**。
+- CMUdict 目录实测仅含 `cmudict` 与 `README`；**不存在** `cmudict.dict`、`LICENSE`、`LICENSE.txt`。`README` 已随采集作为出处记录一并复制。
+- 第 13/14 行是工作区 CRLF 原字节形态；其 LF 归一化形态见 §4 的 `WORDLIST_CHECKED=4`（`en` LF 18,637 / `9c75ec6f…856360`；`es` LF 188,126 / `5db3b3c7…7625d`），与 AD §1.2 的 git blob 值一致。
+- 未修改 `textstat/` 下任何文件；未创建 `moon.mod` / `moon.pkg` / `*.mbt`。
+
+## 3. 字典首行编码声明
+
+| 字典 | 首行原字节 | 编码 | 是否合法 UTF-8 |
+| --- | --- | --- | --- |
+| `hyph_en_US.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_en_GB.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_de_DE.dic` | `b'ISO8859-1'` | ISO8859-1 | 否（高字节非合法 UTF-8） |
+| `hyph_es.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_fr.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_it_IT.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_nl_NL.dic` | `b'ISO8859-1'` | ISO8859-1 | 否（高字节非合法 UTF-8） |
+| `hyph_pl_PL.dic` | `b'ISO8859-2'` | ISO8859-2 | 否（高字节非合法 UTF-8） |
+| `hyph_ru_RU.dic` | `b'UTF-8'` | UTF-8 | 是 |
+| `hyph_hu_HU.dic` | `b'UTF-8'` | UTF-8 | 是 |
+
+结论与 AD §1.3 一致：de / nl = ISO8859-1，pl = ISO8859-2，其余 UTF-8。T-06 生成器必须按首行声明解码后再转写 UTF-8。
+
+## 4. 校验脚本与输出
+
+脚本：`tools/verify_l1.py`（模块外，design §12.3）。它**解析 AD §1.2 的 markdown 表格**取得固定身份（不硬编码第二份哈希），再对 `vendor/upstream/` 下对应文件比较字节数 + SHA-256 原字节；对两条词表额外比较 `raw.replace(b'\r\n', b'\n')` 的 LF 形态；并断言非词表固定字节中 `\r` 出现次数为 0。
+
+```console
+$ python tools/verify_l1.py
+DIC_CHECKED=10 DIC_MISMATCH=0 []
+WORDLIST_CHECKED=4 WORDLIST_MISMATCH=0 []
+CMUDICT_CHECKED=1 CMUDICT_MISMATCH=0 []
+CR: []
+$ echo EXIT=$?
+EXIT=0
+```
+
+- A-1.1（10 本字典身份）：`DIC_CHECKED=10 DIC_MISMATCH=0 []`，EXIT=0 ✅
+- A-1.3（四词表身份）：`WORDLIST_CHECKED=4 WORDLIST_MISMATCH=0 []`，EXIT=0 ✅
+- A-1.2（固定字节无 CR）：`CR: []`，EXIT=0 ✅
+- CMUdict 语料：`CMUDICT_CHECKED=1 CMUDICT_MISMATCH=0 []` ✅
+
+## 判定
+
+**PASS**
+
+- 14 个 L1 文件全部按原字节落地，字节数与 SHA-256 与 AD §1.2 逐行一致，零 mismatch、零缺失。
+- 四词表身份（en/es × CRLF/LF）全部匹配；词表 CRLF 原字节未被归一化。
+- 非词表固定字节无 `\r`。
+- 未触碰 `textstat/`，未创建任何 MoonBit 构建文件。
+
+遗留事实（非缺陷）：CMUdict 目录无 `LICENSE` 文件；许可口径仍由 P-LICENSE（T-45）承接，本任务不改变该未决状态。
