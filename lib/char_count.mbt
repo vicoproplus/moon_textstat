@@ -2,6 +2,9 @@
 /// Python's `re` module defines `\s` as Unicode `White_Space` plus the four C0
 /// information separators U+001C..U+001F, which `Char::is_whitespace` excludes,
 /// so add that range explicitly to match `re.sub(r"\s", "", text)`.
+///
+/// Package-internal and shared: `letter_count` uses the same predicate because
+/// `_count_letters.py` strips Python whitespace before removing punctuation.
 fn is_python_space(ch : Char) -> Bool {
   ch.is_whitespace() || ('\u{1C}' <= ch && ch <= '\u{1F}')
 }

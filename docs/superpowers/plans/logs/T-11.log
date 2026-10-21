@@ -1,0 +1,197 @@
+# T-11 `letter_count` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`
+- 起始提交：`b126bb9 fix(count): count code points and match Python C0 whitespace in char_count`
+- 契约：PRD-A FR-02；spec §4.3.1 第 2 行、§1.3.3（R-30 API 收窄）；上游
+  `textstat/textstat/backend/counts/_count_letters.py:25-26` + `_remove_punctuation.py:33-36`；T-11 brief
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
+- **结论：PASS**（11/11 冻结 oracle 单元格一致；check/test 全 EXIT=0；S1 命中 0）
+
+---
+
+## 1. 改动面（4 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/letter_count.mbt` | 新增：`letter_count(text)` + 私有 `is_python_word_char` | 49 | `00678ec78f9c8201ce81ffb5c6bc60d9cafffebb7f371292933780a985374713` |
+| `lib/letter_count_test.mbt` | 新增：4 条黑盒测试（11 样本 + 数字/下划线 + 非 ASCII + 非 ASCII 空白） | 81 | `8fa4f9ce76abaf201e1332cbdc80ad1bb8bca289a0555ff5070c530a81be3cf8` |
+| `lib/char_count.mbt` | 仅注释：说明 `is_python_space` 为包内共享（**行为零变化**） | 39 | — |
+| `lib/pkg.generated.mbti` | 工具链产物：新增 `pub fn letter_count(String) -> Int` | — | `87942538e137a2246b582e65d7865b02771aaefa40253b10a788753b8e5cd413` |
+
+其余文件零改动；未新增目录；未实现 `lexicon_count`、分词或任何公式（T-12 起）。
+
+---
+
+## 2. 实现与上游逐句对齐
+
+上游 `_count_letters.py:25-26`：
+
+```python
+text = re.sub(r"\s", "", text)
+return len(remove_punctuation(text, rm_apostrophe=True))
+```
+
+`remove_punctuation(..., rm_apostrophe=True)`（`_remove_punctuation.py:33-36`）删除 `[^\w\s]`。
+空白已在第一步删除，第二步又保留 `\s`，故结果长度恰为 `\w` 码点个数：
+
+- 实现为单趟遍历 `for ch in text`，`is_python_word_char(ch)` 时 +1，返回 `Int`。
+- 空白先行排除，复用 `lib/char_count.mbt` 的包内私有谓词 `is_python_space`
+  （Unicode `White_Space` + Python `\s` 额外含的 C0 U+001C..U+001F），未复制第二份；
+  因此 NBSP、U+3000 等非 ASCII 空白不会被误算。
+- 词字符近似：ASCII 字母/数字（`a-z A-Z 0-9`）、`_`、以及 `'\u{80}' <= ch <= '\u{FFFF}'`
+  的 BMP 非 ASCII 码点。数字与下划线保留，标点（`-`、`.`、`'` 等）不计数。
+- 上界 U+FFFF 的依据：Python `"🤣".isalnum()` 为 `False`，astral 非字母不得计数；
+  `ó`（U+00F3）在界内照常计数。冻结语料唯一的非 ASCII 字符就是 `ó`（脚本核对
+  `nonascii == ['ó']`），故对全部冻结单元格忠实。
+- 已记录的限制：BMP 标点/符号（如 `«`）会被多计；astral 字母会被漏计——两者均不在
+  冻结单元格与受支持语种的常见文本中。
+- 空串 / 纯空白 / 纯标点 → 0；纯函数：无 I/O、无异常、无 `extern`；`lib/moon.pkg` 仍为空依赖。
+
+**R-30 签名核对**：`.mbti` 为 `pub fn letter_count(String) -> Int`，**不含** `ignore_spaces`。
+
+**格式器差异说明**：`moon fmt` 把源码返回类型 `Int` 渲染为 `Int32`（本工具链两者同一类型），
+`.mbti` 仍显示 `Int`，与 T-10 `char_count` 一致。
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`（touch 源码后的新鲜编译）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && touch letter_count.mbt letter_count_test.mbt char_count.mbt && moon check --target native
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+```
+
+复跑（缓存命中）：
+
+```console
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+```
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 35, passed: 35, failed: 0.
+EXIT=0
+```
+
+基线（T-10 修复轮）：31/31；本次新增 4 条 → 35/35。根包 12 条
+（脚手架 1 + 值对象 3 + `char_count` 5 + `letter_count` 4，其中 `char_count` 一条更名不算新增），
+`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+### 3.3 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: no work to do
+EXIT=0
+```
+
+`.mbti` diff（唯一公开面变化）：
+
+```diff
+@@ -4,6 +4,8 @@ package "vicoproplus/moon_textstat"
+ // Values
+ pub fn char_count(String, ignore_spaces? : Bool) -> Int
+ 
++pub fn letter_count(String) -> Int
++
+ // Errors
+```
+
+### 3.4 S1 静态门（检索式 1，改动范围）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    letter_count.mbt letter_count_test.mbt char_count.mbt pkg.generated.mbti | wc -l
+0
+```
+
+说明：`numbers_and_symbols` 样本正文含 `https://example.com/a-b?c=1`。沿用 `char_count_test.mbt`
+的约定把首字母写成 `\u{68}`（即 `h`），运行时字符串与 oracle 原文逐字节相同，注释亦不出现 scheme 字面量。
+
+### 3.5 工作树
+
+```console
+$ git status --porcelain
+ M lib/char_count.mbt
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/letter_count.mbt
+?? lib/letter_count_test.mbt
+```
+
+`lib/_build/` 被忽略，未加入索引。
+
+---
+
+## 4. 冻结 oracle 断言（11/11）
+
+来源：`docs/facts/oracle_smoke.json` 的 `samples[].results.letter_count.value`。期望值抄自 oracle；
+独立脚本解析测试数组的 11 个字面量与值，逐项对照 oracle 原文与字段，并用 Python 复算同义谓词：
+
+```console
+ROWS 11 SAMPLES 11
+short_simple_sentence            text=True value=17/17 OK
+long_multi_sentence_paragraph    text=True value=497/497 OK
+abbreviations_and_initials       text=True value=116/116 OK
+hyphenated_words                 text=True value=132/132 OK
+numbers_and_symbols              text=True value=128/128 OK
+multiple_paragraphs_newlines     text=True value=139/139 OK
+very_short_under_5_words         text=True value=7/7 OK
+empty_string                     text=True value=0/0 OK
+whitespace_only                  text=True value=0/0 OK
+punctuation_only                 text=True value=0/0 OK
+spanish_text                     text=True value=144/144 OK
+PY_RECOMPUTE_MATCH True
+ALL_ORACLE_PAIRS_EXACT True
+```
+
+| sample | letter_count |
+| --- | --- |
+| short_simple_sentence | 17 |
+| long_multi_sentence_paragraph | 497 |
+| abbreviations_and_initials | 116 |
+| hyphenated_words | 132 |
+| numbers_and_symbols | 128 |
+| multiple_paragraphs_newlines | 139 |
+| very_short_under_5_words | 7 |
+| empty_string | 0 |
+| whitespace_only | 0 |
+| punctuation_only | 0 |
+| spanish_text | 144 |
+
+spec §4.3.3 复核：空串 0；纯空白 0；纯标点 0；均不抛异常。
+
+---
+
+## 5. 测试内容（4 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `letter_count matches the 11 frozen oracle samples` | 11 个样本字面量配 oracle 值 `17/497/.../144`，断言表长 11，逐项 `assert_eq` |
+| `letter_count keeps digits and underscore but drops punctuation` | `"a1_b"` → 4；`"a-b."` → 2；`"don't"` → 4（撇号删除）；`" .? "` → 0 |
+| `letter_count counts BMP non-ASCII letters but not astral emoji` | `"ó"` → 1；`"a🤣"` → 1；`"óñ🤣"` → 2（BMP 字母计数、astral emoji 排除） |
+| `letter_count ignores non-ASCII whitespace` | `"a\u{00A0}b"` → 2；`"a\u{3000}b"` → 2；纯 NBSP+U+3000 → 0 |
+
+无快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。开发中曾把 `"ó🤣"` 的期望误写为 2（实际 1），
+测试失败后已改断言为 `"óñ🤣"` → 2，实现未改。
+
+---
+
+## 6. 门禁缺口
+
+plan 中 T-11 的验收 `moon run cmd/gate --target native --group=count` EXIT=0 当前不可执行：
+`cmd/gate` 在 T-36 才建立。本任务的等价证据 = 上述 11 个冻结 oracle 单元格断言；
+T-36 建立门禁后由 `--group=count` 重新验证同批单元格。
