@@ -1,0 +1,182 @@
+# T-10 `char_count` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`
+- 起始提交：`209cd7c feat(types): add the 19-field TextStats value object and analyze defaults`
+- 契约：PRD-A FR-01；spec §4.3.1 第 1 行、§4.3.3；上游 `textstat/textstat/backend/counts/_count_chars.py:25-27`；T-10 brief
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
+- **结论：PASS**（22/22 冻结 oracle 断言一致：11 样本 × 2 形态；check/test 全 EXIT=0；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/char_count.mbt` | 新增：`char_count(text, ignore_spaces? = true)` | 26 | `55efbadf2988666a280ec44fa3719f61f87771c17f46d681ad1123c9ffbd3e8b` |
+| `lib/char_count_test.mbt` | 新增：4 条黑盒测试（11 样本 × 2 形态 + 码点 + Unicode 空白） | 123 | `d7d29f75152b9a4de02dd971e71ca6984f640df40ea3a5e5f820f4add14eb042` |
+| `lib/pkg.generated.mbti` | 工具链产物：新增 `pub fn char_count(String, ignore_spaces? : Bool) -> Int` | — | `e491fe128c0c7ce3c669d4429741f58e56c72a79d096a7f80a3802dd5772e91c` |
+
+其余文件零改动；未新增目录；未实现 `letter_count`、`analyze` 或任何公式（T-11..T-34 的范围）。
+
+---
+
+## 2. 实现与上游逐句对齐
+
+上游（`_count_chars.py:25-27`）：
+
+```python
+if ignore_spaces:
+    text = re.sub(r"\s", "", text)
+return len(text)
+```
+
+移植（`lib/char_count.mbt`）：
+
+- `ignore_spaces=true`：遍历 `for ch in text`，跳过 `ch.is_whitespace()` 为真的码点，计数其余码点。
+  `Char::is_whitespace` 即 Unicode `White_Space` 属性（含 `\n`、`\t`、NBSP、NEL、U+3000 等），
+  与 Python `\s` 的删除集合一致。
+- `ignore_spaces=false`：`text.length()`，即全部码点数，对应上游未改写的 `len(text)`。
+- `String::length()` 计数 Unicode 码点（非字节、非 UTF-16 单元），与 Python `len(str)` 同义；
+  测试 `"aó b"` → 3 / 4、西语样本 175 码点 / 176 UTF-8 字节，双向钉住。
+- 空串 → 0；纯空白 → 0（`ignore_spaces=true`）/ 6（`false`），与 spec §4.3.3 一致。
+- 纯函数：无 I/O、无异常、无 `extern`；`lib/moon.pkg` 仍为空依赖。
+
+**格式器差异说明**：`moon fmt` 把可选标签参数 `ignore_spaces?` 改写为 `ignore_spaces~ : Bool = true`
+（同一可选参数语法，`moon info` 生成的 `.mbti` 仍显示 `ignore_spaces? : Bool`）；返回类型 `Int`
+被渲染为 `Int32`（本工具链 `Int` 即 32 位整数，同一类型）。按已核实事实不与格式器对抗。
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`（touch 源码后的新鲜编译）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && touch char_count.mbt char_count_test.mbt && moon check --target native
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+```
+
+复跑（缓存命中）：
+
+```console
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+```
+
+0 warnings、0 errors。
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 30, passed: 30, failed: 0.
+EXIT=0
+```
+
+基线（T-09 日志）：26/26；本次新增 4 条 → 30/30。根包 8 条（脚手架 1 + 值对象 3 + `char_count` 4），
+`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+### 3.3 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: ran 2 tasks, now up to date
+EXIT=0
+```
+
+`.mbti` diff（唯一公开面变化）：
+
+```diff
+@@ -2,6 +2,7 @@
+ package "vicoproplus/moon_textstat"
+ 
+ // Values
++pub fn char_count(String, ignore_spaces? : Bool) -> Int
+ 
+ // Errors
+```
+
+`grep -n char_count lib/pkg.generated.mbti`：
+
+```console
+5:pub fn char_count(String, ignore_spaces? : Bool) -> Int
+22:  char_count : Int
+```
+
+### 3.4 S1 静态门（检索式 1，改动范围）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    char_count.mbt char_count_test.mbt pkg.generated.mbti | wc -l
+0
+```
+
+说明：`numbers_and_symbols` 样本正文含 `https://example.com/a-b?c=1`。为让 S1 检索式 1 保持原样且零命中，
+测试里把 URL 首字母写成 `\u{68}`（运行时字符串与 oracle 原文逐字节相同，已用脚本比对确认）；
+注释中亦不出现该 scheme 字面量。
+
+### 3.5 工作树
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/char_count.mbt
+?? lib/char_count_test.mbt
+```
+
+`lib/_build/` 被 `lib/.gitignore` 忽略，未加入索引。
+
+---
+
+## 4. 冻结 oracle 断言（22/22）
+
+来源：`docs/facts/oracle_smoke.json` 的 `samples[].results.char_count.value` 与
+`samples[].results["char_count[ignore_spaces=False]"].value`。期望值全部抄自 oracle，未由实现反推；
+并用脚本核对：11 个样本字符串字面量 × 2 个数组，逐项与 oracle 原文和值配对（`ALL_ORACLE_PAIRS_EXACT=True`）。
+
+| sample | 断言值（默认真实调用） | 断言值（`ignore_spaces=false`） | oracle 默认 | oracle 变体 |
+| --- | --- | --- | --- | --- |
+| short_simple_sentence | 18 | 23 | 18 | 23 |
+| long_multi_sentence_paragraph | 507 | 594 | 507 | 594 |
+| abbreviations_and_initials | 132 | 162 | 132 | 162 |
+| hyphenated_words | 150 | 166 | 150 | 166 |
+| numbers_and_symbols | 148 | 175 | 148 | 175 |
+| multiple_paragraphs_newlines | 143 | 172 | 143 | 172 |
+| very_short_under_5_words | 8 | 9 | 8 | 9 |
+| empty_string | 0 | 0 | 0 | 0 |
+| whitespace_only | 0 | 6 | 0 | 6 |
+| punctuation_only | 2 | 4 | 2 | 4 |
+| spanish_text | 147 | 175 | 147 | 175 |
+
+spec §4.3.3 复核：空串全部 0；纯空白字符 0；纯标点字符 2；< 5 词正常计数；均不抛异常。
+
+---
+
+## 5. 测试内容（4 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `char_count matches the 11 frozen oracle samples (ignore_spaces=true)` | 11 个样本的字面量与 oracle 值 `(text, 18/507/.../147)`，断言表长 11，逐项 `assert_eq` 默认调用 |
+| `char_count matches the 11 frozen oracle variants (ignore_spaces=false)` | 同一批样本字面量配 oracle 变体值 `(23/594/.../175)`，逐项 `assert_eq(char_count(text, ignore_spaces=false))` |
+| `char_count counts Unicode code points, not bytes` | `"aó b"` → 3 / 4；`"ó"` → 1；西语样本 175 / 147 码点（UTF-8 为 176 字节） |
+| `char_count skips every Unicode White_Space character` | `"a\u{00A0}b\u{0085}c\u{3000}d"` → 4 / 7；默认参数与显式 `true` 一致 |
+
+无快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。
+
+---
+
+## 6. 门禁缺口
+
+plan 中 T-10 的验收 `moon run cmd/gate --target native --group=count` EXIT=0 且 `passed=cells`
+**当前不可执行**：`cmd/gate` 包在 T-36 才建立（现状 `lib/cmd/` 只有 `main/`）。
+本任务的等价证据 = 上述 22 个冻结 oracle 单元格断言（11 样本 × 2 形态）；
+T-36 建立门禁后由 `--group=count` 重新验证同批单元格。

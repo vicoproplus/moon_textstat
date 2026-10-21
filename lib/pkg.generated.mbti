@@ -2,6 +2,7 @@
 package "vicoproplus/moon_textstat"
 
 // Values
+pub fn char_count(String, ignore_spaces? : Bool) -> Int
 
 // Errors
 
