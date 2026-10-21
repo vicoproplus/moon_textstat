@@ -11,6 +11,9 @@ pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, sp
 pub fn sentence_count(String) -> Int
 
 // Errors
+pub suberror TextstatError {
+  UnsupportedLanguage(String)
+}
 
 // Types and methods
 pub(all) struct AnalyzeOptions {
