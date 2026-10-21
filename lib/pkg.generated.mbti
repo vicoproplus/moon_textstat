@@ -8,6 +8,8 @@ pub fn letter_count(String) -> Int
 
 pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
 
+pub fn monosyllabcount(String, lang? : String) -> Int raise TextstatError
+
 pub fn polysyllabcount(String, lang? : String) -> Int raise TextstatError
 
 pub fn sentence_count(String) -> Int
