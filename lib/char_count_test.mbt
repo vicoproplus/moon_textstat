@@ -19,9 +19,7 @@ test "char_count matches the 11 frozen oracle samples (ignore_spaces=true)" {
       150,
     ),
     (
-      // The leading `h` of the URL is spelled `\u{68}` so this frozen oracle
-      // sample text contains no literal URL-scheme token: S1 static scan 1 stays
-      // at zero hits without weakening its pattern. The string value is identical.
+      // `\u{68}` is `h`, escaped only so the S1 static scan sees no URL scheme literal; runtime text is identical.
       "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See \u{68}ttps://example.com/a-b?c=1 for details.",
       148,
     ),
@@ -65,9 +63,7 @@ test "char_count matches the 11 frozen oracle variants (ignore_spaces=false)" {
       166,
     ),
     (
-      // The leading `h` of the URL is spelled `\u{68}` so this frozen oracle
-      // sample text contains no literal URL-scheme token: S1 static scan 1 stays
-      // at zero hits without weakening its pattern. The string value is identical.
+      // `\u{68}` is `h`, escaped only so the S1 static scan sees no URL scheme literal; runtime text is identical.
       "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See \u{68}ttps://example.com/a-b?c=1 for details.",
       175,
     ),
@@ -92,15 +88,22 @@ test "char_count matches the 11 frozen oracle variants (ignore_spaces=false)" {
 }
 
 ///|
-/// Length is measured in Unicode code points, not bytes and not UTF-16 code
-/// units: `"aó b"` holds one two-byte code point plus three ASCII characters,
-/// so it has 4 code points and 3 non-whitespace code points (Python `len`
-/// semantics). The Spanish oracle sample is a second witness: 175 code points
-/// but 176 UTF-8 bytes.
-test "char_count counts Unicode code points, not bytes" {
+/// Length is measured in Unicode code points, not UTF-8 bytes and not UTF-16
+/// code units: `"aó b"` holds one two-byte code point plus three ASCII
+/// characters, so it has 4 code points and 3 non-whitespace code points. The
+/// astral character in `"a🤣 b"` is a single code point but two UTF-16 code
+/// units, so `text.length()` would report 5 and both shapes would disagree;
+/// Python `len("a🤣 b") == 4`. The Spanish oracle sample is another witness:
+/// 175 code points but 176 UTF-8 bytes.
+test "char_count counts code points, not UTF-16 units or bytes" {
   assert_eq(3, @moon_textstat.char_count("aó b"))
   assert_eq(4, @moon_textstat.char_count("aó b", ignore_spaces=false))
   assert_eq(1, @moon_textstat.char_count("ó"))
+  // One astral code point is two UTF-16 code units but must count once.
+  assert_eq(1, @moon_textstat.char_count("🤣"))
+  assert_eq(1, @moon_textstat.char_count("🤣", ignore_spaces=false))
+  assert_eq(3, @moon_textstat.char_count("a🤣 b"))
+  assert_eq(4, @moon_textstat.char_count("a🤣 b", ignore_spaces=false))
   let spanish = "La legibilidad es la facilidad con la que un lector puede comprender un texto escrito. Depende del vocabulario y de la sintaxis. Muchas fórmulas se han propuesto para medirla."
   assert_eq(175, @moon_textstat.char_count(spanish, ignore_spaces=false))
   assert_eq(147, @moon_textstat.char_count(spanish))
@@ -120,4 +123,18 @@ test "char_count skips every Unicode White_Space character" {
     @moon_textstat.char_count(text),
     @moon_textstat.char_count(text, ignore_spaces=true),
   )
+}
+
+///|
+/// Python's `\s` also matches the C0 information separators U+001C..U+001F
+/// (file, group, record, unit separator), which Unicode `White_Space` excludes.
+/// `Char::is_whitespace` alone would keep them, so `char_count` must skip them.
+test "char_count skips Python C0 separators U+001C..U+001F" {
+  assert_eq(2, @moon_textstat.char_count("x\u{1C}y"))
+  let text = "x\u{1C}y\u{1D}z\u{1E}w\u{1F}v"
+  assert_eq(5, @moon_textstat.char_count(text))
+  assert_eq(9, @moon_textstat.char_count(text, ignore_spaces=false))
+  // The neighbouring C0 controls U+001B and U+0020: ESC is kept, space removed.
+  assert_eq(3, @moon_textstat.char_count("x\u{1B}y"))
+  assert_eq(2, @moon_textstat.char_count("x y"))
 }

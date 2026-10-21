@@ -9,7 +9,7 @@
 - 起始提交：`209cd7c feat(types): add the 19-field TextStats value object and analyze defaults`
 - 契约：PRD-A FR-01；spec §4.3.1 第 1 行、§4.3.3；上游 `textstat/textstat/backend/counts/_count_chars.py:25-27`；T-10 brief
 - 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
-- **结论：PASS**（22/22 冻结 oracle 断言一致：11 样本 × 2 形态；check/test 全 EXIT=0；S1 命中 0）
+- **结论：PASS**（22/22 冻结 oracle 断言一致：11 样本 × 2 形态；check/test 全 EXIT=0；S1 命中 0）；review FAIL 后的修复见 §7
 
 ---
 
@@ -37,12 +37,13 @@ return len(text)
 
 移植（`lib/char_count.mbt`）：
 
-- `ignore_spaces=true`：遍历 `for ch in text`，跳过 `ch.is_whitespace()` 为真的码点，计数其余码点。
-  `Char::is_whitespace` 即 Unicode `White_Space` 属性（含 `\n`、`\t`、NBSP、NEL、U+3000 等），
-  与 Python `\s` 的删除集合一致。
-- `ignore_spaces=false`：`text.length()`，即全部码点数，对应上游未改写的 `len(text)`。
-- `String::length()` 计数 Unicode 码点（非字节、非 UTF-16 单元），与 Python `len(str)` 同义；
-  测试 `"aó b"` → 3 / 4、西语样本 175 码点 / 176 UTF-8 字节，双向钉住。
+- `ignore_spaces=true`：遍历 `for ch in text`，跳过 Python `\s` 匹配的码点：
+  Unicode `White_Space`（`Char::is_whitespace`，含 `\n`、`\t`、NBSP、NEL、U+3000 等）
+  再加 C0 信息分隔符 U+001C..U+001F（`White_Space` 不含、Python `\s` 含）。
+- `ignore_spaces=false`：`text.char_length()`，即全部码点数，对应上游未改写的 `len(text)`。
+- `String::length()` 返回 UTF-16 码元数而非码点（emoji 占 2 单元）；`String::char_length()`
+  才计数码点，与 Python `len(str)` 同义。测试 `"aó b"` → 3 / 4、`"a🤣 b"` → 3 / 4
+  （`length()` 为 5）、西语样本 175 码点 / 176 UTF-8 字节，多向钉住。
 - 空串 → 0；纯空白 → 0（`ignore_spaces=true`）/ 6（`false`），与 spec §4.3.3 一致。
 - 纯函数：无 I/O、无异常、无 `extern`；`lib/moon.pkg` 仍为空依赖。
 
@@ -180,3 +181,63 @@ plan 中 T-10 的验收 `moon run cmd/gate --target native --group=count` EXIT=0
 **当前不可执行**：`cmd/gate` 包在 T-36 才建立（现状 `lib/cmd/` 只有 `main/`）。
 本任务的等价证据 = 上述 22 个冻结 oracle 单元格断言（11 样本 × 2 形态）；
 T-36 建立门禁后由 `--group=count` 重新验证同批单元格。
+
+---
+
+## 7. Review FAIL 修复轮（2026-10-21）
+
+任务评审结论：1 blocker + 2 minor divergence，全部在本轮处理。起始提交 `40f465f`。
+
+### 7.1 修复内容
+
+1. **Blocker（UTF-16 长度）**：`ignore_spaces=false` 原用 `text.length()`，它返回 UTF-16 码元数
+   （`"a🤣 b".length() == 5`，Python `len` 为 4），astral 字符被重复计数且破坏单调性
+   （`char_count("🤣") == 1` 而 false 形态为 2）。现改为 `text.char_length()`（码点数）。
+   新增真实断言：`"🤣"` → 1 / 1、`"a🤣 b"` → 3 / 4；测试更名为
+   `char_count counts code points, not UTF-16 units or bytes`（西语样本只证明“非字节”）。
+2. **Minor（Python `\s` 含 U+001C..U+001F）**：新增私有谓词
+   `is_python_space` = `ch.is_whitespace() || ('\u{1C}' <= ch && ch <= '\u{1F}')`，
+   与 `re.sub(r"\s", "", text)` 对齐。新增测试 `char_count("x\u{1C}y") == 2`（四个分隔符
+   全测：默认 5 / false 9），原 U+00A0/U+0085/U+3000 测试保留。
+3. **Fixture 注释**：`\u{68}ttps` 转义保持不变；改为单行注释，说明 `\u{68}` 就是 `h`，
+   仅为让 S1 静态扫描不见 URL 字面量，运行时字符串与 oracle 完全相同，避免被误读为规避。
+
+### 7.2 修复后文件（闭集，SHA-256）
+
+| 文件 | 行数 | SHA-256 |
+| --- | --- | --- |
+| `lib/char_count.mbt` | 36 | `be412e3c18b851efadc4557bdc25d2e88d69a14d90bc76e67cfff93f9621d99d` |
+| `lib/char_count_test.mbt` | 140 | `91d6ec0f1d1e346344b6f5a88a282c0dffe5dd280ee8231d775f8276e907f9ec` |
+| `lib/pkg.generated.mbti` | — | `e491fe128c0c7ce3c669d4429741f58e56c72a79d096a7f80a3802dd5772e91c`（无变化） |
+
+### 7.3 命令与原始输出
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && touch char_count.mbt char_count_test.mbt && moon check --target native
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+
+$ moon test --target native
+Total tests: 31, passed: 31, failed: 0.
+EXIT=0
+
+$ moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: ran 2 tasks, now up to date
+EXIT=0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    char_count.mbt char_count_test.mbt pkg.generated.mbti | wc -l
+0
+```
+
+- 测试总数 30 → **31**（+1 C0 分隔符测试；原 4 条保留，其中码点测试更名并加断言）。
+- **22/22 冻结 oracle 值复核不变**：独立脚本解析两个测试数组，逐项对照
+  `docs/facts/oracle_smoke.json` 的 `samples[].text` 与两个 value 字段，并用 Python
+  `len(text)` / `len(re.sub(r"\s", "", text))` 复算，输出 `ORACLE_CELLS_OK= 22 SAMPLES= 11`。
+- 边界结果：`char_count("🤣") == 1`；`char_count("🤣", ignore_spaces=false) == 1`；
+  `char_count("a🤣 b") == 3`；`char_count("a🤣 b", ignore_spaces=false) == 4`；
+  `char_count("x\u{1C}y") == 2`；`char_count("x\u{1B}y") == 3`（ESC 不属于 Python 空白）。
+- `.mbti` 无变化：`is_python_space` 为私有函数，公开面仍只有
+  `pub fn char_count(String, ignore_spaces? : Bool) -> Int`。
+- 结论：review blocker 与两项 divergence 关闭；根包、`data/`、`gate/data/` 测试全绿。
