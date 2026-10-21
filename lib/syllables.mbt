@@ -46,9 +46,8 @@ fn lang_root(lang : String) -> String {
 /// those are out of contract. Lowering again would change no frozen corpus
 /// value and would hide the precondition.
 ///
-/// Consumed only by the white-box tests until `syllable_count` lands in T-17,
-/// so the dead-code lint is silenced until then.
-#warnings("-unused_value")
+/// Consumed by `syllable_count` (`syllable_count.mbt`) and by the white-box
+/// tests.
 fn syllables_for_word(
   word : String,
   lang : String,

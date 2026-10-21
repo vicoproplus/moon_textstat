@@ -417,21 +417,6 @@ fn normalize_language_code(lang : String) -> String {
 }
 
 ///|
-/// Resolve `lang` and hyphenate `word` with the resulting dictionary.
-///
-/// This is the entry the syllable layer consumes; it is exercised by the
-/// white-box tests now and by `syllable_count` once that layer exists, so the
-/// dead-code lint is silenced until then.
-#warnings("-unused_value")
-fn hyphenate_positions(
-  word : String,
-  lang : String,
-) -> Array[Int32] raise TextstatError {
-  let dict_lang = resolve_dict(lang)
-  hyphenation_positions(word, dict_lang)
-}
-
-///|
 /// Build upstream's short-name aliases for the embedded files.
 ///
 /// `LANGUAGES` is filled by iterating the dictionary files in sorted order, so

@@ -10,6 +10,8 @@ pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, sp
 
 pub fn sentence_count(String) -> Int
 
+pub fn syllable_count(String, lang? : String) -> Int raise TextstatError
+
 // Errors
 pub suberror TextstatError {
   UnsupportedLanguage(String)

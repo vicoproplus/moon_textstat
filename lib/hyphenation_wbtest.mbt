@@ -2,6 +2,18 @@
 /// Expected positions in this file were produced by pyphen 0.17.2 with
 /// `pyphen.Pyphen(lang=...).positions(word)`, i.e. the same `left=2` /
 /// `right=2` wrapper implemented by `hyphenate_positions`.
+///
+/// `hyphenate_positions` is test-only: production code resolves the language
+/// once and calls `hyphenation_positions` with the dictionary code (see
+/// `syllables_for_word`), so this convenience wrapper lives here instead of
+/// carrying a lint suppression in the package.
+fn hyphenate_positions(
+  word : String,
+  lang : String,
+) -> Array[Int32] raise TextstatError {
+  let dict_lang = resolve_dict(lang)
+  hyphenation_positions(word, dict_lang)
+}
 
 ///|
 test "en_US positions match pyphen" {
