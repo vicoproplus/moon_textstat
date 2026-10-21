@@ -6,8 +6,6 @@ pub fn char_count(String, ignore_spaces? : Bool) -> Int
 
 pub fn letter_count(String) -> Int
 
-pub fn list_words(String, rm_punctuation? : Bool, rm_apostrophe? : Bool, lowercase? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Array[String]
-
 // Errors
 
 // Types and methods

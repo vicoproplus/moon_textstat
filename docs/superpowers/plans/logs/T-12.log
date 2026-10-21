@@ -233,3 +233,55 @@ $ git status --porcelain
   「All other characters, including non-ASCII letters, are left unchanged」），作为文档化近似记录。
 - 差分测试的临时文件 `lib/list_words_fuzz_test.mbt` 与生成脚本 `tools/gen_fuzz_list_words.py`
   在记录结果后已删除，工作树无残留。
+
+---
+
+## 8. 评审修复轮（2026-10-21）
+
+评审通过实现，要求三项窄修复；提交 `refactor(count): keep the tokenizer package-internal
+and pin upstream edge cases`。
+
+1. **公开面收窄**：`list_words` 由 `pub fn` 改为 `fn`，5 个助手原本即为 `fn`。
+   `lib/list_words_test.mbt` 以 `git rm` 删除，改建白盒 `lib/list_words_wbtest.mbt`：
+   7 条测试内容不变，调用改为不带 `@moon_textstat.` 前缀（白盒测试编译在包内）。
+   仅被测试使用的包内函数在纯 `moon check` 下会报 `unused_value` 警告；T-13 的
+   `lexicon_count` 在非测试代码中调用它后消失。`moon info` 后 `lib/pkg.generated.mbti`
+   的 Values 段只剩 `char_count` 与 `letter_count`，`list_words` 不再导出。
+2. **交替顺序注释更正**：上游实际为
+   `RE_CONTRACTION_ENDINGS = r"[tsd]|ve|ll|re"`（`utils/constants.py:67`），单字母在前；
+   §2 中「多字母在前，与上游交替顺序一致」的表述作废。`apostrophe_starts_contraction_ending`
+   的文档改为陈述上游顺序，并说明实现先查 `ve`/`ll`/`re` 仅为短路，二者行为等价：
+   各候选首字符互不相交（`t/s/d` 对 `v/l/r`），同一位置至多一个匹配。行为零变化。
+3. **补齐边界用例**（期望值由 vendored 上游现算，非本移植推导）：
+
+   ```console
+   $ cd textstat && PYTHONPATH=. python -c "from textstat.backend.selections._list_words import list_words; ..."
+   you default: ["you're"]
+   you split  : ['you', 're']
+   a_b        : ['a_b']
+   well-known : ['well-known']
+   rock keep  : ["rock'n'roll"]
+   ```
+
+   并入既有 7 条测试（不新增测试块）：`you're` 默认 → `["you're"]`；
+   `split_contractions=true` → `["you","re"]`；`a_b` → `["a_b"]`；
+   `well-known` + `rm_punctuation=false` + `split_hyphens=false` → `["well-known"]`；
+   `rock'n'roll` + `rm_punctuation=false` → `["rock'n'roll"]`。
+
+修复轮验收：
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date (1 warnings, 0 errors)
+EXIT=0
+
+$ moon test --target native
+Total tests: 42, passed: 42, failed: 0.
+EXIT=0
+
+$ moon info && moon fmt
+Finished. ...（EXIT=0）
+
+$ grep -n list_words pkg.generated.mbti
+（无输出，退出码 1）
+```

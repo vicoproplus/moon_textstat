@@ -7,7 +7,7 @@
 /// runtime text is byte-identical to the oracle sample.
 test "list_words tokenizes frozen oracle texts" {
   let simple : Array[String] = ["The", "cat", "sat", "on", "the", "mat"]
-  assert_eq(simple, @moon_textstat.list_words("The cat sat on the mat."))
+  assert_eq(simple, list_words("The cat sat on the mat."))
   let hyphenated : Array[String] = [
     "The", "wellknown", "stateoftheart", "system", "is", "a", "selfcontained", "longterm",
     "solution", "It", "is", "a", "twentyfiveyearold", "userfriendly", "costeffective",
@@ -15,7 +15,7 @@ test "list_words tokenizes frozen oracle texts" {
   ]
   assert_eq(
     hyphenated,
-    @moon_textstat.list_words(
+    list_words(
       "The well-known state-of-the-art system is a self-contained, long-term solution. It is a twenty-five-year-old, user-friendly, cost-effective, high-performance product.",
     ),
   )
@@ -27,14 +27,14 @@ test "list_words tokenizes frozen oracle texts" {
   ]
   assert_eq(
     numbers,
-    @moon_textstat.list_words(
+    list_words(
       "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See \u{68}ttps://example.com/a-b?c=1 for details.",
     ),
   )
   let empty : Array[String] = []
-  assert_eq(empty, @moon_textstat.list_words(" .? "))
-  assert_eq(empty, @moon_textstat.list_words(""))
-  assert_eq(empty, @moon_textstat.list_words("   \n\t "))
+  assert_eq(empty, list_words(" .? "))
+  assert_eq(empty, list_words(""))
+  assert_eq(empty, list_words("   \n\t "))
 }
 
 ///|
@@ -44,17 +44,17 @@ test "list_words tokenizes frozen oracle texts" {
 /// punctuation between digits is deleted without creating a token boundary.
 test "list_words fuses or splits hyphens and keeps digit runs" {
   let fused : Array[String] = ["wellknown"]
-  assert_eq(fused, @moon_textstat.list_words("well-known"))
+  assert_eq(fused, list_words("well-known"))
   let split : Array[String] = ["well", "known"]
-  assert_eq(split, @moon_textstat.list_words("well-known", split_hyphens=true))
+  assert_eq(split, list_words("well-known", split_hyphens=true))
   let price : Array[String] = ["129999"]
-  assert_eq(price, @moon_textstat.list_words("$1,299.99"))
+  assert_eq(price, list_words("$1,299.99"))
   let decimal : Array[String] = ["314"]
-  assert_eq(decimal, @moon_textstat.list_words("3.14"))
+  assert_eq(decimal, list_words("3.14"))
   let percent : Array[String] = ["125"]
-  assert_eq(percent, @moon_textstat.list_words("12.5%"))
+  assert_eq(percent, list_words("12.5%"))
   let grouped : Array[String] = ["8000"]
-  assert_eq(grouped, @moon_textstat.list_words("8,000"))
+  assert_eq(grouped, list_words("8,000"))
 }
 
 ///|
@@ -64,25 +64,27 @@ test "list_words fuses or splits hyphens and keeps digit runs" {
 /// apostrophes before other letters disappear.
 test "list_words keeps contraction apostrophes and deletes the others" {
   let are_not : Array[String] = ["aren't"]
-  assert_eq(are_not, @moon_textstat.list_words("aren't"))
+  assert_eq(are_not, list_words("aren't"))
   let he_will : Array[String] = ["he'll"]
-  assert_eq(he_will, @moon_textstat.list_words("he'll"))
+  assert_eq(he_will, list_words("he'll"))
   let we_have : Array[String] = ["we've"]
-  assert_eq(we_have, @moon_textstat.list_words("we've"))
+  assert_eq(we_have, list_words("we've"))
+  let you_are : Array[String] = ["you're"]
+  assert_eq(you_are, list_words("you're"))
   let i_would : Array[String] = ["I'd"]
-  assert_eq(i_would, @moon_textstat.list_words("I'd"))
+  assert_eq(i_would, list_words("I'd"))
   let it_is : Array[String] = ["it's"]
-  assert_eq(it_is, @moon_textstat.list_words("it's"))
+  assert_eq(it_is, list_words("it's"))
   let quoted : Array[String] = ["quoted"]
-  assert_eq(quoted, @moon_textstat.list_words("'quoted'"))
+  assert_eq(quoted, list_words("'quoted'"))
   // `'n'` and `'r'` start no contraction ending, so both apostrophes go.
   let rock : Array[String] = ["rocknroll"]
-  assert_eq(rock, @moon_textstat.list_words("rock'n'roll"))
+  assert_eq(rock, list_words("rock'n'roll"))
+  // With punctuation retained, the apostrophes survive verbatim.
+  let rock_kept : Array[String] = ["rock'n'roll"]
+  assert_eq(rock_kept, list_words("rock'n'roll", rm_punctuation=false))
   let apostrophes_removed : Array[String] = ["arent"]
-  assert_eq(
-    apostrophes_removed,
-    @moon_textstat.list_words("aren't", rm_apostrophe=true),
-  )
+  assert_eq(apostrophes_removed, list_words("aren't", rm_apostrophe=true))
 }
 
 ///|
@@ -93,49 +95,28 @@ test "list_words keeps contraction apostrophes and deletes the others" {
 /// interaction documented upstream.
 test "split_contractions splits only apostrophes before a contraction ending" {
   let are_not : Array[String] = ["aren", "t"]
-  assert_eq(
-    are_not,
-    @moon_textstat.list_words("aren't", split_contractions=true),
-  )
+  assert_eq(are_not, list_words("aren't", split_contractions=true))
   let he_will : Array[String] = ["he", "ll"]
-  assert_eq(
-    he_will,
-    @moon_textstat.list_words("he'll", split_contractions=true),
-  )
+  assert_eq(he_will, list_words("he'll", split_contractions=true))
   let we_have : Array[String] = ["we", "ve"]
-  assert_eq(
-    we_have,
-    @moon_textstat.list_words("we've", split_contractions=true),
-  )
+  assert_eq(we_have, list_words("we've", split_contractions=true))
+  let you_are : Array[String] = ["you", "re"]
+  assert_eq(you_are, list_words("you're", split_contractions=true))
   let three : Array[String] = ["can", "t", "won", "t", "shouldn", "t"]
-  assert_eq(
-    three,
-    @moon_textstat.list_words("can't won't shouldn't", split_contractions=true),
-  )
+  assert_eq(three, list_words("can't won't shouldn't", split_contractions=true))
   // `T` is not a contraction ending, so the apostrophe is deleted instead.
   let wrong_case : Array[String] = ["DonT"]
-  assert_eq(
-    wrong_case,
-    @moon_textstat.list_words("Don'T", split_contractions=true),
-  )
+  assert_eq(wrong_case, list_words("Don'T", split_contractions=true))
   // All punctuation and therefore all apostrophes are gone before step 4.
   let removed : Array[String] = ["arent"]
   assert_eq(
     removed,
-    @moon_textstat.list_words(
-      "aren't",
-      rm_apostrophe=true,
-      split_contractions=true,
-    ),
+    list_words("aren't", rm_apostrophe=true, split_contractions=true),
   )
   let keep_punctuation : Array[String] = ["aren", "t"]
   assert_eq(
     keep_punctuation,
-    @moon_textstat.list_words(
-      "aren't",
-      rm_punctuation=false,
-      split_contractions=true,
-    ),
+    list_words("aren't", rm_punctuation=false, split_contractions=true),
   )
 }
 
@@ -146,37 +127,33 @@ test "split_contractions splits only apostrophes before a contraction ending" {
 /// has been lowercased.
 test "list_words applies toggles in the upstream order" {
   let lowered : Array[String] = ["hello", "world"]
-  assert_eq(lowered, @moon_textstat.list_words("Hello WORLD", lowercase=true))
+  assert_eq(lowered, list_words("Hello WORLD", lowercase=true))
   let punctuation : Array[String] = [".?"]
-  assert_eq(
-    punctuation,
-    @moon_textstat.list_words(" .? ", rm_punctuation=false),
-  )
+  assert_eq(punctuation, list_words(" .? ", rm_punctuation=false))
   let nothing : Array[String] = []
-  assert_eq(
-    nothing,
-    @moon_textstat.list_words("-", split_hyphens=true, rm_punctuation=false),
-  )
+  assert_eq(nothing, list_words("-", split_hyphens=true, rm_punctuation=false))
   let words : Array[String] = ["well", "known"]
   assert_eq(
     words,
-    @moon_textstat.list_words(
-      "well-known",
-      split_hyphens=true,
-      rm_punctuation=false,
-    ),
+    list_words("well-known", split_hyphens=true, rm_punctuation=false),
+  )
+  // Both hyphen splitting and punctuation removal off: the hyphen survives.
+  let intact : Array[String] = ["well-known"]
+  assert_eq(
+    intact,
+    list_words("well-known", rm_punctuation=false, split_hyphens=false),
   )
   let lower_then_split : Array[String] = ["aren", "t"]
   assert_eq(
     lower_then_split,
-    @moon_textstat.list_words("Aren't", lowercase=true, split_contractions=true),
+    list_words("Aren't", lowercase=true, split_contractions=true),
   )
   // Punctuation removal precedes lowercasing, so `'T` is deleted before it
   // could become `'t`; the token never splits.
   let upper_then_split : Array[String] = ["dont"]
   assert_eq(
     upper_then_split,
-    @moon_textstat.list_words("DON'T", lowercase=true, split_contractions=true),
+    list_words("DON'T", lowercase=true, split_contractions=true),
   )
 }
 
@@ -187,13 +164,16 @@ test "list_words applies toggles in the upstream order" {
 /// are deleted as punctuation.
 test "list_words keeps BMP letters and deletes astral code points" {
   let o_acute : Array[String] = ["ó"]
-  assert_eq(o_acute, @moon_textstat.list_words("ó"))
+  assert_eq(o_acute, list_words("ó"))
   let formulas : Array[String] = ["fórmulas"]
-  assert_eq(formulas, @moon_textstat.list_words("fórmulas"))
+  assert_eq(formulas, list_words("fórmulas"))
+  // `_` is a `\w` character and never a separator.
+  let underscore : Array[String] = ["a_b"]
+  assert_eq(underscore, list_words("a_b"))
   let ab : Array[String] = ["ab"]
-  assert_eq(ab, @moon_textstat.list_words("a🤣b"))
+  assert_eq(ab, list_words("a🤣b"))
   let emoji_only : Array[String] = []
-  assert_eq(emoji_only, @moon_textstat.list_words("🤣"))
+  assert_eq(emoji_only, list_words("🤣"))
 }
 
 ///|
@@ -203,11 +183,11 @@ test "list_words keeps BMP letters and deletes astral code points" {
 /// Empty and whitespace-only input yield no tokens.
 test "list_words splits on Python whitespace and drops empty tokens" {
   let spaced : Array[String] = ["a", "b", "c"]
-  assert_eq(spaced, @moon_textstat.list_words("a\u{00A0}b\u{3000}c"))
+  assert_eq(spaced, list_words("a\u{00A0}b\u{3000}c"))
   let separator : Array[String] = ["a", "b"]
-  assert_eq(separator, @moon_textstat.list_words("a\u{1C}b"))
+  assert_eq(separator, list_words("a\u{1C}b"))
   let empty : Array[String] = []
-  assert_eq(empty, @moon_textstat.list_words(""))
-  assert_eq(empty, @moon_textstat.list_words("   \n\t "))
-  assert_eq(empty, @moon_textstat.list_words("\u{00A0}\u{3000}"))
+  assert_eq(empty, list_words(""))
+  assert_eq(empty, list_words("   \n\t "))
+  assert_eq(empty, list_words("\u{00A0}\u{3000}"))
 }

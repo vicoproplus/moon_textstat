@@ -2,6 +2,11 @@
 /// Tokenize `text` exactly like upstream `list_words`
 /// (`_list_words.py:48-56`; spec §4.3.2).
 ///
+/// Package-private: the tokenizer is an internal step of the count layer, and
+/// spec §1.3.2's public surface is `analyze` plus the thin metric entries and
+/// their variant/language parameters. Later count entries in this package call
+/// it directly.
+///
 /// The five steps run in the upstream order and must not be reordered, because
 /// each one consumes the previous step's output:
 ///
@@ -33,7 +38,7 @@
 /// letters only, whereas upstream's `str.lower()` also maps non-ASCII letters —
 /// a documented approximation whose only corpus character (`ó`) is already
 /// lowercase. The function is pure: no I/O, no exceptions.
-pub fn list_words(
+fn list_words(
   text : String,
   rm_punctuation~ : Bool = true,
   rm_apostrophe~ : Bool = false,
@@ -138,13 +143,16 @@ fn split_contraction_apostrophes(text : String) -> String {
 }
 
 ///|
-/// The lookahead `(?=[tsd]|ve|ll|re)` of `RE_CONTRACTION_ENDING`, tested at
+/// The lookahead `(?=[tsd]|ve|ll|re)` of `RE_CONTRACTION_ENDINGS`, tested at
 /// `apostrophe_index + 1`, case-sensitively and without consuming input.
 ///
-/// The multi-letter alternatives are checked first, per the upstream
-/// alternation; since `ve`, `ll` and `re` start with distinct characters from
-/// the single-letter `t`, `s`, `d`, the two orders are equivalent, but the
-/// literal order is kept for traceability. An apostrophe at the end of the text
+/// Upstream's alternation is `r"[tsd]|ve|ll|re"` (`utils/constants.py:67`):
+/// the single-letter class `[tsd]` comes first, followed by `ve`, `ll`, `re`.
+/// This implementation checks the two-letter endings `ve`, `ll`, `re` before
+/// the single-letter `t`, `s`, `d`. The two orders are behaviorally equivalent
+/// because the alternatives start with disjoint characters (`t`/`s`/`d` versus
+/// `v`/`l`/`r`), so at most one can match at any position; the order here only
+/// avoids re-testing the first character. An apostrophe at the end of the text
 /// has no following character and therefore never matches.
 fn apostrophe_starts_contraction_ending(
   chars : Array[Char],
