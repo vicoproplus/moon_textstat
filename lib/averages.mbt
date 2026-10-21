@@ -1,4 +1,41 @@
 ///|
+/// Average characters per word (upstream `_chars_per_word.py:9-35`).
+///
+/// Literally `count_chars(text, ignore_spaces=True) / count_words(text,
+/// rm_punctuation=False)`, with a `ZeroDivisionError` guard returning 0.0.
+/// `count_chars` under its default `ignore_spaces=True` is `char_count(text)`,
+/// and `count_words(..., rm_punctuation=False)` is `lexicon_count(text,
+/// removepunct=false)`.
+///
+/// **The denominator is asymmetric with `words_per_sentence`** (spec §4.4
+/// constraint 4): this helper counts punctuation as part of the words because
+/// the numerator counts punctuation characters too — upstream's own comment is
+/// "We count puntuation-words as words because those characters get counted".
+/// `punctuation_only` (`" .? "`) is the discriminator: `char_count` is 2 and
+/// `lexicon_count(removepunct=false)` is 1, so this average is exactly 2.0,
+/// whereas the default `lexicon_count` — the denominator `words_per_sentence`
+/// uses — is 0. Every other frozen sample happens to have equal word counts
+/// under both settings, so only that row exhibits the asymmetry; because its
+/// sentence length is 0.0, ARI still returns 0.0 there.
+///
+/// The denominator is 0 for the empty string and for whitespace-only text,
+/// where the numerator is 0 as well; the guard returns 0.0 (spec §4.3.3). Both
+/// counts are small 32-bit integers, hence exactly representable as doubles;
+/// dividing the two converted values reproduces Python's correctly-rounded
+/// `int / int` result bit for bit. The helper consumes the count layer only and
+/// tokenizes nothing itself (spec §2.1 constraint 2). Pure: no I/O, no
+/// exceptions.
+fn chars_per_word(text : String) -> Double {
+  let chars = char_count(text)
+  let words = lexicon_count(text, removepunct=false)
+  if words == 0 {
+    0.0
+  } else {
+    chars.to_double() / words.to_double()
+  }
+}
+
+///|
 /// Average words per sentence (upstream `_words_per_sentence.py:9-29`).
 ///
 /// Literally `count_words(text) / count_sentences(text)` in Python's true

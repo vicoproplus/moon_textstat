@@ -2,6 +2,8 @@
 package "vicoproplus/moon_textstat"
 
 // Values
+pub fn automated_readability_index(String) -> Double
+
 pub fn char_count(String, ignore_spaces? : Bool) -> Int
 
 pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
