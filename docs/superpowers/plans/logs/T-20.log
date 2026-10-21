@@ -14,16 +14,19 @@
 - 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
   `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
 - **结论：PASS**（check 零警告 EXIT=0；test 84/84 EXIT=0；`.mbti` 无变化；
-  S1 命中 0）
+  S1 命中 0）；复审 conditional-pass 的两条告警抑制项已修复，见 §7，结论维持
+  PASS（生产面 `#warnings` 余 1 处，理由与移除时点见 §7.2）
 
 ---
 
 ## 1. 改动面（2 个新文件，无生成文件变更）
 
+下表数值为复审修复（§7）后的终态。
+
 | 文件 | 角色 | 行数 | SHA-256 |
 | --- | --- | --- | --- |
-| `lib/easy_words.mbt` | 新增：词表选择 + 二分成员判定（包内私有） | 96 | `0f17eee025b751b91fe377ba57b35052909ccc9297ed34ae80280413764cf185` |
-| `lib/easy_words_wbtest.mbt` | 新增：7 条白盒测试（计数、全量排序/命中、英/西成员、根解析、回退、大小写前置条件） | 108 | `b4ae0a3d987c9c6f93e2b7f2fc7310631287afdbb4e5d8e948939b1f3e2bcd3b` |
+| `lib/easy_words.mbt` | 新增：词表选择 + 二分成员判定（包内私有） | 86 | `c89c59d96842a845697e532a9a43b3a495d541e1212f883f145d2070e87c0a0b` |
+| `lib/easy_words_wbtest.mbt` | 新增：7 条白盒测试（计数、全量排序/命中、英/西成员、根解析、回退、大小写前置条件） | 116 | `1076602c6b438dae28d04b3d809bd81af28f946056a3a733c03136800b9fdb48` |
 
 未改动 `lib/data/`、`lib/moon.pkg`、`lib/pkg.generated.mbti`；未新增依赖；
 未新增公共 API（三个新增函数均为包内私有，`.mbti` 无 diff）。
@@ -67,11 +70,11 @@ except FileNotFoundError:
 - 词表只含小写条目（上游源文件已实测 0 条含大写），因此前置条件可观测。
 - 纯函数：无 I/O、无异常。
 
-### 2.3 `easy_word_count(lang) -> Int32`（包内私有）
+### 2.3 ~~`easy_word_count(lang) -> Int32`（包内私有）~~（已删除，见 §7.1）
 
-返回所选词表的条目数（上游 `len(get_lang_easy_words(lang))`），供测试与 T-35
-语种矩阵使用：`en`/`en_US`/任意回退根 2,941，`es`/`es_ES` 20,000。不新增公共
-API。
+初版为测试与 T-35 语种矩阵提供「所选词表条目数」（上游
+`len(get_lang_easy_words(lang))`）。复审判定其为「库源码里的测试专用助手」，
+已删除；等价的 `easy_words_for_lang(lang).length()` 直接写在白盒测试里。
 
 ### 2.4 二分比较器（关键实现点）
 
@@ -83,12 +86,13 @@ API。
   生成顺序一致；该要点写进 `sorted_easy_words_contains` 与
   `is_easy_word` 的文档注释。
 
-### 2.5 未使用告警的处置
+### 2.5 未使用告警的处置（复核后修订，见 §7.2）
 
-`is_easy_word` 与 `easy_word_count` 本任务只有白盒测试调用（T-21 才接入
-`difficult_words`），`moon check` 不编译测试文件会报 `unused_value`。两个声明
-加 `#warnings("-unused_value")`（core 自带同类用法），不把可见性放宽为 `pub`，
-保持 `.mbti` 不变；check 因此零警告。
+`is_easy_word` 本任务只有白盒测试调用（T-21 才接入 `difficult_words`），
+`moon check` 不编译测试文件会报 `unused_value`。初版对 `is_easy_word` 与
+`easy_word_count` 各加一处 `#warnings("-unused_value")`；`easy_word_count` 删除
+后仅余 `is_easy_word` 一处，且带一行 `TEMP(T-20)` 注释，指明 T-21 为移除时点。
+生产面 `#warnings` 总数：1。
 
 ## 3. 上游实测（`textstat 0.7.13`，`warnings.simplefilter('ignore')`）
 
@@ -111,11 +115,11 @@ es: 'que'=True  'que '=False
 
 | 组 | 断言 |
 | --- | --- |
-| 计数 | `@data.easy_words`：en 2,941、es 20,000；选择器：en/en_US 2,941、es/es_ES 20,000 |
+| 计数 | `@data.easy_words`：en 2,941、es 20,000；选择器 `easy_words_for_lang(...).length()`：en/en_US 2,941、es/es_ES 20,000 |
 | 全量不变量 | 两份表相邻项 `lexical_compare < 0`（严格排序、无重复）；22,941 个条目逐个 `is_easy_word` 命中 |
 | 英语成员 | `the`/`cat`/`sat`/`mat`/`simple` 真；`extraordinary`/`readability`/`documentation` 假；首尾 `a`/`youth` 可达 |
 | 西语成员 | `el`/`la`/`extraordinario`/`lectura` 真；`extraordinary`/`cat` 假；`que` 真、`que ` 假（复刻 strip） |
-| 根解析 | `en_US`：`cat` 真、`el` 假；`es_ES`：`el` 真、`cat` 假；`the` 在两边都真（重叠说明） |
+| 根解析 | 先断言 `lang_root("en_US")=="en"`、`lang_root("es_ES")=="es"`（根解析判别力），再断言 `en_US`：`cat` 真、`el` 假；`es_ES`：`el` 真、`cat` 假；`the` 在两边都真（重叠说明） |
 | 回退 | `de_DE`/`fr_FR`/`xx_YY`/`ar`：`cat` 真、`el` 假、计数 2,941 |
 | 前置条件 | 空串假；`"The"`/`"EL"` 假；`"the"`/`"el"` 真 |
 
@@ -152,3 +156,67 @@ $ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|htt
    解析为葡语字典；本任务不触碰断字层。
 5. 门禁（`--group=lang` 的 `spanish_text` 两组，A-4.2）按计划推迟到 T-36；
    本任务以 7 条白盒断言作为等价证据。
+
+---
+
+## 7. 复审修复（conditional-pass，2026-10-21 后续轮次）
+
+复审结论为 conditional-pass，两条告警抑制项需处理，另需补一处测试缺口。本轮
+只改 `lib/easy_words.mbt`、`lib/easy_words_wbtest.mbt` 与本文档，无公共接口变化。
+
+### 7.1 删除 `easy_word_count`（库源码中的测试专用助手）
+
+- 删除 `lib/easy_words.mbt` 中的 `easy_word_count` 及其 `#warnings` 抑制，该函数
+  只被白盒测试使用，属测试专用代码留在库源码里。
+- `lib/easy_words_wbtest.mbt` 改用包内私有 `easy_words_for_lang(root).length()`
+  取条目数，断言值不变：`en`/`en_US` 2,941，`es`/`es_ES` 20,000，回退根 2,941。
+- T-35 若仍需「条目数」，届时再按真实生产需要引入，不再预置测试助手。
+
+### 7.2 `is_easy_word` 的抑制保留（唯一一处，T-21 移除）
+
+- 已实测去掉抑制后 `moon check --target native` 报
+  `Warning (unused_value): Unused function 'is_easy_word'`，无法在不改语义、
+  不改可见性的前提下消除：本任务没有任何生产函数会调用成员判定，新增一个
+  「只为消费它而存在」的包内函数只会把告警挪到下一层。
+- 因此保留 `#warnings("-unused_value")`，并按复审要求在其上方加一行注释（单行）：
+
+  ```moonbit
+  // TEMP(T-20): remove this suppression in T-21, when `difficult_words` calls `is_easy_word`.
+  ```
+- **移除时点：T-21**（`difficult_words` 落地后 `is_easy_word` 成为生产路径的
+  被调用者，抑制与注释一并删除，check 必须保持零警告）。
+- 生产面 `#warnings` 计数：`lib/*.mbt`（排除 `*_wbtest.mbt`/`*_test.mbt`）
+  共 **1** 处，即上述这一处。
+
+### 7.3 根解析测试缺口
+
+`en_US` 的断言此前无法区分「根解析」与「英语回退」：即使 `lang_root` 坏掉，
+`en_US` 也会落到英语表而让断言通过。现于「language roots select the matching
+list」开头先断言：
+
+```moonbit
+assert_eq("en", lang_root("en_US"))
+assert_eq("es", lang_root("es_ES"))
+```
+
+`es_ES` 一侧本就具判别力（`cat` 假、`el` 真）；`lang_root` 断言把两侧都锚定在
+「根解析正确」这一前提上。
+
+### 7.4 验收（本轮重跑）
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date         # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 84, passed: 84, failed: 0.             # EXIT=0（测试条数不变）
+
+$ moon fmt --check
+Finished. moon: ran 2 tasks, now up to date         # EXIT=0
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+1                                                   # 仅 is_easy_word 一处
+```
+
+`.mbti` 仍无 diff（删除的是包内私有函数）；本轮提交为
+`refactor(count): drop the test-only easy-word count helper`。

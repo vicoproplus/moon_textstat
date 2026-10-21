@@ -14,10 +14,10 @@ test "easy-word counts match the embedded payloads" {
   assert_true(es is Some(_), msg="missing embedded es list")
   assert_eq(20000, es.unwrap().length())
   // The selector exposes the same sizes for bare and suffixed roots.
-  assert_eq(2941, easy_word_count("en"))
-  assert_eq(2941, easy_word_count("en_US"))
-  assert_eq(20000, easy_word_count("es"))
-  assert_eq(20000, easy_word_count("es_ES"))
+  assert_eq(2941, easy_words_for_lang("en").length())
+  assert_eq(2941, easy_words_for_lang("en_US").length())
+  assert_eq(20000, easy_words_for_lang("es").length())
+  assert_eq(20000, easy_words_for_lang("es_ES").length())
 }
 
 ///|
@@ -71,6 +71,10 @@ test "Spanish easy-word membership and trailing-space strip" {
 
 ///|
 test "language roots select the matching list" {
+  // Root parsing itself must be discriminating: assert the roots first, so
+  // these cases cannot pass through the English fallback by accident.
+  assert_eq("en", lang_root("en_US"))
+  assert_eq("es", lang_root("es_ES"))
   // Discriminating pair: "cat" is in the English list only, "el" in the
   // Spanish list only.
   assert_true(is_easy_word("en_US", "cat"))
@@ -91,7 +95,11 @@ test "unknown roots fall back to English silently" {
       is_easy_word(lang, "el"),
       msg="fallback must not be Spanish: \{lang}",
     )
-    assert_eq(2941, easy_word_count(lang), msg="fallback size: \{lang}")
+    assert_eq(
+      2941,
+      easy_words_for_lang(lang).length(),
+      msg="fallback size: \{lang}",
+    )
   }
 }
 

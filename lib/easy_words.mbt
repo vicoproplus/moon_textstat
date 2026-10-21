@@ -51,20 +51,10 @@ fn easy_words_for_lang(lang : String) -> Array[String] {
 /// into `difficult_words`. `moon check` compiles without test files, so the
 /// otherwise-correct unused-function warning is silenced here instead of
 /// widening the visibility to `pub`.
+// TEMP(T-20): remove this suppression in T-21, when `difficult_words` calls `is_easy_word`.
 #warnings("-unused_value")
 fn is_easy_word(lang : String, lowercase_word : String) -> Bool {
   sorted_easy_words_contains(easy_words_for_lang(lang), lowercase_word)
-}
-
-///|
-/// Number of entries in the easy-word set selected for `lang`.
-///
-/// Exists for the white-box tests and the language matrix (T-35): it exposes
-/// the selection result (for example `de_DE` → 2,941) without adding public
-/// API. Upstream's equivalent value is `len(get_lang_easy_words(lang))`.
-#warnings("-unused_value")
-fn easy_word_count(lang : String) -> Int32 {
-  easy_words_for_lang(lang).length()
 }
 
 ///|
