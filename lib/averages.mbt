@@ -97,3 +97,57 @@ fn syllables_per_word(
     syllables.to_double() / words.to_double()
   }
 }
+
+///|
+/// Average number of letters per word (upstream `_letters_per_word.py:9-29`).
+///
+/// Literally `count_letters(text) / count_words(text)` in Python's true
+/// division, with a `ZeroDivisionError` guard returning 0.0. `count_letters` is
+/// `letter_count(text)` and `count_words` is `lexicon_count(text)` under its
+/// documented defaults, so the helper consumes the count layer only: it
+/// tokenizes nothing itself (spec §2.1 constraint 2) and adds no rule of its
+/// own.
+///
+/// The denominator is 0 exactly for texts that tokenize to no words: the empty
+/// string, whitespace-only text and punctuation-only text (`" .? "`), where the
+/// numerator is 0 as well, so the guard returns 0.0 (spec §4.3.3). This is the
+/// discriminator that makes `coleman_liau_index(" .? ")` 0.0 exactly like the
+/// empty string, even though the punctuation-only text has one sentence. Both
+/// counts are small 32-bit integers, hence exactly representable as doubles;
+/// dividing the two converted values reproduces Python's correctly-rounded
+/// `int / int` result bit for bit. Pure: no I/O, no exceptions.
+fn letters_per_word(text : String) -> Double {
+  let letters = letter_count(text)
+  let words = lexicon_count(text)
+  if words == 0 {
+    0.0
+  } else {
+    letters.to_double() / words.to_double()
+  }
+}
+
+///|
+/// Average number of sentences per word (upstream `_sentences_per_word.py:9-29`).
+///
+/// Literally `count_sentences(text) / count_words(text)` in Python's true
+/// division, with a `ZeroDivisionError` guard returning 0.0. `count_sentences`
+/// is `sentence_count(text)` and `count_words` is `lexicon_count(text)` under
+/// its documented defaults, so the helper consumes the count layer only and
+/// tokenizes nothing itself (spec §2.1 constraint 2).
+///
+/// The guard is reachable on every text without words (spec §4.3.3). For the
+/// empty string the numerator is 0 too; for whitespace-only and punctuation-only
+/// text `sentence_count` is 1 while `lexicon_count` is 0, so without the guard
+/// the quotient would be infinite. Both counts are small 32-bit integers, hence
+/// exactly representable as doubles; dividing the two converted values
+/// reproduces Python's correctly-rounded `int / int` result bit for bit. Pure:
+/// no I/O, no exceptions.
+fn sentences_per_word(text : String) -> Double {
+  let sentences = sentence_count(text)
+  let words = lexicon_count(text)
+  if words == 0 {
+    0.0
+  } else {
+    sentences.to_double() / words.to_double()
+  }
+}
