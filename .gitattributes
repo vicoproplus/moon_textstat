@@ -1,0 +1,19 @@
+# 默认：所有文本文件按 LF 归一化。
+* text=auto eol=lf
+
+# —— 二进制数据（字节身份是契约，git 绝不做行尾转换）——
+#
+# AD §1.2 以「工作区 CRLF 原字节」的 (字节数, SHA-256) 固定了上游易读词表的
+# 身份，A1-2 又要求「固定字节中 \r 出现次数为 0」。这些 CRLF 字节如果被
+# autocrlf / text=auto 归一化，工作区形态与 AD 固定值立刻不符，身份断言即
+# 失败。因此把固定身份的数据文件标为 -text（git 视为二进制、不改写），
+# 使工作区字节与 AD §1.2 表格逐字节一致；pyphen 的 .dic 与 CMUdict 同理，
+# 它们含非 UTF-8 高字节且身份也在 AD §1.2 固定，一律按二进制处理。
+vendor/upstream/easy_words/** -text
+vendor/upstream/pyphen/*.dic -text
+vendor/upstream/cmudict/cmudict -text
+
+# —— 文本源文件：显式声明，避免依赖 core.autocrlf 的全局配置 ——
+*.mbt text eol=lf
+*.md text eol=lf
+*.json text eol=lf

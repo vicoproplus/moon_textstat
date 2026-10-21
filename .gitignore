@@ -1,0 +1,17 @@
+# MoonBit build / gate artifacts (module root is lib/, but keep root-level
+# paths covered too so a stray build at the repo root can never be added).
+_build/
+target/
+_gate/
+.mooncakes/
+lib/_build/
+lib/target/
+lib/_gate/
+
+# Python development tooling (tools/ generators)
+__pycache__/
+*.pyc
+
+# Vendored upstream Python reference copy: it is its own git repository with
+# 499 commits. Adding it to this repo would ingest that entire history.
+textstat/
