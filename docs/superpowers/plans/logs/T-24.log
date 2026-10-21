@@ -1,0 +1,63 @@
+# T-24 — reading_time
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+
+> 执行说明：本任务的实现者子代理派发两次均被当日用量上限中断（ERROR，未落任何改动）。用户指示继续后，由控制器直接实现并按同一验收口径复核；任务审查随后补做（若子代理仍不可用，则以本文件记录的独立复核为准并登记偏差）。这是流程偏差，已在 ledger 记录。
+
+## 1. 实现
+
+文件：`lib/reading_time.mbt`
+
+```moonbit
+pub fn reading_time(text : String, ms_per_char~ : Double = 14.69) -> Double {
+  ms_per_char * char_count(text).to_double() / 1000.0
+}
+```
+
+对齐上游 `textstat/textstat/backend/metrics/_reading_time.py`：
+
+```
+return ms_per_char * count_chars(text, ignore_spaces=True) / 1000
+```
+
+- 先乘后除（Python 左结合），未改写成 `ms * (chars / 1000)`。
+- `char_count` 默认 `ignore_spaces=true`，已按 Unicode White_Space + U+001C..U+001F 去空白。
+- 无 `lang` 参数、无字典查找、无失败通道（`Double`，单位秒，spec §4.2）。
+
+## 2. 测试
+
+文件：`lib/reading_time_test.mbt`（由 `F:\Temp\gen_reading_time_test.py` 从冻结 oracle 生成文本与期望值，避免手抄漂移）。
+
+- 11 个样本的 `reading_time` 值与 `docs/facts/oracle_smoke.json` 的 `samples[].results.reading_time.value` 逐一相等：
+  `0.26442 / 7.44783 / 1.93908 / 2.2035 / 2.17412 / 2.10067 / 0.11752 / 0.0 / 0.0 / 0.02938 / 2.15943`。
+- 文本逐字节为 oracle 文本；`numbers_and_symbols` 中 URL 的 `h` 写作 `\u{68}`（S1 静态面为 0，运行时字符串不变）。
+- 附加断言：`reading_time("abc", ms_per_char=1000.0) == 3.0`；`reading_time("a b", ms_per_char=1000.0) == 2.0`（空白不计）；空串与纯空白 → `0.0`。
+
+## 3. 验收输出
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date
+CHECK=0                # 零警告
+
+$ moon test --target native
+Total tests: 101, passed: 101, failed: 0.
+TEST=0
+
+$ moon info && moon fmt
+Finished. moon: ran 52 tasks, now up to date
+FMT=0
+```
+
+- `.mbti` 新增：`pub fn reading_time(String, ms_per_char? : Double) -> Double`（仅此一条）。
+- S1 检索（`extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket`）对 `lib/reading_time*.mbt` → 0 命中。
+- `git status --porcelain` → 仅 `?? .qoder/`。
+
+## 4. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-2.1/A-11.2 由 T-36 复验。本任务的等价证据为上表 11 个 oracle 值与附加边界断言。
+
+## 5. 偏差登记
+
+- 实现未由独立实现者子代理完成（用量上限）；控制器实现并复核。
+- 审查子代理若可用则补做；否则由 T-36/T-52 的门禁与整支审查兜底，且该偏差保留在 ledger 中，不静默消解。

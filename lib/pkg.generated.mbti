@@ -18,6 +18,8 @@ pub fn monosyllabcount(String, lang? : String) -> Int raise TextstatError
 
 pub fn polysyllabcount(String, lang? : String) -> Int raise TextstatError
 
+pub fn reading_time(String, ms_per_char? : Double) -> Double
+
 pub fn sentence_count(String) -> Int
 
 pub fn syllable_count(String, lang? : String) -> Int raise TextstatError
