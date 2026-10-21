@@ -1,0 +1,315 @@
+# T-07 L3 期望值生成器与 `gate/data/` 包 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`；Python 3.12.10、pyphen 0.17.2
+- 契约：AD-1 §1.3（L3 身份）、AD-2 §2.2/§2.3（比较约定）、AD §5（24 `[ALIGN]` /
+  31 `[EXT]` / 366 = 288 + 78）、AD §6（组名）、spec §4.6（门禁契约）、T-07 brief
+- 未执行：`moon upgrade`、`moon add`、`moon publish`、`git add -A`；
+  未修改 `vendor/`、`textstat/`、`docs/facts/oracle_smoke.json` 任何字节
+
+---
+
+## 1. 产物清单
+
+| 文件 | 角色 | 行数 | 字节数 | SHA-256 |
+| --- | --- | --- | --- | --- |
+| `tools/gen_data.py` | 模块外生成器（L2 + L3，写入与 `--check`） | 1,928 | 72,331 | `1d32baef2b406058e5e54bc122a728b519e0fcf58f3cfa924e71b235753da540` |
+| `tools/l2_manifest.json` | 单文件描述 L2 + L3 的确定性身份记录（`schema: 2`） | 317 | 10,071 | `55b5e671ec111bed33cfe54d75c4bb256bd66e4ec4e8f04e1bbf57f0135a7f80` |
+| `lib/gate/data/moon.pkg` | 包声明（空，1 字节换行） | 1 | 1 | — |
+| `lib/gate/data/cell.mbt` | 手写：`Expected` / `Cell` / 三个查询函数 | 68 | 2,259 | `604539bb304072ca59ca6cca9114dd906a6c7f9a0e3d4140751d03bda5991bac` |
+| `lib/gate/data/l3_data.mbt` | **生成**：366 个冻结单元格 | 2,962 | 86,826 | `603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d` |
+| `lib/gate/data/l3_test.mbt` | 黑盒测试（8 条） | 152 | 4,744 | `c7ecd4cc5734e35dd0a08e9ff9328fd75a917f891e2722dc1e82deefbb6d4606` |
+| `lib/gate/data/pkg.generated.mbti` | `moon info` 生成的接口 | 32 | 508 | `055afc32b22a105ecc6d47412a5d90a92ec6d0a5367d862804af93312a242dd1` |
+
+`lib/data/` 下四个 L2 生成文件与 `data.mbt`、`data_test.mbt`：**零字节改动**
+（`git status --short lib/data` 为空；`--check` 对四个文件全部 `OK`）。
+
+---
+
+## 2. L3 数据来源与解析规则
+
+### 2.1 权威清单从 AD §5 解析（不手抄第二份）
+
+生成器解析 `docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md`
+的 `## 5.` 小节，而不是在代码里再写一份清单：
+
+- `[EXT]` 表：跳过表头与分隔行，逐数据行取第 2 列的 5 组反引号形态，跳过「合计」行，
+  得到 **31** 个形态（断言 31、无重复）。
+- `[ALIGN]` 段落（`**24** 个形态：…`）：得到 **24** 个形态（断言 24）。
+- 语种探针段落（`字段为 **6** 个：…`）：`；` 前 6 个为 `[ALIGN]` 字段，
+  「四个字段」前 4 个为不进入断言字段（`count_arabic_syllables`、`osman`、
+  `easy_words_count`、`lang_root`），断言 6 / 4。
+
+oracle 侧逐样本断言：
+
+- 每个 `results` 键数 = **55**；`[EXT]` 31 个全部存在；
+  `results` − `[EXT]` = **24**，且与 AD §5 的 `[ALIGN]` 列表**集合相等**；
+- `spanish_text.results_es` 的键集合与 `results` 相同；
+- 12 个结果集 = 11 个 `results` + 1 个 `results_es`；
+- 13 个语种代码 × 每代码 10 字段；10 字段并集 = 6 个 `[ALIGN]` + 4 个排除字段。
+
+### 2.2 分组划分（AD §6 的组名，T-07 brief 的划分规则）
+
+优先级：`degenerate` → `variant` → `formula` → `count`。
+
+- `degenerate`：`very_short_under_5_words`、`empty_string`、`whitespace_only`、
+  `punctuation_only` 四个样本的全部 24 形态 = 96；
+- `variant`：5 个变体形态 × 其余 8 个结果集 = 40；
+- `formula`：8 个公式 × 8 个结果集 = 64；
+- `count`：其余 11 个形态 × 8 个结果集 = 88；
+- 语种侧：66 个 `lang` + 12 个 `errors`（`ar`/`xx_YY` 各 6）。
+
+断言：`variant`(5) 与 `formula`(8) 与 `[ALIGN]` 相容且互斥，剩余 `count` 恰 11 个；
+5 + 8 + 11 = 24；合计 96 + 40 + 64 + 88 + 66 + 12 = **366**。
+
+### 2.3 生效语种（不信任样本的 `lang` 字段）
+
+- 11 个样本的 `results` 一律记作 `en_US`（含 `spanish_text.results`，其
+  `syllable_count` = 51）；
+- 仅 `spanish_text.results_es` 记作 `es_ES`（`syllable_count` = 59）；
+- 语种单元格：`sample_id` = `lang` = 探针代码（来源标注已能区分二者）。
+
+### 2.4 值映射（AD §2.2 / §2.3）
+
+- JSON int → `EInt(Int)`（断言落在 32 位范围；oracle 全部满足）；
+- JSON float → `EDouble(UInt64)`，`bits = struct.unpack(">Q", struct.pack(">d", v))[0]`；
+  从不以十进制文本比较；
+- JSON bool → **拒绝**（ALIGN 中不存在；实测 288 个样本侧值全部是 int/float/list）；
+- JSON 字符串列表 → `EList(Array[String])`（`difficult_words_list`，集合语义由门禁侧执行）；
+- 带 `error` 的探针格 → `EError(error 文本)`，同时断言 `value` 为 null；
+  12 个错误格全部为 `KeyError: None`。
+
+来源标注：`golden:oracle_smoke.json#<sample_id>.<shape>`、
+`golden:oracle_smoke.json#<sample_id>.results_es.<shape>`、
+`golden:oracle_smoke.json#lang_probes.<code>.<field>`；断言 366 条来源标注**互不重复**。
+
+### 2.5 冻结身份
+
+```console
+L3_SHAPES align=24 ext=31 probe_fields=6 excluded_probe_fields=4
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+```
+
+- oracle：`docs/facts/oracle_smoke.json` 133,102 字节，SHA-256 同上（与 AD §2.2 的 133,102 一致）；
+- AD §5 来源文件：46,094 字节，SHA-256 `97d34de85457a30dd6f505530b6eaf239534a1c56a2df24de2245a6ce8e5baa2`；
+- 生成文件：86,826 字节，SHA-256 `603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d`。
+
+两者均写入 `tools/l2_manifest.json` 的 `l3.oracle` / `l3.whitelist_source`；
+生成文件字节数与 SHA-256 写入 `outputs["lib/gate/data/l3_data.mbt"]`。
+
+---
+
+## 3. 排除证据
+
+### 3.1 `[EXT]` = 0
+
+- 单元格形状 ∈ `[EXT]` 集合的计数：`L3_EXT=0`；
+- 生成源码内对 31 个 `[EXT]` 形态逐一 grep：全部命中 **0**（`EXT_SCAN_DONE`，无 `EXT_HIT` 行）；
+- 31 个 `[EXT]` 形态只出现在生成器的「来源解析 + 断言」路径，不存在期望值。
+
+### 3.2 `pt` = 0（A-4.4 非验收）
+
+- `L3_PT=0`（判据：`lang == "pt"` 或 `sample_id == "pt"` 或形态以 `pt` 开头或来源含 `.pt.`）；
+- 生成器另断言 `"pt" not in lang_probes` 且无样本 id 为 `pt`；
+- 生成文件内 `"pt"` / `lang_probes.pt.` / `pt_` 命中 0；语种代码集合只有 13 个 oracle 代码。
+
+### 3.3 `avg_*` / Spache / Osman / Crawford
+
+- MoonBit 测试 `l3: [EXT] callable shapes are absent` 遍历 366 格，断言形态不含
+  `avg_`、`spache`、`osman`、`crawford`。
+
+---
+
+## 4. 命令与原始输出
+
+### 4.1 生成（写入 L2 + L3）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python tools/gen_data.py
+L1_CHECKED=15 L1_MISMATCH=0
+...
+SAMPLES=11 MISMATCH=0
+SAMPLES_ES=1 MISMATCH_ES=0
+PROBES=11 MISMATCH=0
+L3_CELLS=366
+L3_SAMPLE=288 L3_LANG=78
+L3_GROUPS count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12
+L3_PT=0
+L3_EXT=0
+L3_SHAPES align=24 ext=31 probe_fields=6 excluded_probe_fields=4
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+WROTE lib/data/easy_words_data.mbt
+WROTE lib/data/hyphenation_patterns_data.mbt
+WROTE lib/data/pronunciation_data.mbt
+WROTE lib/data/pronunciation_supplement_gb_data.mbt
+WROTE lib/gate/data/l3_data.mbt
+WROTE tools/l2_manifest.json
+CHECK=PASS
+EXIT=0
+```
+
+L2 四个文件重写后 `git status --short lib/data` 为空：字节未变，L3 的加入没有扰动 L2。
+
+### 4.2 `--check`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python tools/gen_data.py --check
+...
+L3_CELLS=366
+L3_SAMPLE=288 L3_LANG=78
+L3_GROUPS count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12
+L3_PT=0
+L3_EXT=0
+L3_SHAPES align=24 ext=31 probe_fields=6 excluded_probe_fields=4
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+FILE lib/data/easy_words_data.mbt                 OK
+FILE lib/data/hyphenation_patterns_data.mbt       OK
+FILE lib/data/pronunciation_data.mbt              OK
+FILE lib/data/pronunciation_supplement_gb_data.mbt OK
+FILE lib/gate/data/l3_data.mbt                    OK
+FILES=5 OK=5 DIFF=0 MISSING=0
+MANIFEST OK
+CHECK=PASS
+EXIT=0
+```
+
+### 4.3 `moon check` / `moon build` / `moon test`（模块根 `lib/`）
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 4 tasks, now up to date
+EXIT=0
+
+$ cd lib && moon build --target native
+Finished. moon: no work to do
+EXIT=0
+
+$ cd lib && moon test --target native
+Total tests: 23, passed: 23, failed: 0.
+EXIT=0
+```
+
+新增的 8 条 L3 测试（`moon test -v`，全部 `ok`）：
+
+```console
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:21 ("l3: 366 frozen cells") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:27 ("l3: group breakdown") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:41 ("l3: every cell carries oracle provenance") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:54 ("l3: [EXT] callable shapes are absent") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:67 ("l3: effective language of every result set") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:86 ("l3: known char counts of short_simple_sentence") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:111 ("l3: flesch_reading_ease is compared by bit pattern") ok
+[vicoproplus/moon_textstat] test gate/data/l3_test.mbt:132 ("l3: unsupported languages are explicit error cells") ok
+```
+
+### 4.4 生成文件形态
+
+```console
+$ grep -c 'DO NOT EDIT' lib/gate/data/l3_data.mbt
+1
+```
+
+```console
+$ python - <<'PY'  # 读取生成文件并统计
+BYTES=86826 SHA256=603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d
+CR=0 MAX_COLUMNS=128 LINES=2963 CELLS=366
+PY
+```
+
+- UTF-8、`\n` 行尾、无 CR；最长行 128 列（< 65,535）；每个字符串字面量远小于 1,000 字符
+  （生成器对每个字面量断言 ≤ 1,000）；
+- 生成前先由 `validate_source()` 断言 marker 恰 1 次、行宽 < 65,535、S1 禁止面 0 命中。
+
+### 4.5 格式稳定性（与 `moon fmt` 共存）
+
+```console
+$ cd lib && moon fmt --check gate/data
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+```
+
+生成器按 `moon fmt` 的规范布局输出（数组元素逐字段换行；空 `EList([])` 单行；
+非空 `EList` 在单行 ≤ 82 列时单行，否则按 90 列贪心填充）。生成结果与
+`moon fmt` 处理后的文件**逐字节相同**（`diff` 0 行），因此跑 `moon fmt` 不会制造
+`--check` 差异。
+
+### 4.6 S1 静态禁止面
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' lib/gate/data
+S1_HITS=0
+```
+
+注：`difficult_words_list` 里的 `httpsexamplecomabc1` 由生成器按 L2 同样的
+`\u{68}ttp…` 转义输出（解码值不变，静态面 0 命中）。
+
+### 4.7 负向验证（oracle 不被修改：临时副本 + 模块级路径替换）
+
+值突变（`short_simple_sentence.results.char_count` 18 → 19，写入 OS 临时目录）：
+
+```console
+MUTATED_ORACLE=F:\Temp\t07_neg_r7c4ch_n\oracle_smoke_mutated.json
+L3_CELLS=366
+L3_PT=0
+L3_EXT=0
+FILE lib/gate/data/l3_data.mbt                    DIFF
+FILES=5 OK=4 DIFF=1 MISSING=0
+MANIFEST DIFF
+CHECK=FAIL
+NEG_VALUE_EXIT=1
+```
+
+结构突变（删除 `empty_string.results.char_count`，55 → 54 键）：
+
+```console
+MUTATED_ORACLE=F:\Temp\t07_neg2_xqi57u8s\oracle_smoke_mutated.json
+GEN_ERROR oracle sample empty_string: 54 result keys, expected 55
+CHECK=FAIL
+NEG_STRUCT_EXIT=1
+```
+
+结论：366 个单元格不是自证式常量——任一 oracle 值变化都会反映到生成字节，
+任一形态缺失都会触发结构断言。仓库内 `docs/facts/oracle_smoke.json` 未被改动。
+
+---
+
+## 5. 与 brief 的一处数值冲突（以 oracle 为准）
+
+brief 要求断言 `short_simple_sentence` 的 `char_count = 23`，但 oracle 实测：
+
+| 项 | 值 |
+| --- | --- |
+| 样本 `char_len`（文本长度） | 23 |
+| `results.char_count`（默认忽略空格） | **18** |
+| `results.char_count[ignore_spaces=False]` | 23 |
+
+按「保真优先」（spec §3.1，R1），L3 冻结 `char_count = 18`，测试同时断言
+`char_count[ignore_spaces=False] = 23`（即 brief 中 23 的来源），并断言
+`flesch_reading_ease` 的位模式 = `0x405D0947AE147AE2`（与 AD §2.2 表中
+`116.14500000000001 405d0947ae147ae2` 一致）。未把 23 写进 `char_count` 单元格。
+
+---
+
+## 6. 命令清单（本轮）
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `python tools/gen_data.py` | EXIT=0，L3_CELLS=366 |
+| 2 | `python tools/gen_data.py --check` | EXIT=0，CHECK=PASS |
+| 3 | `cd lib && moon check --target native` | EXIT=0 |
+| 4 | `cd lib && moon build --target native` | EXIT=0 |
+| 5 | `cd lib && moon test --target native` | EXIT=0，23/23 |
+| 6 | `cd lib && moon test --target native -v` | 8 条 L3 测试全部 ok |
+| 7 | `cd lib && moon fmt --check gate/data` | EXIT=0 |
+| 8 | `cd lib && moon info` | EXIT=0，仅新增 `gate/data/pkg.generated.mbti` |
+| 9 | S1 grep（`lib/gate/data/**`） | 0 命中 |
+| 10 | 生成文件规则检查 | marker=1、CR=0、max=128 列、366 格 |
+| 11 | 负向：值突变 `--check` | EXIT=1，DIFF |
+| 12 | 负向：删键 `--check` | EXIT=1，GEN_ERROR |
+
+提交：`git add tools/gen_data.py tools/l2_manifest.json lib/gate/data
+docs/superpowers/plans/logs/T-07.log`，消息
+`feat(gate-data): freeze 366 L3 alignment cells from the oracle`。
