@@ -1,0 +1,237 @@
+# T-28 — Gunning Fog
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`37be102 feat(formula): implement flesch_kincaid_grade`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-18；spec §4.3.4、§4.4 表第 3 行与约束 1；E-28 / A-3.3；上游
+`backend/metrics/_gunning_fog.py:12-36`、
+`backend/counts/_count_difficult_words.py:10-12`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 115/115 EXIT=0（T-27 后 111 + 本任务 4：黑盒 3 + 白盒
+> 1）；`.mbti` 只新增 `gunning_fog`；S1 零命中；11 个样本值按位相等（`==`，
+> 非容差）；E-28/A-3.3 得 `37.127272727272725 9 4`（只断言阈值 3 的 9/4，
+> 不断言阈值 2 的 10/5）；门禁顺延至 T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/gunning_fog.mbt` | 新增：公开 `gunning_fog` | 68 | `dfe2702e4b87d79579559364287642a8013068c1eb97daeffc55f28b36bcc8b6` |
+| `lib/gunning_fog_test.mbt` | 新增：3 条黑盒测试 | 122 | `feda3ee388028477f3e360c614854ca4bd62e182f18d7a3d87c90de760090b05` |
+| `lib/gunning_fog_wbtest.mbt` | 新增：1 条白盒测试（E-28 的 9/4） | 63 | `1b5cc6580060b7e0b4bba6b80a5fc57aa2f678e5abd3bffbdaaefc4aba41b27a` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `gunning_fog` 一行 | — | — |
+
+### 1.2 `lib/gunning_fog.mbt`
+
+```moonbit
+pub fn gunning_fog(
+  text : String,
+  lang~ : String = "en_US",
+) -> Double raise TextstatError {
+  let syllable_threshold = lang_config(lang).syllable_threshold
+  let diff_words = count_difficult_words(
+    text,
+    lang,
+    syllable_threshold~,
+    unique=false,
+  )
+  let tot_words = lexicon_count(text)
+  if tot_words == 0 {
+    return 0.0
+  }
+  let per_diff_words = (100 * diff_words).to_double() / tot_words.to_double()
+  0.4 * (words_per_sentence(text) + per_diff_words)
+}
+```
+
+- 逐字对应上游：
+  `syllable_threshold = int(get_lang_cfg(lang, "syllable_threshold"))` →
+  `lang_config(lang).syllable_threshold`（根解析 + 英语回退已在 T-25 完成；
+  en 3 / pl 4 / hu 5 / 其余 3）。
+- `diff_words` 用包内 `count_difficult_words(text, lang,
+  syllable_threshold=…, unique=false)`，**显式关闭去重**；不用公开
+  `difficult_words`（默认阈值 2、`unique=true`）。这是 R-09/R-32/R-43 的
+  易错点。
+- `tot_words` 用 `lexicon_count(text)` 默认（`removepunct=true`），即上游
+  `count_words(text)`。
+- **求值顺序 1**：`100 * diff_words` 先做 32 位整数乘法，再转 `Double` 做真
+  除法。`(diff / tot) * 100` 会让 `hyphenated_words` 与
+  `numbers_and_symbols` 各偏 1 ulp（§2.2）。
+- **求值顺序 2**：`0.4 * (wps + per_diff_words)` 先加后乘；重结合为
+  `0.4 * wps + 0.4 * per_diff_words` 会让 `long_multi_sentence_paragraph`
+  与 `numbers_and_symbols` 各偏 1 ulp（§2.2）。spec §4.4 约束 1 禁止改写。
+- **零分支**：难词计数先于零词守卫（上游顺序）；`tot_words == 0` → `0.0`。
+  空串、空白、纯标点都在此返回。难词计数对零词文本不产生 token，也不触碰
+  断字词典，故不支持语种下仍返回 0.0。
+- **失败通道**：含非易读词的非空文本在难词计数内到达音节层，`ar`/`xx_YY`
+  原样抛 `UnsupportedLanguage(requested)`；纯易读词文本（如 `hello`）走易读
+  词表短路，不失败（上游同为 0.4）。
+- 平均量复用 T-26 的包内 `words_per_sentence`，公式层不自行分词
+  （spec §2.1 约束 2）。默认 `lang = "en_US"`。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 E-28 / A-3.3
+
+```console
+$ cd textstat && python - <<'PY'
+import warnings; warnings.simplefilter('ignore')
+from textstat.backend.metrics._gunning_fog import gunning_fog
+from textstat.backend.counts._count_difficult_words import count_difficult_words as c
+t='read readability syntax remarkable remarkable remarkable comprehension vocabulary comprehension vocabulary remarkable'
+print(repr(gunning_fog(t,'en_US')), c(t,'en_US',3,False), c(t,'en_US',3,True))
+PY
+37.127272727272725 9 4
+```
+
+即阈值 3：非去重 9、去重 4；`0.4*(11+100*9/11)` =
+`37.127272727272725`；若误用去重 4 则为 `18.94545454545455`。阈值 2 的
+10/5 只作为 E-28 事实记录，**不进入 Fog 输入口径，也不在测试中断言**。
+
+### 2.2 两处求值顺序的可观察差异
+
+```console
+$ cd textstat && python - <<'PY'
+# 用上游计数复算 11 个样本：
+# per_a = 100*diff/tot；per_b = (diff/tot)*100
+# fog_a = 0.4*(wps+per)；fog_b = 0.4*wps+0.4*per
+PY
+id diff tot wps per expected reassoc_mul reassoc_final
+short_simple_sentence 0 6 6.0 0.0 2.4000000000000004 same same
+long_multi_sentence_paragraph 22 88 17.6 25.0 17.040000000000003 same DIFF
+abbreviations_and_initials 2 31 5.166666666666667 6.451612903225806 4.647311827956989 same same
+hyphenated_words 7 17 8.5 41.1764705882353 19.87058823529412 DIFF same
+numbers_and_symbols 2 28 4.666666666666667 7.142857142857143 4.723809523809524 DIFF DIFF
+multiple_paragraphs_newlines 6 27 5.4 22.22222222222222 11.04888888888889 same same
+very_short_under_5_words 0 2 2.0 0.0 0.8 same same
+empty_string 0 0 0.0 - 0.0 guard guard
+whitespace_only 0 0 0.0 - 0.0 guard guard
+punctuation_only 0 0 0.0 - 0.0 guard guard
+spanish_text 5 29 9.666666666666666 17.24137931034483 10.7632183908046 same same
+```
+
+`hyphenated_words`（`41.1764705882353` vs `41.17647058823529`）与
+`numbers_and_symbols`（`7.142857142857143` vs `7.142857142857142`）证明
+「先乘 100」可观察；`long_multi_sentence_paragraph`（`17.040000000000003` vs
+`17.04`）与 `numbers_and_symbols`（`4.723809523809524` vs `4.723809523809525`）
+证明「先加后乘」可观察。实现保持上游树，11 行全部按位命中。
+
+### 2.3 失败通道与零词文本
+
+```console
+$ cd textstat && python - <<'PY'
+# gunning_fog(text, lang) for the listed pairs
+PY
+'' en_US 0.0
+'' ar 0.0
+'' xx_YY 0.0
+'   \n\t ' en_US 0.0
+'   \n\t ' ar 0.0
+'   \n\t ' xx_YY 0.0
+' .? ' en_US 0.0
+' .? ' ar 0.0
+' .? ' xx_YY 0.0
+'hello' en_US 0.4
+'hello' ar 0.4
+'hello' xx_YY 0.4
+'xyzzy' en_US 0.4
+'xyzzy' ar KeyError (None,)
+'xyzzy' xx_YY KeyError (None,)
+'The extraordinary readability of international documentation.' en_US 29.06666666666667
+'The extraordinary readability of international documentation.' ar KeyError (None,)
+'The extraordinary readability of international documentation.' xx_YY KeyError (None,)
+```
+
+空串 / 空白 / 纯标点对不支持语种仍是 0.0（难词计数无 token，不解析词典）；
+`xyzzy` 与探针句这类含非易读词的非空文本抛语言失败。`hello` 全部易读词，走
+短路，不失败。
+
+### 2.4 期望值位模式核对
+
+从 `lib/gunning_fog_test.mbt` 的 `samples` 表抽取 11 个数字字面量，与
+`docs/facts/oracle_smoke.json` 的
+`samples[].results.gunning_fog.value` 用 `struct.pack('>d', …)` 比较：
+
+```console
+short_simple_sentence           2.4000000000000004 4003333333333334 MATCH
+long_multi_sentence_paragraph   17.040000000000003 40310a3d70a3d70b MATCH
+abbreviations_and_initials      4.647311827956989  401296d8e96d8e97 MATCH
+hyphenated_words                19.87058823529412  4033dededededee0 MATCH
+numbers_and_symbols             4.723809523809524  4012e52e52e52e53 MATCH
+multiple_paragraphs_newlines    11.04888888888889  40261907f6e5d4c4 MATCH
+very_short_under_5_words        0.8                3fe999999999999a MATCH
+empty_string                    0.0                0000000000000000 MATCH
+whitespace_only                 0.0                0000000000000000 MATCH
+punctuation_only                0.0                0000000000000000 MATCH
+spanish_text                    10.7632183908046   402586c48f986c4a MATCH
+LEN 11 ALL True
+```
+
+字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`；测试内
+`assert_eq(expected, …)` 再证明运行期返回值与字面量逐位相等。样本语种口径：
+`gen_oracle_smoke.py` 把 `gunning_fog` 放在 `ONE_ARG`，11 个样本均按默认
+`en_US` 取值（`spanish_text` 也是 en_US 值）。
+
+## 3. 测试（4 条，111 → 115）
+
+| 文件 / 测试 | 断言 |
+| --- | --- |
+| `gunning_fog_test.mbt` / `gunning_fog matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`2.4000000000000004, 17.040000000000003, 4.647311827956989, 19.87058823529412, 4.723809523809524, 11.04888888888889, 0.8, 0.0, 0.0, 0.0, 10.7632183908046`；末尾再断言省略 `lang` 与显式 `en_US` 同值 |
+| `gunning_fog_test.mbt` / `A-3.3: the E-28 fixture reproduces the non-unique Fog value` | `lexicon_count(fixture) == 11`；`gunning_fog(fixture) == 37.127272727272725`；显式 `en_US` 同值；注释标明 9 为非去重计数，去重 4 会得 `18.94545454545455` |
+| `gunning_fog_test.mbt` / `unsupported languages return zero for zero-word text and raise otherwise` | `ar`/`xx_YY`：`""`、`"   \n\t "`、`" .? "` → 0.0；探针句与 `xyzzy` → `UnsupportedLanguage(code)`，code 为原始拼写 |
+| `gunning_fog_wbtest.mbt` / `gunning_fog uses the root threshold and the non-unique count` | `lang_config` 阈值 en 3 / pl 4 / hu 5；`lexicon_count(fixture)==11`、`words_per_sentence(fixture)==11.0`；`count_difficult_words(fixture,"en_US",3,unique=false)==9`、`unique=true==4`；显式 `lang_config` 阈值仍为 9；`0.4*(11+100*9/11) == gunning_fog == 37.127272727272725` |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。A-3.3 只断言阈值 3
+的 9/4，阈值 2 的 10/5 未断言。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 115, passed: 115, failed: 0.          # EXIT=0；T-27 base 111 + 4
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn gunning_fog(String, lang? : String) -> Double raise TextstatError
+# 仅此一行（含空行），无其他符号变化
+
+$ grep -c "#warnings" lib/gunning_fog.mbt lib/gunning_fog_test.mbt lib/gunning_fog_wbtest.mbt
+0
+0
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/gunning_fog.mbt lib/gunning_fog_test.mbt lib/gunning_fog_wbtest.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ awk long-line check: no line > 65,535 bytes
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/gunning_fog.mbt
+?? lib/gunning_fog_test.mbt
+?? lib/gunning_fog_wbtest.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 与 A-3.3 的门禁用例形态由
+T-36/T-52 复验。本任务不宣称门禁等价，只把 A-3.3 的取值语义（阈值 3 的
+9/4 与 Fog 值）先固定在包测试里。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. 测试拆为黑盒 3 条 + 白盒 1 条：白盒持有包内 `count_difficult_words` 的
+   9/4 断言，黑盒持有 Fog 值与失败通道；未新增阈值 2 的 10/5 断言。
+3. `moon fmt` 把显式 `syllable_threshold=syllable_threshold` 简写为
+   `syllable_threshold~`；语义不变，阈值仍由 `lang_config` 解析后显式传入。
+4. 未新增 `pl_PL`/`hu_HU` 的 Fog 断言（无 oracle 单元格；`pt` 非验收，
+   R-33 裁决 b）。语言探针中的 Fog 值属 T-35 语种矩阵范围。

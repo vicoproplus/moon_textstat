@@ -12,6 +12,8 @@ pub fn flesch_kincaid_grade(String, lang? : String) -> Double raise TextstatErro
 
 pub fn flesch_reading_ease(String, lang? : String) -> Double raise TextstatError
 
+pub fn gunning_fog(String, lang? : String) -> Double raise TextstatError
+
 pub fn letter_count(String) -> Int
 
 pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
