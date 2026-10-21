@@ -1,0 +1,154 @@
+# T-20 易读词表加载与语种选择 日志
+
+- 执行时间：2026-10-21 16:05（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`34d5b65 feat(count): implement monosyllabcount`
+- 契约：PRD-A FR-25/FR-26；spec §4.5.2、§4.5.1；design WB4；上游
+  `_get_lang_easy_words.py:46-54`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 84/84 EXIT=0；`.mbti` 无变化；
+  S1 命中 0）
+
+---
+
+## 1. 改动面（2 个新文件，无生成文件变更）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/easy_words.mbt` | 新增：词表选择 + 二分成员判定（包内私有） | 96 | `0f17eee025b751b91fe377ba57b35052909ccc9297ed34ae80280413764cf185` |
+| `lib/easy_words_wbtest.mbt` | 新增：7 条白盒测试（计数、全量排序/命中、英/西成员、根解析、回退、大小写前置条件） | 108 | `b4ae0a3d987c9c6f93e2b7f2fc7310631287afdbb4e5d8e948939b1f3e2bcd3b` |
+
+未改动 `lib/data/`、`lib/moon.pkg`、`lib/pkg.generated.mbti`；未新增依赖；
+未新增公共 API（三个新增函数均为包内私有，`.mbti` 无 diff）。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `easy_words_for_lang(lang) -> Array[String]`（包内私有）
+
+上游整体为：
+
+```python
+lang_root = get_lang_root(lang)
+try:
+    return _set_words(lang_root)
+except FileNotFoundError:
+    warnings.warn(...)
+    return _set_words("en")
+```
+
+1. **根解析复用现有实现**：直接调用 `syllables.mbt` 的 `lang_root`（T-16 已固定
+   「只按第一个 `_` 切分、不做大小写/分隔符归一化」的语义），不新增解析代码。
+2. **选择顺序**：先 `@data.easy_words(lang_root(lang))`；`Some(words)` 用该表，
+   `None` 用 `@data.easy_words("en")`。当前数据包只含 `en`/`es` 两份表，因此
+   `de_DE`、`fr_FR`、`xx_YY`、`ar`、`pt` 等根全部落到英语表。
+3. **静默回退**：上游在此处 `warnings.warn`；本库按 spec §4.5.1 以文档声明代替
+   告警，运行期不打印、不记录、不读环境变量。除告警外返回值与上游相同。
+4. **英语不变量**：`en` 恒为内嵌两份表之一。若 `@data.easy_words("en")` 也为
+   `None`，说明数据包构建错误，`abort("missing embedded easy-word list: en
+   (data invariant)")` 直接失败，不把缺失降级成「所有词都不易读」。
+5. **数据形状**：`@data.easy_words` 返回生成器已处理的结果——逐行 strip（西语源
+   文件的 `que ` 等 7,023 个尾空格条目已去尾空格）、小写、去空、去重、排序。
+   返回数组是数据包的只读存储，本实现不修改。
+
+### 2.2 `is_easy_word(lang, lowercase_word) -> Bool`
+
+- 取 `easy_words_for_lang(lang)` 后二分查找；命中返回 `true`。
+- **前置条件：`lowercase_word` 已经是小写**，与上游 `is_difficult_word:41`
+  （`word = word.lower()` 在集合查找之前）的分工一致；小写化属公开入口
+  `difficult_words`（T-21）的职责，此处不重复。`"The"`/`"EL"` 返回 `false`，
+  `"the"`/`"el"` 返回 `true`。
+- 词表只含小写条目（上游源文件已实测 0 条含大写），因此前置条件可观测。
+- 纯函数：无 I/O、无异常。
+
+### 2.3 `easy_word_count(lang) -> Int32`（包内私有）
+
+返回所选词表的条目数（上游 `len(get_lang_easy_words(lang))`），供测试与 T-35
+语种矩阵使用：`en`/`en_US`/任意回退根 2,941，`es`/`es_ES` 20,000。不新增公共
+API。
+
+### 2.4 二分比较器（关键实现点）
+
+- 词表按 **UTF-16 码元字典序**（等价于 Python `sorted` 的码点序；两份表均只含
+  BMP 字符）排序，实测 `en`/`es` 均严格递增、无重复。
+- MoonBit 的 `Compare for String` 是 **shortlex**（先比长度：`"b" < "ab"`），
+  与数据顺序不一致，直接使用 `<` / `compare` 会让二分查找漏词。
+- 因此比较统一用 `String::lexical_compare`（逐码元、前缀短者在前），与数据
+  生成顺序一致；该要点写进 `sorted_easy_words_contains` 与
+  `is_easy_word` 的文档注释。
+
+### 2.5 未使用告警的处置
+
+`is_easy_word` 与 `easy_word_count` 本任务只有白盒测试调用（T-21 才接入
+`difficult_words`），`moon check` 不编译测试文件会报 `unused_value`。两个声明
+加 `#warnings("-unused_value")`（core 自带同类用法），不把可见性放宽为 `pub`，
+保持 `.mbti` 不变；check 因此零警告。
+
+## 3. 上游实测（`textstat 0.7.13`，`warnings.simplefilter('ignore')`）
+
+```console
+en     en     2941  cat=True   el=False  the=True
+en_US  en     2941  cat=True   el=False  the=True
+es     es    20000  cat=False  el=True   the=True
+es_ES  es    20000  cat=False  el=True   the=True
+de_DE  de     2941  cat=True   el=False  the=True
+fr_FR  fr     2941  cat=True   el=False  the=True
+xx_YY  xx     2941  cat=True   el=False  the=True
+ar     ar     2941  cat=True   el=False  the=True
+es: 'que'=True  'que '=False
+```
+
+与测试断言逐条一致：`cat`/`el` 是区分英/西根的判别词；`the` 同时在两份表中，
+只能证明重叠、不能区分根；`de_DE`/`fr_FR`/`xx_YY`/`ar` 均为英语回退。
+
+## 4. 测试（7 条，77 → 84）
+
+| 组 | 断言 |
+| --- | --- |
+| 计数 | `@data.easy_words`：en 2,941、es 20,000；选择器：en/en_US 2,941、es/es_ES 20,000 |
+| 全量不变量 | 两份表相邻项 `lexical_compare < 0`（严格排序、无重复）；22,941 个条目逐个 `is_easy_word` 命中 |
+| 英语成员 | `the`/`cat`/`sat`/`mat`/`simple` 真；`extraordinary`/`readability`/`documentation` 假；首尾 `a`/`youth` 可达 |
+| 西语成员 | `el`/`la`/`extraordinario`/`lectura` 真；`extraordinary`/`cat` 假；`que` 真、`que ` 假（复刻 strip） |
+| 根解析 | `en_US`：`cat` 真、`el` 假；`es_ES`：`el` 真、`cat` 假；`the` 在两边都真（重叠说明） |
+| 回退 | `de_DE`/`fr_FR`/`xx_YY`/`ar`：`cat` 真、`el` 假、计数 2,941 |
+| 前置条件 | 空串假；`"The"`/`"EL"` 假；`"the"`/`"el"` 真 |
+
+全量不变量测试额外验证了二分查找与数据排序假设的一致性，不只覆盖少量样本。
+
+## 5. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date         # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 84, passed: 84, failed: 0.             # EXIT=0；T-19 后 77 + 本任务 7
+
+$ moon info && moon fmt                            # EXIT=0
+$ git diff -- lib/pkg.generated.mbti                # 无输出：无公共接口变化
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lib/easy_words.mbt lib/easy_words_wbtest.mbt lib/pkg.generated.mbti
+# 无输出，EXIT=1（S1 零命中）
+```
+
+`git status` 仅 `.qoder/`（环境目录）与本任务两个新文件及日志；无其他修改。
+
+## 6. 备注 / 风险
+
+1. **排序比较器不是实现细节而是正确性前提**：若未来数据生成器按其他顺序排序，
+   二分查找会静默漏词；全量测试会立即发现（相邻项严格递增 + 每条命中）。
+2. **静默回退的可见差异仅在告警**：上游对无资源根发 `Warning`；本库不发，数值
+   路径完全相同。T-35 的语种矩阵应按「词表条目数 = 2,941」判别回退。
+3. **`is_easy_word` 尚未接入生产路径**：T-21 的 `difficult_words` 负责先
+   `to_lower` 再调用；本任务只交付选择与成员判定，未实现难词阈值。
+4. **`pt` 混合行为不受影响**：`pt` 的词表回退英语（2,941），断字字典仍由 T-15
+   解析为葡语字典；本任务不触碰断字层。
+5. 门禁（`--group=lang` 的 `spanish_text` 两组，A-4.2）按计划推迟到 T-36；
+   本任务以 7 条白盒断言作为等价证据。
