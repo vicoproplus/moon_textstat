@@ -47,12 +47,8 @@ fn easy_words_for_lang(lang : String) -> Array[String] {
 /// `sorted_easy_words_contains` for why the comparator is not `String`'s
 /// `Compare`.
 ///
-/// This task's only callers are the white-box tests; T-21 wires the predicate
-/// into `difficult_words`. `moon check` compiles without test files, so the
-/// otherwise-correct unused-function warning is silenced here instead of
-/// widening the visibility to `pub`.
-// TEMP(T-20): remove this suppression in T-21, when `difficult_words` calls `is_easy_word`.
-#warnings("-unused_value")
+/// Consumed by `is_difficult_word` (`difficult_words.mbt`) after that caller
+/// has lowercased the word, and by the white-box tests.
 fn is_easy_word(lang : String, lowercase_word : String) -> Bool {
   sorted_easy_words_contains(easy_words_for_lang(lang), lowercase_word)
 }
