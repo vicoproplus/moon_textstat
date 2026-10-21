@@ -10,6 +10,7 @@ Inputs are frozen and live outside the MoonBit module (``vendor/upstream/``):
 Outputs (inside the module, package ``vicoproplus/moon_textstat/data``):
 
 * ``lib/data/pronunciation_data.mbt``
+* ``lib/data/pronunciation_supplement_gb_data.mbt``
 * ``lib/data/hyphenation_patterns_data.mbt``
 * ``lib/data/easy_words_data.mbt``
 * ``tools/l2_manifest.json`` (deterministic identity record)
@@ -21,8 +22,15 @@ Usage::
 
 ``--check`` regenerates everything in memory and compares byte-for-byte with
 what is on disk, re-verifies the frozen L1 inputs against the pinned
-``(bytes, sha256)`` identities, and recomputes the syllable total of every
-oracle sample from the generated data plus the pyphen fallback.
+``(bytes, sha256)`` identities (raw and LF-normalized word lists, 15/15),
+recomputes the syllable total of every oracle sample from the generated data
+plus the pyphen fallback, and recomputes the syllable total of every language
+probe whose dictionary is vendored (11 probes, incl. ``en``/``en_GB`` through
+the supplement table).
+
+Repository writes are zero in ``--check`` mode.  The only temporary files are
+created by ``tempfile`` in the OS temp directory and removed immediately; this
+includes the pyphen pattern round-trip proof.
 
 Exit codes: 0 = identical / verified, 1 = any difference or mismatch.
 """
@@ -89,6 +97,19 @@ PINNED_PRONUNCIATION_ENTRIES = 48202
 PINNED_PRONUNCIATION_TSV_BYTES = 515949
 PINNED_PRONUNCIATION_TSV_SHA256 = (
     "6167911da7a152ac247c084ac586ed64f370933233d9ec71324ca0e24c3db507"
+)
+# Row-set identity: SHA-256 of the sorted ``word<TAB>count\n`` line set
+# (AD-1 section 1.3 "to be fixed after generation").
+PINNED_PRONUNCIATION_ROWS_BYTES = 515949
+PINNED_PRONUNCIATION_ROWS_SHA256 = (
+    "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854"
+)
+# en_GB supplement: words whose CMU count differs from the en_GB fallback but
+# equals the en_US fallback (therefore absent from the primary trimmed table).
+PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES = 21782
+PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_BYTES = 231288
+PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256 = (
+    "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705"
 )
 EASY_ROOTS = ["en", "es"]
 PINNED_EASY_ENTRIES = {"en": 2941, "es": 20000}
@@ -160,6 +181,40 @@ L1_PINS = {
     ),
 }
 
+# AD-1 section 1.2 also pins the LF-normalized form of both word lists
+# (identical to the upstream git blobs).  These are additional identities on
+# the same two files; together with L1_PINS they make A1-1 15/15.
+L1_LF_PINS = {
+    "vendor/upstream/easy_words/en/easy_words.txt": (
+        18637,
+        "9c75ec6f1a0e7200bc677a4d100a9b13f864db57d800087b10d30b017a856360",
+    ),
+    "vendor/upstream/easy_words/es/easy_words.txt": (
+        188126,
+        "5db3b3c725558854f1f47f2ec19f68f5c7304bc77f2d29e2d9bda608bdb7625d",
+    ),
+}
+
+# Language probes frozen in docs/facts/oracle_smoke.json.  ``en`` and ``en_GB``
+# resolve to hyph_en_GB.dic (upstream pyphen short-name fallback), ``es_ES`` to
+# hyph_es.dic and ``fr_FR`` to hyph_fr.dic.  ``ar``/``xx_YY`` have no vendored
+# dictionary: the oracle records an error and the generator asserts that.
+PROBE_TEXT = "The extraordinary readability of international documentation."
+PROBE_FALLBACKS = {
+    "en": "en_GB",
+    "en_US": "en_US",
+    "en_GB": "en_GB",
+    "de_DE": "de_DE",
+    "es_ES": "es",
+    "fr_FR": "fr",
+    "it_IT": "it_IT",
+    "nl_NL": "nl_NL",
+    "pl_PL": "pl_PL",
+    "ru_RU": "ru_RU",
+    "hu_HU": "hu_HU",
+}
+PROBE_SKIP_CODES = ["ar", "xx_YY"]
+
 # Tokenization semantics of textstat's backend `list_words(text, lowercase=True)`
 # (backend/transformations/_remove_punctuation.py + backend/selections/_list_words.py).
 RE_NONCONTRACTION_APOSTROPHE = re.compile(r"\'(?![tsd]|ve|ll|re)")
@@ -170,6 +225,8 @@ RE_NON_APOSTROPHE_PUNCTUATION = re.compile(r"[^\w\s\']")
 # the token "http"), so the emitter escapes the first character of every
 # occurrence as a \u{..} escape: the decoded data is unchanged while the
 # generated source never contains the forbidden token as contiguous text.
+# Concretely ``http`` is emitted as ``\u{68}ttp``: the decoded word is
+# unchanged and the S1 static grep stays at zero.
 GUARD_TOKENS = (
     "http",
     "socket",
@@ -203,16 +260,28 @@ def read_bytes(rel_path: str) -> bytes:
 
 def verify_l1() -> tuple[int, list[str]]:
     failures: list[str] = []
+    checked = 0
     for rel_path in sorted(L1_PINS):
         expected_bytes, expected_sha = L1_PINS[rel_path]
         raw = read_bytes(rel_path)
         actual_sha = sha256_hex(raw)
+        checked += 1
         if len(raw) != expected_bytes or actual_sha != expected_sha:
             failures.append(
                 "%s: got bytes=%d sha256=%s, pinned bytes=%d sha256=%s"
                 % (rel_path, len(raw), actual_sha, expected_bytes, expected_sha)
             )
-    return len(L1_PINS), failures
+    for rel_path in sorted(L1_LF_PINS):
+        expected_bytes, expected_sha = L1_LF_PINS[rel_path]
+        normalized = read_bytes(rel_path).replace(b"\r\n", b"\n")
+        actual_sha = sha256_hex(normalized)
+        checked += 1
+        if len(normalized) != expected_bytes or actual_sha != expected_sha:
+            failures.append(
+                "%s[lf]: got bytes=%d sha256=%s, pinned bytes=%d sha256=%s"
+                % (rel_path, len(normalized), actual_sha, expected_bytes, expected_sha)
+            )
+    return checked, failures
 
 
 # --------------------------------------------------------------------------
@@ -264,19 +333,27 @@ def norm_patterns(hd) -> dict:
     return out
 
 
-def verify_patterns_roundtrip(lang: str, lines: list[str]) -> None:
-    """Prove that re-encoding the decoded lines to UTF-8 is behavior-preserving."""
+def verify_patterns_roundtrip(lang: str, lines: list[str]) -> pyphen.Pyphen:
+    """Prove that re-encoding the decoded lines to UTF-8 is behavior-preserving.
+
+    The temporary ``.dic`` lives in the OS temp directory (``tempfile``) and
+    is removed on exit: the repository itself is never written by ``--check``.
+
+    Returns the pyphen instance parsed from the re-encoded (generated) lines so
+    callers can compute fallbacks from the generated tables, not the source.
+    """
     source_path = REPO / ("vendor/upstream/pyphen/hyph_%s.dic" % lang)
     with tempfile.TemporaryDirectory(prefix="moon_textstat_l2_") as tmp:
         tmp_path = Path(tmp) / ("hyph_%s.dic" % lang)
         payload = "UTF-8\n" + "\n".join(lines) + "\n"
         tmp_path.write_bytes(payload.encode("utf-8"))
-        original = pyphen.Pyphen(filename=str(source_path)).hd
-        regenerated = pyphen.Pyphen(filename=str(tmp_path)).hd
-    if norm_patterns(original) != norm_patterns(regenerated):
+        original = pyphen.Pyphen(filename=str(source_path))
+        regenerated = pyphen.Pyphen(filename=str(tmp_path))
+    if norm_patterns(original.hd) != norm_patterns(regenerated.hd):
         raise GenError("%s: re-encoded lines change pyphen patterns" % lang)
-    if original.maxlen != regenerated.maxlen:
+    if original.hd.maxlen != regenerated.hd.maxlen:
         raise GenError("%s: re-encoded lines change pyphen maxlen" % lang)
+    return regenerated
 
 
 def parse_cmudict() -> tuple[dict[str, list[str]], list[str]]:
@@ -375,6 +452,75 @@ def verify_samples(
     return rows, es_rows, failures
 
 
+def rows_tsv(rows: list[tuple[str, int]]) -> bytes:
+    """Canonical sorted row set: ``word<TAB>count\\n`` for every row."""
+    return "".join("%s\t%d\n" % (word, count) for word, count in rows).encode("utf-8")
+
+
+def verify_probes(
+    primary_map: dict[str, int],
+    supplement_map: dict[str, int],
+    fallbacks: dict[str, object],
+) -> tuple[list, list, list[str]]:
+    """Recompute every vendored-dictionary language probe against the oracle.
+
+    textstat consults cmudict only when ``get_lang_root(lang) == "en"``; for
+    every other code the pyphen fallback owns all words.  For English the
+    lookup overlay is variant-aware: ``en_US`` sees the primary trimmed table,
+    ``en``/``en_GB`` see primary + supplement.  ``ar``/``xx_YY`` have no
+    pyphen dictionary, so the oracle must record an error instead.
+    """
+    doc = json.loads(ORACLE_PATH.read_text(encoding="utf-8"))
+    probes = doc["lang_probes"]
+    rows: list[tuple[str, int, int, bool]] = []
+    skips: list[tuple[str, str, bool]] = []
+    failures: list[str] = []
+    for code in PROBE_FALLBACKS:
+        item = probes.get(code, {}).get("syllable_count")
+        if item is None:
+            failures.append("probe %s: missing from oracle" % code)
+            continue
+        if item.get("error") is not None:
+            failures.append(
+                "probe %s: oracle records error %r, expected a value"
+                % (code, item["error"])
+            )
+            continue
+        fallback = fallbacks[code]
+        total = 0
+        for word in list_words(PROBE_TEXT):
+            count = None
+            if code in ("en", "en_US", "en_GB"):
+                count = primary_map.get(word)
+                if count is None and code in ("en", "en_GB"):
+                    count = supplement_map.get(word)
+            if count is None:
+                count = len(fallback.positions(word)) + 1
+            total += count
+        expected = item["value"]
+        ok = total == expected
+        rows.append((code, total, expected, ok))
+        if not ok:
+            failures.append(
+                "probe %s: computed %d, expected %d" % (code, total, expected)
+            )
+    for code in PROBE_SKIP_CODES:
+        item = probes.get(code, {}).get("syllable_count")
+        if item is None:
+            failures.append("probe %s: missing from oracle" % code)
+            continue
+        error = item.get("error")
+        if error is None:
+            failures.append(
+                "probe %s: oracle has value %r, expected a dictionary error"
+                % (code, item.get("value"))
+            )
+            skips.append((code, "", False))
+        else:
+            skips.append((code, str(error), True))
+    return rows, skips, failures
+
+
 # --------------------------------------------------------------------------
 # In-memory model of all generated data
 # --------------------------------------------------------------------------
@@ -388,15 +534,27 @@ class GeneratedData:
         self.pronunciation_tsv_bytes = 0
         self.pronunciation_tsv_sha256 = ""
         self.pronunciation_payload = ""
+        self.pronunciation_rows_bytes = 0
+        self.pronunciation_rows_sha256 = ""
+        self.pronunciation_supplement_sorted: list[tuple[str, int]] = []
+        self.pronunciation_supplement_payload = ""
+        self.pronunciation_supplement_rows_bytes = 0
+        self.pronunciation_supplement_rows_sha256 = ""
         self.patterns: dict[str, dict] = {}
         self.easy_words: dict[str, list[str]] = {}
         self.sample_rows: list[tuple[str, int, int, bool]] = []
         self.sample_es_rows: list[tuple[str, int, int, bool]] = []
+        self.probe_rows: list[tuple[str, int, int, bool]] = []
+        self.probe_skips: list[tuple[str, str, bool]] = []
         self.failures: list[str] = []
 
     @property
     def pronunciation_entries(self) -> int:
         return len(self.pronunciation_sorted)
+
+    @property
+    def pronunciation_supplement_entries(self) -> int:
+        return len(self.pronunciation_supplement_sorted)
 
 
 def build() -> GeneratedData:
@@ -407,18 +565,25 @@ def build() -> GeneratedData:
         data.failures.extend(data.l1_failures)
         return data
 
-    # --- pronunciation table (trimmed) ------------------------------------
+    # --- pronunciation tables (primary A, en_GB supplement S) -------------
+    # A = {word : cmu(word) != pyphen_en_US(word)}
+    # S = {word : cmu(word) != pyphen_en_GB(word)} \ A
     cmu_first, cmu_order = parse_cmudict()
     en_us = pyphen.Pyphen(filename=str(VENDOR / "pyphen" / "hyph_en_US.dic"))
+    en_gb = pyphen.Pyphen(filename=str(VENDOR / "pyphen" / "hyph_en_GB.dic"))
     trimmed_unsorted: list[tuple[str, int]] = []
+    supplement_unsorted: list[tuple[str, int]] = []
     for word in cmu_order:
         count = cmu_syllables(cmu_first[word])
-        fallback = len(en_us.positions(word)) + 1
-        if count != fallback:
+        fallback_us = len(en_us.positions(word)) + 1
+        if count != fallback_us:
             trimmed_unsorted.append((word, count))
-    tsv = "".join("%s\t%d\n" % (word, count) for word, count in trimmed_unsorted)
-    data.pronunciation_tsv_bytes = len(tsv.encode("utf-8"))
-    data.pronunciation_tsv_sha256 = sha256_hex(tsv.encode("utf-8"))
+            continue
+        if count != len(en_gb.positions(word)) + 1:
+            supplement_unsorted.append((word, count))
+    tsv = rows_tsv(trimmed_unsorted)
+    data.pronunciation_tsv_bytes = len(tsv)
+    data.pronunciation_tsv_sha256 = sha256_hex(tsv)
     if len(trimmed_unsorted) != PINNED_PRONUNCIATION_ENTRIES:
         data.failures.append(
             "pronunciation entries: got %d, pinned %d"
@@ -438,14 +603,70 @@ def build() -> GeneratedData:
     data.pronunciation_payload = "\n".join(
         "%s\t%d" % (word, count) for word, count in data.pronunciation_sorted
     )
+    rows = rows_tsv(data.pronunciation_sorted)
+    data.pronunciation_rows_bytes = len(rows)
+    data.pronunciation_rows_sha256 = sha256_hex(rows)
+    if data.pronunciation_rows_bytes != PINNED_PRONUNCIATION_ROWS_BYTES:
+        data.failures.append(
+            "pronunciation sorted rows bytes: got %d, pinned %d"
+            % (data.pronunciation_rows_bytes, PINNED_PRONUNCIATION_ROWS_BYTES)
+        )
+    if data.pronunciation_rows_sha256 != PINNED_PRONUNCIATION_ROWS_SHA256:
+        data.failures.append(
+            "pronunciation sorted rows sha256: got %s, pinned %s"
+            % (data.pronunciation_rows_sha256, PINNED_PRONUNCIATION_ROWS_SHA256)
+        )
     trimmed_map = dict(data.pronunciation_sorted)
+
+    data.pronunciation_supplement_sorted = sorted(supplement_unsorted)
+    data.pronunciation_supplement_payload = "\n".join(
+        "%s\t%d" % (word, count)
+        for word, count in data.pronunciation_supplement_sorted
+    )
+    supplement_rows = rows_tsv(data.pronunciation_supplement_sorted)
+    data.pronunciation_supplement_rows_bytes = len(supplement_rows)
+    data.pronunciation_supplement_rows_sha256 = sha256_hex(supplement_rows)
+    if (
+        len(supplement_unsorted)
+        != PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES
+    ):
+        data.failures.append(
+            "pronunciation supplement entries: got %d, pinned %d"
+            % (
+                len(supplement_unsorted),
+                PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES,
+            )
+        )
+    if (
+        data.pronunciation_supplement_rows_bytes
+        != PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_BYTES
+    ):
+        data.failures.append(
+            "pronunciation supplement sorted rows bytes: got %d, pinned %d"
+            % (
+                data.pronunciation_supplement_rows_bytes,
+                PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_BYTES,
+            )
+        )
+    if (
+        data.pronunciation_supplement_rows_sha256
+        != PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256
+    ):
+        data.failures.append(
+            "pronunciation supplement sorted rows sha256: got %s, pinned %s"
+            % (
+                data.pronunciation_supplement_rows_sha256,
+                PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256,
+            )
+        )
+    supplement_map = dict(data.pronunciation_supplement_sorted)
 
     # --- hyphenation patterns --------------------------------------------
     for lang in PATTERN_LANGS:
         info = parse_pattern_file(lang)
-        verify_patterns_roundtrip(lang, info["lines"])
-        hd = pyphen.Pyphen(filename=str(REPO / info["path"])).hd
-        info["distinct_patterns"] = len(hd.patterns)
+        regenerated = verify_patterns_roundtrip(lang, info["lines"])
+        info["pyphen"] = regenerated
+        info["distinct_patterns"] = len(regenerated.hd.patterns)
         info["pinned_lines"] = PINNED_PATTERN_LINES.get(lang)
         if info["pinned_lines"] is not None and len(info["lines"]) != info["pinned_lines"]:
             data.failures.append(
@@ -471,6 +692,19 @@ def build() -> GeneratedData:
         pyphen.Pyphen(filename=str(VENDOR / "pyphen" / "hyph_es.dic")),
     )
     data.failures.extend(sample_failures)
+
+    # --- language probes --------------------------------------------------
+    # Fallbacks are parsed from the re-encoded generated pattern lines (proven
+    # equal to the source above), not from the vendored files a second time.
+    fallbacks = {}
+    for code, file_lang in PROBE_FALLBACKS.items():
+        fallbacks[code] = data.patterns[file_lang]["pyphen"]
+    data.probe_rows, data.probe_skips, probe_failures = verify_probes(
+        trimmed_map,
+        supplement_map,
+        fallbacks,
+    )
+    data.failures.extend(probe_failures)
     return data
 
 
@@ -592,6 +826,48 @@ def render_pronunciation(data: GeneratedData) -> tuple[str, dict]:
     )
 
 
+def render_pronunciation_supplement(data: GeneratedData) -> tuple[str, dict]:
+    header = [
+        "// L2 CMUdict syllable supplement for en_GB: every key whose CMU",
+        "// syllable count differs from the pyphen en_GB fallback but equals the",
+        "// en_US fallback (so the primary table does not carry it), sorted by",
+        "// word. Primary and supplement row-set SHA-256 constants are emitted",
+        "// below and exposed through DataStats.",
+        "// Source: %s" % CMUDICT_REL,
+        "// Entries: %d; payload characters: %d."
+        % (
+            data.pronunciation_supplement_entries,
+            len(data.pronunciation_supplement_payload),
+        ),
+    ]
+    trailer = [
+        "///|",
+        (
+            "// SHA-256 of the sorted word<TAB>count\\n row set (primary table).\n"
+            'let pronunciation_rows_sha256 : String = "%s"'
+        )
+        % data.pronunciation_rows_sha256,
+        "",
+        "///|",
+        (
+            "// SHA-256 of the sorted word<TAB>count\\n row set (en_GB supplement).\n"
+            'let pronunciation_supplement_rows_sha256 : String = "%s"'
+        )
+        % data.pronunciation_supplement_rows_sha256,
+    ]
+    return render_file(
+        header,
+        [
+            (
+                "raw_pronunciation_supplement_gb",
+                data.pronunciation_supplement_payload,
+                "en_GB pronunciation supplement",
+            )
+        ],
+        trailer,
+    )
+
+
 def render_patterns(data: GeneratedData) -> tuple[str, dict]:
     header = [
         "// L2 hyphenation pattern lines, decoded from each file's declared",
@@ -675,6 +951,8 @@ def build_outputs(data: GeneratedData) -> dict[str, tuple[str, dict]]:
     outputs: dict[str, tuple[str, dict]] = {}
     content, info = render_pronunciation(data)
     outputs["lib/data/pronunciation_data.mbt"] = (content, info)
+    content, info = render_pronunciation_supplement(data)
+    outputs["lib/data/pronunciation_supplement_gb_data.mbt"] = (content, info)
     content, info = render_patterns(data)
     outputs["lib/data/hyphenation_patterns_data.mbt"] = (content, info)
     content, info = render_easy_words(data)
@@ -694,6 +972,11 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
             "pattern_lines": len(info["lines"]),
             "distinct_patterns": info["distinct_patterns"],
             "pinned_pattern_lines": info["pinned_lines"],
+            "pattern_count_status": (
+                "AD-pinned"
+                if info["pinned_lines"] is not None
+                else "measured, not AD-pinned"
+            ),
         }
     cmu_raw = read_bytes(CMUDICT_REL)
     sources["cmudict"] = {
@@ -704,10 +987,13 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
     for root in EASY_ROOTS:
         rel_path = "vendor/upstream/easy_words/%s/easy_words.txt" % root
         raw = read_bytes(rel_path)
+        lf = raw.replace(b"\r\n", b"\n")
         sources["easy_words/%s" % root] = {
             "path": rel_path,
             "bytes": len(raw),
             "sha256": sha256_hex(raw),
+            "lf_bytes": len(lf),
+            "lf_sha256": sha256_hex(lf),
             "entries": len(data.easy_words[root]),
             "pinned_entries": PINNED_EASY_ENTRIES[root],
         }
@@ -736,15 +1022,38 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
             "pronunciation_entries": PINNED_PRONUNCIATION_ENTRIES,
             "pronunciation_unsorted_tsv_bytes": PINNED_PRONUNCIATION_TSV_BYTES,
             "pronunciation_unsorted_tsv_sha256": PINNED_PRONUNCIATION_TSV_SHA256,
+            "pronunciation_sorted_rows_bytes": PINNED_PRONUNCIATION_ROWS_BYTES,
+            "pronunciation_sorted_rows_sha256": PINNED_PRONUNCIATION_ROWS_SHA256,
+            "pronunciation_supplement_entries": PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES,
+            "pronunciation_supplement_sorted_rows_bytes": (
+                PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_BYTES
+            ),
+            "pronunciation_supplement_sorted_rows_sha256": (
+                PINNED_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256
+            ),
             "pattern_lines": PINNED_PATTERN_LINES,
             "easy_word_entries": PINNED_EASY_ENTRIES,
         },
         "pronunciation": {
             "entries": data.pronunciation_entries,
             "sorted": True,
+            "sorted_rows_bytes": data.pronunciation_rows_bytes,
+            "sorted_rows_sha256": data.pronunciation_rows_sha256,
             "unsorted_tsv_bytes": data.pronunciation_tsv_bytes,
             "unsorted_tsv_sha256": data.pronunciation_tsv_sha256,
             "payload_chars": len(data.pronunciation_payload),
+            "supplement": {
+                "entries": data.pronunciation_supplement_entries,
+                "sorted": True,
+                "sorted_rows_bytes": data.pronunciation_supplement_rows_bytes,
+                "sorted_rows_sha256": (
+                    data.pronunciation_supplement_rows_sha256
+                ),
+                "payload_chars": len(data.pronunciation_supplement_payload),
+                "applies_to": ["en", "en_GB"],
+                "trimmed_against": "pyphen hyph_en_GB.dic fallback",
+                "ad_pinned": False,
+            },
         },
         "easy_words": {
             root: {
@@ -764,6 +1073,12 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
             "oracle_samples_es_mismatch": sum(
                 1 for row in data.sample_es_rows if not row[3]
             ),
+            "language_probes": len(data.probe_rows),
+            "language_probes_mismatch": sum(
+                1 for row in data.probe_rows if not row[3]
+            ),
+            "language_probes_skipped": len(data.probe_skips),
+            "repo_writes_in_check_mode": 0,
         },
     }
     return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
@@ -782,8 +1097,35 @@ def print_report(data: GeneratedData) -> None:
             "FAIL" if pinned_bad else "OK",
         )
     )
+    supplement_bad = (
+        data.pronunciation_supplement_entries
+        != PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES
+    )
+    print(
+        "PRONUNCIATION_SUPPLEMENT entries=%d pinned=%d %s rows_bytes=%d rows_sha256=%s"
+        % (
+            data.pronunciation_supplement_entries,
+            PINNED_PRONUNCIATION_SUPPLEMENT_ENTRIES,
+            "FAIL" if supplement_bad else "OK",
+            data.pronunciation_supplement_rows_bytes,
+            data.pronunciation_supplement_rows_sha256,
+        )
+    )
+    print(
+        "PRONUNCIATION_ROWS primary_bytes=%d primary_sha256=%s "
+        "supplement_bytes=%d supplement_sha256=%s"
+        % (
+            data.pronunciation_rows_bytes,
+            data.pronunciation_rows_sha256,
+            data.pronunciation_supplement_rows_bytes,
+            data.pronunciation_supplement_rows_sha256,
+        )
+    )
     for lang in PATTERN_LANGS:
-        info = data.patterns[lang]
+        info = data.patterns.get(lang)
+        if info is None:
+            print("PATTERNS %-5s MISSING (build aborted)" % lang)
+            continue
         pinned = info["pinned_lines"]
         if pinned is None:
             print(
@@ -797,7 +1139,7 @@ def print_report(data: GeneratedData) -> None:
                 % (lang, len(info["lines"]), pinned, "OK" if ok else "FAIL")
             )
     for root in EASY_ROOTS:
-        count = len(data.easy_words[root])
+        count = len(data.easy_words.get(root, []))
         pinned = PINNED_EASY_ENTRIES[root]
         print(
             "EASY_WORDS %-2s entries=%d pinned=%d %s"
@@ -817,6 +1159,23 @@ def print_report(data: GeneratedData) -> None:
         % (
             len(data.sample_es_rows),
             sum(1 for row in data.sample_es_rows if not row[3]),
+        )
+    )
+    for code, computed, expected, ok in data.probe_rows:
+        print(
+            "PROBE %-5s computed=%-5d oracle=%-5d %s"
+            % (code, computed, expected, "OK" if ok else "MISMATCH")
+        )
+    for code, error, asserted in data.probe_skips:
+        print(
+            "PROBE_SKIP %-5s oracle_error=%r %s"
+            % (code, error, "ASSERTED" if asserted else "UNEXPECTED")
+        )
+    print(
+        "PROBES=%d MISMATCH=%d"
+        % (
+            len(data.probe_rows),
+            sum(1 for row in data.probe_rows if not row[3]),
         )
     )
 
@@ -861,22 +1220,8 @@ def check_outputs(outputs: dict[str, tuple[str, dict]], manifest: str) -> list[s
     return problems
 
 
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify generated files and data fidelity without writing",
-    )
-    args = parser.parse_args(argv)
-
-    try:
-        data = build()
-    except GenError as exc:
-        print("GEN_ERROR %s" % exc)
-        print("CHECK=FAIL")
-        return 1
-
+def run(args) -> int:
+    data = build()
     if data.failures:
         print_report(data)
         for failure in data.failures:
@@ -902,6 +1247,26 @@ def main(argv: list[str]) -> int:
     write_outputs(outputs, manifest)
     print("CHECK=PASS")
     return 0
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify generated files and data fidelity without writing",
+    )
+    args = parser.parse_args(argv)
+    try:
+        return run(args)
+    except GenError as exc:
+        print("GEN_ERROR %s" % exc)
+        print("CHECK=FAIL")
+        return 1
+    except Exception as exc:  # no traceback on any emission/build failure
+        print("GEN_ERROR %s: %s" % (type(exc).__name__, exc))
+        print("CHECK=FAIL")
+        return 1
 
 
 if __name__ == "__main__":

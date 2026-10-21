@@ -1,26 +1,68 @@
 ///|
 test "pronunciation table: known words return the upstream CMU count" {
-  assert_eq(@data.pronunciation_syllable_count("abandon"), Some(3))
-  assert_eq(@data.pronunciation_syllable_count("readability"), Some(5))
+  assert_eq(@data.pronunciation_syllable_count("abandon", "en_US"), Some(3))
+  assert_eq(@data.pronunciation_syllable_count("readability", "en_US"), Some(5))
 }
 
 ///|
 test "pronunciation table: lookup lowercases the word" {
-  assert_eq(@data.pronunciation_syllable_count("ABANDON"), Some(3))
+  assert_eq(@data.pronunciation_syllable_count("ABANDON", "en_US"), Some(3))
 }
 
 ///|
 test "pronunciation table: out-of-table word returns None" {
-  assert_eq(@data.pronunciation_syllable_count("zzzzqqq"), None)
+  assert_eq(@data.pronunciation_syllable_count("zzzzqqq", "en_US"), None)
+  assert_eq(@data.pronunciation_syllable_count("zzzzqqq", "en_GB"), None)
 }
 
 ///|
 test "pronunciation table: trimmed keys return None so the fallback owns them" {
-  // "the" is in cmudict, but its CMU count equals the pyphen fallback, so the
-  // trim rule removes it; the same holds for "hello" and "cat".
-  assert_eq(@data.pronunciation_syllable_count("the"), None)
-  assert_eq(@data.pronunciation_syllable_count("hello"), None)
-  assert_eq(@data.pronunciation_syllable_count("cat"), None)
+  // "the"/"cat" are in cmudict, but their CMU count equals both fallbacks, so
+  // the trim rules remove them.  "hello" is trimmed from the en_US primary
+  // table (CMU 2 == en_US fallback 2) but kept in the en_GB supplement
+  // (en_GB fallback 1).
+  assert_eq(@data.pronunciation_syllable_count("the", "en_US"), None)
+  assert_eq(@data.pronunciation_syllable_count("the", "en_GB"), None)
+  assert_eq(@data.pronunciation_syllable_count("cat", "en_US"), None)
+  assert_eq(@data.pronunciation_syllable_count("cat", "en_GB"), None)
+  assert_eq(@data.pronunciation_syllable_count("hello", "en_US"), None)
+  assert_eq(@data.pronunciation_syllable_count("hello", "en_GB"), Some(2))
+}
+
+///|
+test "pronunciation table: variant-aware overlay and English-only gating" {
+  // "extraordinary" is CMU 5, en_US fallback 5 (not primary), en_GB 3
+  // (supplement).  This is the regression that motivated the supplement.
+  assert_eq(@data.pronunciation_syllable_count("extraordinary", "en_US"), None)
+  assert_eq(
+    @data.pronunciation_syllable_count("extraordinary", "en_GB"),
+    Some(5),
+  )
+  assert_eq(@data.pronunciation_syllable_count("readability", "en_GB"), Some(5))
+  // The pronunciation layer is English-only; T-16 resolves en -> en_GB.
+  assert_eq(@data.pronunciation_syllable_count("extraordinary", "en"), None)
+  assert_eq(@data.pronunciation_syllable_count("extraordinary", "de_DE"), None)
+  assert_eq(@data.pronunciation_syllable_count("abandon", "EN_US"), None)
+  assert_eq(@data.pronunciation_syllable_count("abandon", ""), None)
+}
+
+///|
+test "language probe words: en_GB overlay carries the supplement" {
+  // Oracle probe text: "The extraordinary readability of international
+  // documentation."  The optional columns are the en_US and en_GB lookups;
+  // words absent from both table variants are owned by the pyphen fallback.
+  let probe : Array[(String, Int32?, Int32?)] = [
+    ("the", None, None),
+    ("extraordinary", None, Some(5)),
+    ("readability", Some(5), Some(5)),
+    ("of", None, None),
+    ("international", None, None),
+    ("documentation", None, None),
+  ]
+  for row in probe {
+    assert_eq(@data.pronunciation_syllable_count(row.0, "en_US"), row.1)
+    assert_eq(@data.pronunciation_syllable_count(row.0, "en_GB"), row.2)
+  }
 }
 
 ///|
@@ -130,6 +172,16 @@ test "data_stats: pinned identity and field agreement" {
   let stats = @data.data_stats()
   assert_eq(stats.pronunciation_entries, 48202)
   assert_eq(stats.pronunciation_entry_count(), 48202)
+  assert_eq(stats.pronunciation_supplement_entries, 21782)
+  assert_eq(stats.pronunciation_supplement_entry_count(), 21782)
+  assert_eq(
+    stats.pronunciation_rows_checksum(),
+    "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854",
+  )
+  assert_eq(
+    stats.pronunciation_supplement_rows_checksum(),
+    "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705",
+  )
   assert_eq(stats.pattern_languages().length(), 10)
   assert_eq(stats.easy_word_roots().length(), 2)
   assert_eq(stats.pattern_counts[0].0, "en_US")

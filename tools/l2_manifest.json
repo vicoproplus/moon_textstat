@@ -16,6 +16,11 @@
     "pronunciation_entries": 48202,
     "pronunciation_unsorted_tsv_bytes": 515949,
     "pronunciation_unsorted_tsv_sha256": "6167911da7a152ac247c084ac586ed64f370933233d9ec71324ca0e24c3db507",
+    "pronunciation_sorted_rows_bytes": 515949,
+    "pronunciation_sorted_rows_sha256": "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854",
+    "pronunciation_supplement_entries": 21782,
+    "pronunciation_supplement_sorted_rows_bytes": 231288,
+    "pronunciation_supplement_sorted_rows_sha256": "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705",
     "pattern_lines": {
       "en_US": 11125,
       "de_DE": 77847,
@@ -35,9 +40,24 @@
   "pronunciation": {
     "entries": 48202,
     "sorted": true,
+    "sorted_rows_bytes": 515949,
+    "sorted_rows_sha256": "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854",
     "unsorted_tsv_bytes": 515949,
     "unsorted_tsv_sha256": "6167911da7a152ac247c084ac586ed64f370933233d9ec71324ca0e24c3db507",
-    "payload_chars": 515948
+    "payload_chars": 515948,
+    "supplement": {
+      "entries": 21782,
+      "sorted": true,
+      "sorted_rows_bytes": 231288,
+      "sorted_rows_sha256": "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705",
+      "payload_chars": 231287,
+      "applies_to": [
+        "en",
+        "en_GB"
+      ],
+      "trimmed_against": "pyphen hyph_en_GB.dic fallback",
+      "ad_pinned": false
+    }
   },
   "easy_words": {
     "en": {
@@ -57,7 +77,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 11125,
       "distinct_patterns": 11015,
-      "pinned_pattern_lines": 11125
+      "pinned_pattern_lines": 11125,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_en_GB": {
       "path": "vendor/upstream/pyphen/hyph_en_GB.dic",
@@ -66,7 +87,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 14057,
       "distinct_patterns": 13932,
-      "pinned_pattern_lines": null
+      "pinned_pattern_lines": null,
+      "pattern_count_status": "measured, not AD-pinned"
     },
     "pyphen/hyph_de_DE": {
       "path": "vendor/upstream/pyphen/hyph_de_DE.dic",
@@ -75,7 +97,8 @@
       "declared_encoding": "ISO8859-1",
       "pattern_lines": 77847,
       "distinct_patterns": 66441,
-      "pinned_pattern_lines": 77847
+      "pinned_pattern_lines": 77847,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_es": {
       "path": "vendor/upstream/pyphen/hyph_es.dic",
@@ -84,7 +107,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 859,
       "distinct_patterns": 859,
-      "pinned_pattern_lines": 859
+      "pinned_pattern_lines": 859,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_fr": {
       "path": "vendor/upstream/pyphen/hyph_fr.dic",
@@ -93,7 +117,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 2908,
       "distinct_patterns": 2891,
-      "pinned_pattern_lines": 2908
+      "pinned_pattern_lines": 2908,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_it_IT": {
       "path": "vendor/upstream/pyphen/hyph_it_IT.dic",
@@ -102,7 +127,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 420,
       "distinct_patterns": 420,
-      "pinned_pattern_lines": 420
+      "pinned_pattern_lines": 420,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_nl_NL": {
       "path": "vendor/upstream/pyphen/hyph_nl_NL.dic",
@@ -111,7 +137,8 @@
       "declared_encoding": "ISO8859-1",
       "pattern_lines": 16256,
       "distinct_patterns": 16256,
-      "pinned_pattern_lines": 16256
+      "pinned_pattern_lines": 16256,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_pl_PL": {
       "path": "vendor/upstream/pyphen/hyph_pl_PL.dic",
@@ -120,7 +147,8 @@
       "declared_encoding": "ISO8859-2",
       "pattern_lines": 4823,
       "distinct_patterns": 4823,
-      "pinned_pattern_lines": 4823
+      "pinned_pattern_lines": 4823,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_ru_RU": {
       "path": "vendor/upstream/pyphen/hyph_ru_RU.dic",
@@ -129,7 +157,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 3874,
       "distinct_patterns": 3874,
-      "pinned_pattern_lines": 3874
+      "pinned_pattern_lines": 3874,
+      "pattern_count_status": "AD-pinned"
     },
     "pyphen/hyph_hu_HU": {
       "path": "vendor/upstream/pyphen/hyph_hu_HU.dic",
@@ -138,7 +167,8 @@
       "declared_encoding": "UTF-8",
       "pattern_lines": 102204,
       "distinct_patterns": 101905,
-      "pinned_pattern_lines": 102204
+      "pinned_pattern_lines": 102204,
+      "pattern_count_status": "AD-pinned"
     },
     "cmudict": {
       "path": "vendor/upstream/cmudict/cmudict",
@@ -149,6 +179,8 @@
       "path": "vendor/upstream/easy_words/en/easy_words.txt",
       "bytes": 21577,
       "sha256": "2b28f55183638dd3804737f55e18f0fd2d8775772c344063a698df5e225deb26",
+      "lf_bytes": 18637,
+      "lf_sha256": "9c75ec6f1a0e7200bc677a4d100a9b13f864db57d800087b10d30b017a856360",
       "entries": 2941,
       "pinned_entries": 2941
     },
@@ -156,6 +188,8 @@
       "path": "vendor/upstream/easy_words/es/easy_words.txt",
       "bytes": 208126,
       "sha256": "1324cf749816d639916fa1b958fb70bbeca7c98482ed060c4cef06360ced82a9",
+      "lf_bytes": 188126,
+      "lf_sha256": "5db3b3c725558854f1f47f2ec19f68f5c7304bc77f2d29e2d9bda608bdb7625d",
       "entries": 20000,
       "pinned_entries": 20000
     }
@@ -184,14 +218,26 @@
       "chunks": 519,
       "source_lines": 530,
       "max_line_columns": 1219
+    },
+    "lib/data/pronunciation_supplement_gb_data.mbt": {
+      "bytes": 277208,
+      "sha256": "02d16c292286a65a70c05632892164e97ec09b0d3c09ecf34f75496309d0fc83",
+      "payload_chars": 231287,
+      "chunks": 233,
+      "source_lines": 255,
+      "max_line_columns": 1216
     }
   },
   "verification": {
-    "l1_files_checked": 13,
+    "l1_files_checked": 15,
     "l1_mismatch": 0,
     "oracle_samples": 11,
     "oracle_samples_mismatch": 0,
     "oracle_samples_es": 1,
-    "oracle_samples_es_mismatch": 0
+    "oracle_samples_es_mismatch": 0,
+    "language_probes": 11,
+    "language_probes_mismatch": 0,
+    "language_probes_skipped": 2,
+    "repo_writes_in_check_mode": 0
   }
 }

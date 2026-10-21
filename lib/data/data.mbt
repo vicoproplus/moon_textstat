@@ -4,9 +4,14 @@
 /// `pattern_counts` follows the data order `en_US, en_GB, de_DE, es, fr,
 /// it_IT, nl_NL, pl_PL, ru_RU, hu_HU`; `easy_word_counts` follows `en, es`.
 /// Every count is measured from the parsed tables during package
-/// initialization, not copied from a literal.
+/// initialization, not copied from a literal.  The two row-set checksums are
+/// the SHA-256 hex digests of the sorted `word<TAB>count\n` line sets emitted
+/// by the generator.
 pub(all) struct DataStats {
   pronunciation_entries : Int32
+  pronunciation_supplement_entries : Int32
+  pronunciation_rows_sha256 : String
+  pronunciation_supplement_rows_sha256 : String
   pattern_counts : Array[(String, Int32)]
   easy_word_counts : Array[(String, Int32)]
 }
@@ -15,6 +20,28 @@ pub(all) struct DataStats {
 /// Number of entries in the trimmed CMU pronunciation table.
 pub fn DataStats::pronunciation_entry_count(self : DataStats) -> Int32 {
   self.pronunciation_entries
+}
+
+///|
+/// Number of entries in the en_GB pronunciation supplement table.
+pub fn DataStats::pronunciation_supplement_entry_count(
+  self : DataStats,
+) -> Int32 {
+  self.pronunciation_supplement_entries
+}
+
+///|
+/// SHA-256 hex digest of the primary table's sorted `word<TAB>count\n` rows.
+pub fn DataStats::pronunciation_rows_checksum(self : DataStats) -> String {
+  self.pronunciation_rows_sha256
+}
+
+///|
+/// SHA-256 hex digest of the supplement's sorted `word<TAB>count\n` rows.
+pub fn DataStats::pronunciation_supplement_rows_checksum(
+  self : DataStats,
+) -> String {
+  self.pronunciation_supplement_rows_sha256
 }
 
 ///|
@@ -76,12 +103,21 @@ fn split_payload_lines(chunks : Array[String]) -> Array[String] {
 
 ///|
 /// Trimmed word -> syllable-count table, built once at initialization.
-let pronunciation_table : Map[String, Int32] = make_pronunciation_table()
+let pronunciation_table : Map[String, Int32] = make_pronunciation_table(
+  raw_pronunciation,
+)
 
 ///|
-fn make_pronunciation_table() -> Map[String, Int32] {
+/// en_GB supplement word -> syllable-count table, built once at
+/// initialization.
+let pronunciation_supplement_table : Map[String, Int32] = make_pronunciation_table(
+  raw_pronunciation_supplement_gb,
+)
+
+///|
+fn make_pronunciation_table(chunks : Array[String]) -> Map[String, Int32] {
   let table : Map[String, Int32] = Map([])
-  for line in raw_pronunciation.join("").split("\n") {
+  for line in chunks.join("").split("\n") {
     if line.length() > 0 {
       match line.split_once("\t") {
         Some((word, count)) => table[word.to_owned()] = parse_decimal(count)
@@ -119,14 +155,29 @@ fn make_easy_word_lists() -> Map[String, Array[String]] {
 }
 
 ///|
-/// Syllable count of `word` from the trimmed CMU table.
+/// Syllable count of `word` from the CMU tables for one dictionary variant.
 ///
 /// The lookup lowercases `word` first (ASCII-only, exactly like Python's
-/// `str.lower()` over the ASCII-only CMU keys).  Returns `None` when the word
-/// is absent from the trimmed table; callers must then fall back to the
+/// `str.lower()` over the ASCII-only CMU keys).  `dict_lang == "en_US"` reads
+/// the primary trimmed table only; `dict_lang == "en_GB"` reads the primary
+/// table first and then the en_GB supplement.  The pronunciation layer is
+/// English-only: any other code returns `None`, and callers fall back to the
 /// hyphenation engine.
-pub fn pronunciation_syllable_count(word : String) -> Int32? {
-  pronunciation_table.get(word.to_lower())
+pub fn pronunciation_syllable_count(
+  word : String,
+  dict_lang : String,
+) -> Int32? {
+  let key = word.to_lower()
+  if dict_lang == "en_US" {
+    pronunciation_table.get(key)
+  } else if dict_lang == "en_GB" {
+    match pronunciation_table.get(key) {
+      Some(count) => Some(count)
+      None => pronunciation_supplement_table.get(key)
+    }
+  } else {
+    None
+  }
 }
 
 ///|
@@ -176,6 +227,9 @@ fn make_data_stats() -> DataStats {
   }
   {
     pronunciation_entries: pronunciation_table.length(),
+    pronunciation_supplement_entries: pronunciation_supplement_table.length(),
+    pronunciation_rows_sha256,
+    pronunciation_supplement_rows_sha256,
     pattern_counts,
     easy_word_counts,
   }
