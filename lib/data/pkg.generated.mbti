@@ -1,0 +1,29 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/data"
+
+// Values
+pub fn data_stats() -> DataStats
+
+pub fn easy_words(String) -> Array[String]?
+
+pub fn hyphenation_patterns(String) -> Array[String]?
+
+pub fn pronunciation_syllable_count(String) -> Int?
+
+// Errors
+
+// Types and methods
+pub(all) struct DataStats {
+  pronunciation_entries : Int
+  pattern_counts : Array[(String, Int)]
+  easy_word_counts : Array[(String, Int)]
+}
+pub fn DataStats::easy_word_count(Self, String) -> Int?
+pub fn DataStats::easy_word_roots(Self) -> Array[String]
+pub fn DataStats::pattern_count(Self, String) -> Int?
+pub fn DataStats::pattern_languages(Self) -> Array[String]
+pub fn DataStats::pronunciation_entry_count(Self) -> Int
+
+// Type aliases
+
+// Traits
