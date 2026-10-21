@@ -1,0 +1,340 @@
+# T-32 — Linsear Write
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`48e0f41 feat(formula): implement coleman_liau_index`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-22；spec §4.4 表第 7 行、约束 3（截断仅在 `strict_upper` 且词数
+> 100；句数分母在截断后文本上计算）、§4.3.3、§4.2 约束 3；A-5.1；
+上游 `backend/metrics/_linsear_write_formula.py:12-83`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 131/131 EXIT=0（T-31 后 127 + 本任务 4）；`.mbti` 只新增
+> `linsear_write_formula`；S1 零命中；11 个默认样本值按位相等（`==`，非容差）；
+> 11 个变体全 0.0；截断路径 176 词 → 前 100 词 / 6 句 → `12.666666666666666`；
+> `punctuation_only` = `-1.0`；门禁顺延至 T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/linsear_write_formula.mbt` | 新增：公开 `linsear_write_formula` + 包内 `join_tokens_with_spaces` | 150 | `e3cddea0cd9c111e543208d3e097b6bdd8bb9b83e5b42c86dcb4564182c0f41a` |
+| `lib/linsear_write_formula_test.mbt` | 新增：4 条黑盒测试 | 212 | `a7b540edd85600010d7e0b7d1e80c1556b8592b659eed83e089e6d8677b1f4d0` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `linsear_write_formula` 一行 | — | — |
+
+`lib/moon.pkg` 未改（本任务不需要新导入：`list_words`、`remove_punctuation`、
+`syllables_for_word`、`sentence_count` 都是同包既有符号）。
+
+### 1.2 上游函数体与逐句对应
+
+上游 `_linsear_write_formula.py:47-83`：
+
+```text
+text_list = list_words(text, rm_punctuation=False)
+if strict_upper and len(text_list) > 100:
+    words_list = []; i_text = 0
+    while i_text < len(text_list) and len(words_list) < 100:
+        word = remove_punctuation(text_list[i_text], rm_apostrophe=False)
+        i_text += 1
+        if len(word) > 0: words_list.append(word)
+else:
+    words_list = list_words(text, rm_punctuation=True)
+    i_text = len(text_list)
+if strict_lower and len(words_list) < 100: return 0.0
+easy_word = 0; difficult_word = 0
+for word in words_list:
+    n_syll = count_syllables(word, lang)
+    if n_syll >= 3: difficult_word += 1
+    elif n_syll > 0: easy_word += 1
+text = " ".join(text_list[:i_text])
+try:
+    number = float((easy_word * 1 + difficult_word * 3) / count_sentences(text))
+except ZeroDivisionError:
+    return 0.0
+if number <= 20: number -= 2
+return number / 2
+```
+
+本实现（`lib/linsear_write_formula.mbt:93-134`）：
+
+```moonbit
+pub fn linsear_write_formula(
+  text : String,
+  lang~ : String = "en_US",
+  strict_lower~ : Bool = false,
+  strict_upper~ : Bool = true,
+) -> Double raise TextstatError {
+  let text_list = list_words(text, rm_punctuation=false)
+  let words_list : Array[String] = []
+  let mut i_text = 0
+  if strict_upper && text_list.length() > 100 {
+    while i_text < text_list.length() && words_list.length() < 100 {
+      let word = remove_punctuation(text_list[i_text], false)
+      i_text = i_text + 1
+      if word.length() > 0 {
+        words_list.push(word)
+      }
+    }
+  } else {
+    for word in list_words(text, rm_punctuation=true) {
+      words_list.push(word)
+    }
+    i_text = text_list.length()
+  }
+  if strict_lower && words_list.length() < 100 {
+    return 0.0
+  }
+  let mut easy = 0
+  let mut difficult = 0
+  for word in words_list {
+    let n_syll = syllables_for_word(word, lang)
+    if n_syll >= 3 {
+      difficult = difficult + 1
+    } else if n_syll > 0 {
+      easy = easy + 1
+    }
+  }
+  let text_trunc = join_tokens_with_spaces(text_list, i_text)
+  let sentences = sentence_count(text_trunc)
+  if sentences == 0 {
+    return 0.0
+  }
+  let mut number = (easy + difficult * 3).to_double() / sentences.to_double()
+  if number <= 20.0 {
+    number = number - 2.0
+  }
+  number / 2.0
+}
+```
+
+对应关系与易错点：
+
+1. **两次分词、两种角色。** `text_list` 是保标点的空白切分
+   （`rm_punctuation=false`，即上游 `list_words` 的 `text.split()`），只喂句数
+   分母；`words_list` 是去标点切分（`rm_punctuation=true`），只喂音节分类。
+   两者只在“纯标点 token”上不同。
+2. **截断判据（约束 3）。** 仅 `strict_upper` 且 `text_list.length() > 100`
+   截断；循环以**词**数 100 为上限，纯标点 token 被消费（`i_text += 1`）后
+   丢弃，所以 `i_text` 是“已消费 token 数”，可大于 100，而 `words_list`
+   可能不足 100。
+3. **句数分母 = 被消费前缀的空格 join。** `text_trunc` 由 `text_list[:i_text]`
+   以单空格连接，既不是 `text` 也不是 `words_list`；换行/制表符在该前缀内被
+   压成单空格（与 Python `" ".join` 相同），截断落在句中时该残句照常计入。
+   包内 `join_tokens_with_spaces(tokens, count)` 逐字复刻 `" ".join(tokens[:count])`
+   （空前缀 → 空串）。
+4. **`strict_lower` 的顺序。** 守卫在截断判定之后，看的是截断后的
+   `words_list`：默认 `strict_upper=true` 下 >100 token 的文本截到恰好 100 词，
+   因此**通过**守卫；短文本按自身词数判断。`strict_upper=false` 时守卫看全量。
+5. **分类与算术。** `n_syll >= 3` 为难词，`0 < n_syll < 3` 为易词，`n_syll == 0`
+   两支都不计（公开面不可达：`words_list` 的每个元素非空，
+   `syllables_for_word` 至少返回 1）。分子 `easy + 3 * difficult` 用整数算，
+   再 `.to_double()` 与 `sentences.to_double()` 相除——Python 的 `int / int`
+   真除法，**不是**整除。`<= 20.0` 减 `2.0`，末尾 `/ 2.0`，全程 `Double`。
+6. **零分支。** `count_sentences` 为 0 只可能是空前缀，只经空串可达：非空前缀
+   句数至少 1，截断分支又要求 >100 token。纯标点不是零分支：1 句、0 词、
+   `0 / 1 = 0` → 减 2 → 除 2 = `-1.0`。
+7. **失败通道。** `syllables_for_word` 逐词解析语种，`words_list` 非空的文本在
+   `ar`/`xx_YY` 下抛 `UnsupportedLanguage(requested)`；零词文本（空串、纯空白、
+   纯标点）不解析字典，任何语种都保持 0.0 / 0.0 / -1.0。
+8. **大小写。** 截断分支的 `words_list` 保留原大小写，上游 `count_syllables`
+   内部 `list_words(lowercase=True)` 会小写化；本包发音表与断字引擎内部小写化
+   ASCII，二者对 ASCII 输入一致（`syllables_for_word` 的既有前置条件）。
+9. 纯函数：无 I/O、无缓存、无异常以外的失败面。默认 `en_US` /
+   `strict_lower=false` / `strict_upper=true`（spec §4.2 约束 3）。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 11 个样本的分解（默认调用，`en_US` / `strict_upper=true`）
+
+列：`text_list` 长度 | `words_list` 长度 | 易词 | 难词 | 句数（join 后前缀）|
+商 | 值 | `struct.pack('>d')`。所有样本都 ≤100 token，故不截断，前缀即全文。
+
+```console
+id                            tl  wl  easy diff sents  raw                  value                  bits
+short_simple_sentence          6   6   6    0    1   6.0                  2.0                    4000000000000000
+long_multi_sentence_paragraph 88  88  64   24    5   27.2                 13.6                   402b333333333333
+abbreviations_and_initials    31  31  29    2    6   5.833333333333333    1.9166666666666665     3ffeaaaaaaaaaaaa
+hyphenated_words              17  17  10    7    2   15.5                 6.75                   401b000000000000
+numbers_and_symbols           28  28  26    2    6   5.333333333333333    1.6666666666666665     3ffaaaaaaaaaaaaa
+multiple_paragraphs_newlines  27  27  21    6    5   7.8                  2.9                    4007333333333333
+very_short_under_5_words       2   2   2    0    1   2.0                  0.0                    0000000000000000
+empty_string                   0   0   0    0    0   （零分支）             0.0                    0000000000000000
+whitespace_only                0   0   0    0    0   （零分支）             0.0                    0000000000000000
+punctuation_only               1   0   0    0    1   0.0                  -1.0                   bff0000000000000
+spanish_text                  29  29  24    5    3   13.0                 5.5                    4016000000000000
+```
+
+上游返回值与 `oracle_smoke.json` 的
+`samples[].results.linsear_write_formula.value` 逐行 `==`（ALL True）。
+`multiple_paragraphs_newlines` 的 5 句是在 **join 后**文本上数的（原文含换行，
+join 压成单空格），与实现同口径。
+
+### 2.2 变体（`strict_lower=true, strict_upper=true`）
+
+11 行全为 `0.0`（位模式全 `0000000000000000`）。词数分别为
+6 / 88 / 31 / 17 / 28 / 27 / 2 / 0 / 0 / 0 / 29，全部 <100，故守卫在任何音节
+解析与句数计算之前返回。`punctuation_only` 是最锋利的判别行：默认 `-1.0`、
+变体 `0.0`，证明守卫在 `-2` 与句数分母之前。
+
+### 2.3 截断路径（约束 3 的判别样本）
+
+`t = long_multi_sentence_paragraph + " " + 同一段`：176 个保标点 token、
+10 句；前 100 token 前缀 = 整段 88 token + 重复段前 12 token
+（`Readability is the ease with which a reader can understand a written`，
+在 `text.` 之前截断）。
+
+```console
+para      tl  88 wl  88 sents  5 poly 24
+doubled   tl 176 wl 176 sents 10 poly 48
+prefix100 tl 100 wl 100 sents  6 poly 26
+```
+
+前缀上 `easy = 100 - 26 = 74`、`difficult = 26`、分母 6，商
+`(74 + 3*26)/6 = 25.333333333333332`（>20，不减 2），除以 2 得
+`12.666666666666666`（位模式 `4029555555555555`）。若误用全文 10 句做分母，
+会得到 `7.6`——因此测试同时固定了“分母在截断后前缀上”这一事实。
+
+```console
+doubled lower=False upper=True  -> 12.666666666666666  4029555555555555
+doubled lower=True  upper=True  -> 12.666666666666666  4029555555555555
+doubled lower=False upper=False -> 13.6                402b333333333333
+doubled lower=True  upper=False -> 13.6                402b333333333333
+"The cat sat on the mat." strict_lower=True -> 0.0（6 词）；默认 -> 2.0
+```
+
+`upper=False` 时 176 词 / 10 句 = 27.2 → 13.6，与单段相同的比值；`lower=True`
+在 `upper=False` 下同样通过守卫（176 ≥ 100）。`lower=True` 在 `upper=True` 下
+看到恰好 100 词，仍通过。
+
+### 2.4 差分探针（临时，不提交）
+
+另生成 12 组构造文本 × 4 种参数组合共 60 条断言，全部与上游逐位相等，跑完后
+删除临时测试文件（测试数回到 131）。覆盖：120 个易词 / 120 个难词 /
+120 个“The.”（每个候选句 ≤2 词被句数计数丢弃，分母塌缩为 1）/ 纯标点 token
+穿插（`words_list` 60 < `text_list` 120）/ 缩约词 `don't` / 难易交替 /
+恰好 99、100、101 token / 含换行的 100 token / 尾部与首部 `.?` token
+（`text_list`=101、`words_list`=100）：
+
+```console
+a_easy_120:              text_list=120 words_list=120
+b_hard_120:              text_list=120 words_list=120
+c_short_sentences:       text_list=120 words_list=120
+d_punct_tokens:          text_list=120 words_list=60
+e_contraction:           text_list=110 words_list=110
+f_alternating:           text_list=120 words_list=120
+g_exact_100:             text_list=100 words_list=100
+g_99:                    text_list=99  words_list=99
+g_101:                   text_list=101 words_list=101
+h_newlines:              text_list=100 words_list=100
+i_trailing_punct_tokens: text_list=101 words_list=100
+j_leading_punct_tokens:  text_list=101 words_list=100
+# 60/60 assert_eq 通过（Total tests: 132），临时文件已删除
+```
+
+### 2.5 语种失败通道（`ar` / `xx_YY`）
+
+```console
+ar     ''              -> 0.0
+ar     '   \n\t '      -> 0.0
+ar     ' .? '          -> -1.0
+ar     'Hi there!'     -> RAISE KeyError None
+xx_YY  ''              -> 0.0
+xx_YY  '   \n\t '      -> 0.0
+xx_YY  ' .? '          -> -1.0
+xx_YY  'Hi there!'     -> RAISE KeyError None
+```
+
+与实现一致：零词文本不解析字典；有词文本在音节层抛
+`UnsupportedLanguage(requested)`（上游 `KeyError: None`）。
+
+### 2.6 期望值位模式核对
+
+从 `lib/linsear_write_formula_test.mbt` 的 `frozen_samples()` 抽取 11 个数字
+字面量（先剥离字符串字面量），与 oracle 的 11 个值用 `struct.pack('>d', …)`
+比较：
+
+```console
+2.0                    2.0                    4000000000000000 MATCH
+13.6                   13.6                   402b333333333333 MATCH
+1.9166666666666665     1.9166666666666665     3ffeaaaaaaaaaaaa MATCH
+6.75                   6.75                   401b000000000000 MATCH
+1.6666666666666665     1.6666666666666665     3ffaaaaaaaaaaaaa MATCH
+2.9                    2.9                    4007333333333333 MATCH
+0.0                    0.0                    0000000000000000 MATCH
+0.0                    0.0                    0000000000000000 MATCH
+0.0                    0.0                    0000000000000000 MATCH
+-1.0                   -1.0                   bff0000000000000 MATCH
+5.5                    5.5                    4016000000000000 MATCH
+LEN 11 ALL True
+```
+
+派生字面量同样按位核对：`25.333333333333332` = `4039555555555555`、
+`12.666666666666666` = `4029555555555555`、`13.6` = `402b333333333333`、
+`-1.0` = `bff0000000000000`。
+
+## 3. 测试（4 条，127 → 131）
+
+| 测试 | 断言 |
+| --- | --- |
+| `linsear_write_formula matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`2.0, 13.6, 1.9166666666666665, 6.75, 1.6666666666666665, 2.9, 0.0, 0.0, 0.0, -1.0, 5.5`；末尾显式写全 `lang="en_US"`、`strict_lower=false`、`strict_upper=true` 得 2.0（默认即该调用形状） |
+| `the strict_lower and strict_upper variant is zero for all 11 samples` | 同一 11 文本，`strict_lower=true, strict_upper=true` 全 `== 0.0` |
+| `truncation keeps the first 100 words and counts sentences on the prefix` | 双段：`lexicon_count=176`、`sentence_count=10`；100 token 前缀：`lexicon_count=100`、`sentence_count=6`、`polysyllabcount=26`、`easy=74`、商 `25.333333333333332`；默认与 `lower+upper` 均 `12.666666666666666`；`upper=false`（及 `lower+upper=false`）均 `13.6`；6 词句 `strict_lower=true` 为 `0.0`、默认 `2.0` |
+| `punctuation_only is -1.0 and token-free text is 0.0` | `" .? "`：`sentence_count=1`、`lexicon_count=0`、公式 `-1.0`；`"..."`、`"!?!"` 同样 `-1.0`；`""`、`"   \n\t "`、`" "`、`"\n"` 均 `0.0` |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。11 个文本只写一份
+（`frozen_samples()`），默认与变体两条测试共用，避免两处字面量漂移。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 131, passed: 131, failed: 0.          # EXIT=0；T-31 base 127 + 4
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn linsear_write_formula(String, lang? : String, strict_lower? : Bool, strict_upper? : Bool) -> Double raise TextstatError
+# .mbti 仅此一行（含空行），无其他符号变化；lib/moon.pkg 未改
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket'
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes \
+    lib/linsear_write_formula.mbt lib/linsear_write_formula_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）；全仓同式扫描亦为 0 行
+
+$ awk '{ if (length($0) > m) m = length($0) } END { print m }' \
+    lib/linsear_write_formula.mbt lib/linsear_write_formula_test.mbt
+614                                                # < 65,535（S1 第 2 式）
+
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/linsear_write_formula.mbt
+?? lib/linsear_write_formula_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula`（本字段）与 A-5.1 的
+`--group=degenerate`（`punctuation_only` = -1.0）由 T-36/T-52 复验。本任务
+不宣称门禁等价，只把 11 个 oracle 值、11 个变体 0.0、截断路径与前缀分母、
+`punctuation_only` 的 -1.0 固定在包测试里。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. `moon fmt` 把 `join_tokens_with_spaces` 的 `count : Int` 显示为
+   `Int32`（同一类型的别名），并把 `(easy + difficult * 3).to_double()`
+   保持单行；语义不变。
+3. 未新增 `_wbtest.mbt`：提交面只列实现与 `_test.mbt`，内部量（易词/难词、
+   前缀句数）改用公开计数（`lexicon_count` / `sentence_count` /
+   `polysyllabcount`）在 `_test.mbt` 中重建并固定。
+4. 差分探针（§2.4）为一次性脚本产物，未提交；其 60 条断言全部通过后删除，
+   仓库测试数保持 131。
+5. 未新增 `pl_PL`/`hu_HU`/`pt` 断言：oracle 的 `lang_probes` 不含该字段，
+   `pt` 非验收（R-33 裁决 b）；语种矩阵由 T-35 负责。
+6. `lib/moon.pkg` 未改；本任务只动两个新文件，外加 `moon info` 生成的
+   `.mbti`。

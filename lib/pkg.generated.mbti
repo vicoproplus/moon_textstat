@@ -22,6 +22,8 @@ pub fn letter_count(String) -> Int
 
 pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
 
+pub fn linsear_write_formula(String, lang? : String, strict_lower? : Bool, strict_upper? : Bool) -> Double raise TextstatError
+
 pub fn long_word_count(String, threshold? : Int) -> Int
 
 pub fn monosyllabcount(String, lang? : String) -> Int raise TextstatError
