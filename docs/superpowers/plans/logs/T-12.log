@@ -1,0 +1,235 @@
+# T-12 分词与标点规则 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`a6a425b feat(count): implement letter_count over word characters`
+- 契约：PRD-A FR-03/FR-04；spec §4.3.2、§4.3.1 第 3 行；上游
+  `textstat/textstat/backend/selections/_list_words.py:48-56`、
+  `backend/transformations/_remove_punctuation.py:33-42`、
+  `backend/utils/constants.py`（`RE_CONTRACTION_ENDINGS = r"[tsd]|ve|ll|re"`）；T-12 brief
+- 期望值来源环境：`textstat 0.7.13`，CPython `3.12.10`（`docs/facts/oracle_smoke.json` 头）
+- 数据身份（L3）：`bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372`
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
+- **结论：PASS**（check/test 全 EXIT=0，42/42；1196 例差分语料与上游逐例一致；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/list_words.mbt` | 新增：`pub fn list_words` + 私有 `remove_punctuation` 及 4 个私有助手 | 192 | `57c9434f4fb8f3a17aeffbac7f76dff5aafd335d75755525c33899712d13dbd8` |
+| `lib/list_words_test.mbt` | 新增：7 条黑盒测试（oracle 词表 3 例 + 规则/开关/Unicode/空白） | 213 | `5f3bbf8db963942abaaaa58f1401388f34972d41385889256620f78ccf49c402` |
+| `lib/pkg.generated.mbti` | 工具链产物：新增 `pub fn list_words(...)` | — | `ca00172d6a2a0d477449a73c098fa79357d251fbad94e321f76a3545acef9556` |
+
+其余文件零改动（`git status` 仅 ` M lib/pkg.generated.mbti` + 两个未跟踪新文件 + `.qoder/`）。
+未新增目录、未新增依赖（`lib/moon.pkg` 仍为空）、未实现任何计数或公式（T-13 起）。
+
+公开面（`.mbti` diff 唯一变化）：
+
+```diff
++pub fn list_words(String, rm_punctuation? : Bool, rm_apostrophe? : Bool, lowercase? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Array[String]
+```
+
+`remove_punctuation` 保持包内私有（brief 允许），未出现在 `.mbti`。
+
+---
+
+## 2. 实现与上游逐句对齐
+
+上游 `_list_words.py:48-56`：
+
+```python
+if split_hyphens:            text = re.sub(r"-", " ", text)
+if rm_punctuation:           text = remove_punctuation(text, rm_apostrophe=rm_apostrophe)
+if lowercase:                text = text.lower()
+if split_contractions:       text = re.sub(RE_CONTRACTION_APOSTROPHE, " ", text)
+return text.split()
+```
+
+逐步实现（顺序**未调整**，每一步都吃上一步的输出）：
+
+1. `replace_char(current, '-', ' ')` —— 单字符字面替换，等价 `re.sub(r"-", " ", text)`；
+2. `remove_punctuation(current, rm_apostrophe)`（`_remove_punctuation.py:33-42`）：
+   - `rm_apostrophe=true`：删除所有既非 `\w` 又非 `\s` 的码点（`[^\w\s]`）；
+   - `else`：删除所有「后面不跟 `t`/`s`/`d`/`ve`/`ll`/`re`」的 ASCII 撇号（`\'(?!...)`），
+     再删除所有非 `\w`、非 `\s`、非 `'` 的码点（`[^\w\s\']`）。
+     两趟对存活撇号可交换（第一趟保留者第二趟必保留），且第二趟不改动前瞻所看的字符，
+     故合并为**单趟正向扫描**：撇号仅当后续字符以缩写在结尾开头时保留；
+3. `current.to_lower()`；
+4. `split_contraction_apostrophes(current)` —— `re.sub(r"\'(?=[tsd]|ve|ll|re)", " ", text)`：
+   仅替换撇号本身，前瞻**不消费**结尾字母（`aren't` → `aren t`）；
+5. `split_on_python_space(current)` —— Python `str.split()`：按 Python 空白极大串切分、丢空串。
+
+前瞻判定 `apostrophe_starts_contraction_ending`：
+
+- 位置为 `撇号下标 + 1`；越界即不匹配（尾部撇号按非缩写删除）；
+- 先查 `ve`/`ll`/`re`（多字母在前，与上游交替顺序一致），再查单字母 `t`/`s`/`d`；
+- 大小写敏感（`'T` 不匹配）。
+
+谓词复用（未复制第二份）：
+
+- `is_python_word_char`（`lib/letter_count.mbt`）：ASCII 字母数字、`_`、BMP 非 ASCII
+  `U+0080..U+FFFF`；故 `$1,299.99` → 单 token `129999`、`well-known` → `wellknown`；
+- `is_python_space`（`lib/char_count.mbt`）：Unicode `White_Space` + U+001C..U+001F。
+
+`\w` 近似只在 `is_python_word_char` 的文档里陈述一次（BMP 标点/符号会被当作词字符、
+astral 字母会漏计）；新文件仅指向该文档，不复制第二份说明。
+
+**已知近似与限制**（均不在冻结语料，语料唯一非 ASCII 字符是 `ó`）：
+
+| 情形 | 本移植 | 上游（CPython 3.12） |
+| --- | --- | --- |
+| BMP 标点/符号，如 `«`、`»`、U+2019 | 保留为词字符 | 删除（非 `\w`） |
+| astral 字母 | 删除 | 保留（`\w` 含 astral 字母） |
+| astral 非字母（emoji） | 删除 | 删除（一致） |
+| 非 ASCII 大写字母 + `lowercase=true` | 不变（`String::to_lower` 仅 ASCII） | 转小写（`str.lower()`） |
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && touch list_words.mbt list_words_test.mbt && moon check --target native
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+```
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 42, passed: 42, failed: 0.
+EXIT=0
+```
+
+基线（T-11）：35/35；本次新增 7 条 → 42/42。根包 20 条（脚手架 1 + 值对象 3 +
+`char_count` 5 + `letter_count` 4 + `list_words` 7），`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+### 3.3 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: no work to do
+EXIT=0
+```
+
+（`touch` 后首跑会因 mtime 显示 `ran 1 task` / `ran 2 tasks`，内容不变；紧接的复跑如上为两行 `no work to do`。）
+复跑幂等：三个文件 SHA-256 不变。
+（`moon fmt` 把源码写法的 `Int` 渲染为 `Int32`，与 T-10/T-11 一致；`.mbti` 仍显示 `Int`。）
+
+### 3.4 S1 静态门（A-8.3 检索式，改动范围）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    list_words.mbt list_words_test.mbt pkg.generated.mbti | wc -l
+0
+```
+
+`numbers_and_symbols` 样本正文含 URL；沿用 T-11 约定把首字母写成 `\u{68}`（即 `h`），
+期望 token `"\u{68}ttpsexamplecomabc1"` 同样转义，运行时与 oracle 原文逐字节相同。
+
+### 3.5 门禁探针
+
+```console
+$ moon run cmd/gate --target native --group=count
+Error: failed to resolve path `cmd/gate`
+
+Caused by:
+    系统找不到指定的文件。 (os error 2)
+EXIT=127
+```
+
+`cmd/gate` 在 T-36 才建立，`--group=count` 验收按 brief 顺延；本任务的等价证据是
+§4 的 oracle 词表断言与 §5 的差分语料。
+
+### 3.6 工作树
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/list_words.mbt
+?? lib/list_words_test.mbt
+```
+
+`lib/_build/` 被忽略，未加入索引。
+
+---
+
+## 4. 冻结 oracle 断言（3 个样本的完整词表）
+
+期望值由上游 `list_words`（textstat 0.7.13 / CPython 3.12.10）对 `docs/facts/oracle_smoke.json`
+的同一原文计算后抄入测试，非由本移植推导：
+
+| 样本 | 词数 | 词表 |
+| --- | --- | --- |
+| `short_simple_sentence` | 6 | `The cat sat on the mat` |
+| `hyphenated_words` | 17 | `The wellknown stateoftheart system is a selfcontained longterm solution It is a twentyfiveyearold userfriendly costeffective highperformance product` |
+| `numbers_and_symbols` | 28 | `There were 42 apples 314 pies and 7 oranges in 2024 Prices rose 125 to 129999 while traffic fell to 8000 visits per day See \u{68}ttpsexamplecomabc1 for details` |
+| `punctuation_only` | 0 | `[]` |
+| `empty_string` | 0 | `[]` |
+| `whitespace_only` | 0 | `[]` |
+
+`numbers_and_symbols` 的 URL token 为 `httpsexamplecomabc1`（源码中以 `\u{68}` 起首）。
+
+---
+
+## 5. 差分语料（编译产物 × 上游，1196 例全一致）
+
+临时生成（用后即删，未入库）的黑盒测试把 `(text, 5 个开关, 期望词表)` 表编进 MoonBit，
+期望词表全部由上游 `list_words` 现算；在 `moon test --target native` 下与编译后的
+`@moon_textstat.list_words` 逐例 `assert_eq`：
+
+| 轮次 | 随机种子 | 语料构成 | 用例数 | 结果 |
+| --- | --- | --- | --- | --- |
+| A | 20261021 | 54 条边界 × 6 组开关 + 160 随机 | 484 | 1 例不符：`«quoted»`（BMP 书名号，见 §2 近似表）→ 归入已知近似，剔除该例与 U+2019 |
+| B | 20261021 | 53 条边界 × 6 组开关 + 160 随机 | 478 | **43/43 通过** |
+| C | 777 | 53 条边界 × 6 组开关 + 400 随机 | 718 | **43/43 通过** |
+
+随机字母表：`a b c d e t T s S v V l L r R d D n N ' - . , ! ? $ % & ( ) / 0-9 _`，
+外加空格、`\n`、`\t`、NBSP(U+00A0)、U+3000、U+001C、`ó`、`ñ`、`🤣`；开关 5 位随机。
+边界例含 `""`、`" .? "`、`aren't`、`he'll`、`we've`、`I'd`、`it's`、`'quoted'`、`rock'n'roll`、
+`well-known`、`$1,299.99`、`DON'T`、`Aren't`、`y'all'd`、`'`、`''`、`a''t`、`'t`/`'ve`/`'ll`/`'re`/`'s`/`'d`、
+`-`、`--`、`a-b`、`1-2`、`ó`、`a🤣b`、`a\u00A0b`、`a\u3000b`、`a\u001Cb`、`%$#@!`、`a_b` 等。
+
+差分覆盖到的关键语义（均有示例）：`split_hyphens` 先行（`-` + `rm_punctuation=false` → `[]`）；
+`"$1,299.99"` → `["129999"]`；`'quoted'` / `rock'n'roll` 的非缩写撇号删除；`he'll` / `we've` / `I'd` / `it's`
+撇号保留；`rm_apostrophe=true` 后 `split_contractions` 退化为无操作；`rm_punctuation=false` 时
+` .? ` → `[".?"]`；`DON'T` + `lowercase` + `split_contractions` → `["dont"]`（删标点先于小写）。
+
+---
+
+## 6. 测试内容（7 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `list_words tokenizes frozen oracle texts` | `short_simple_sentence` 6 词全表；`hyphenated_words` 17 词全表；`numbers_and_symbols` 28 词全表；`punctuation_only` / `empty_string` / `whitespace_only` → `[]` |
+| `list_words fuses or splits hyphens and keeps digit runs` | `well-known` → `["wellknown"]`；`split_hyphens=true` → `["well","known"]`；`$1,299.99` → `["129999"]`；`3.14` → `["314"]`；`12.5%` → `["125"]`；`8,000` → `["8000"]` |
+| `list_words keeps contraction apostrophes and deletes the others` | `aren't`/`he'll`/`we've`/`I'd`/`it's` 保留撇号；`'quoted'` → `["quoted"]`；`rock'n'roll` → `["rocknroll"]`；`rm_apostrophe=true`：`aren't` → `["arent"]` |
+| `split_contractions splits only apostrophes before a contraction ending` | `aren't` → `["aren","t"]`；`he'll` → `["he","ll"]`；`we've` → `["we","ve"]`；`can't won't shouldn't` → 6 token；`Don'T` → `["DonT"]`（大小写敏感）；`rm_apostrophe=true` 同时 → `["arent"]`；`rm_punctuation=false` 同时 → `["aren","t"]` |
+| `list_words applies toggles in the upstream order` | `Hello WORLD` + `lowercase` → `["hello","world"]`；` .? ` + `rm_punctuation=false` → `[".?"]`；`-` + `split_hyphens` + `rm_punctuation=false` → `[]`；`well-known` + `split_hyphens` + `rm_punctuation=false` → `["well","known"]`；`Aren't` + `lowercase` + `split_contractions` → `["aren","t"]`；`DON'T` 同开关 → `["dont"]`（顺序证据） |
+| `list_words keeps BMP letters and deletes astral code points` | `ó` → `["ó"]`；`fórmulas` → `["fórmulas"]`；`a🤣b` → `["ab"]`；`🤣` → `[]` |
+| `list_words splits on Python whitespace and drops empty tokens` | `a\u00A0b\u3000c` → 3 token；`a\u001Cb` → 2 token；`""` / `"   \n\t "` / `"\u00A0\u3000"` → `[]` |
+
+无快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。
+
+---
+
+## 7. 备注
+
+- `remove_punctuation` 为 `fn`（包内私有）；`list_words` 为 `pub`，供 T-13（`lexicon_count`、
+  ARI 的「保留标点词数」、Linsear 的截断词表）复用。
+- 上游 `@typed_cache` 装饰器只影响性能，不影响语义；本移植不实现缓存（spec 未要求，
+  且会引入可变全局状态）。
+- `String::to_lower` 的 ASCII-only 语义已核对本机 `core` 源码（`builtin/string_methods.mbt:2497`
+  「All other characters, including non-ASCII letters, are left unchanged」），作为文档化近似记录。
+- 差分测试的临时文件 `lib/list_words_fuzz_test.mbt` 与生成脚本 `tools/gen_fuzz_list_words.py`
+  在记录结果后已删除，工作树无残留。
