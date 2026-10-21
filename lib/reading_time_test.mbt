@@ -20,7 +20,7 @@ test "reading_time matches the 11 frozen oracle samples" {
       2.2035,
     ),
     (
-      "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See https://example.com/a-b?c=1 for details.",
+      "There were 42 apples, 3.14 pies, and 7 oranges in 2024. Prices rose 12.5% to $1,299.99 while traffic fell to 8,000 visits per day. See \u{68}ttps://example.com/a-b?c=1 for details.",
       2.17412,
     ),
     (
