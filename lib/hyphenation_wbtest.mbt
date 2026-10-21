@@ -30,6 +30,13 @@ test "de_DE positions match pyphen" {
   )
   assert_eq([3, 6, 10], try! hyphenate_positions("Silbentrennung", "de_DE"))
   assert_eq([3, 6], try! hyphenate_positions("niezwykły", "de_DE"))
+  // Consecutive digits (`...11...`) produce an empty regex tag: the raw value
+  // list gains one slot and `start` shifts the weights, so this word pins the
+  // resulting positions ([2,4,5,9,10,12,17] in pyphen 0.17.2).
+  assert_eq(
+    [2, 4, 5, 9, 10, 12, 17],
+    try! hyphenate_positions("aktionärsausschüsse", "de_DE"),
+  )
 }
 
 ///|
@@ -74,6 +81,9 @@ test "ru_RU positions match pyphen" {
 test "hu_HU positions match pyphen" {
   assert_eq([3, 5, 7, 9], try! hyphenate_positions("extraordinary", "hu_HU"))
   assert_eq([4, 6, 8], try! hyphenate_positions("rendkívüli", "hu_HU"))
+  // `as5szon2y/sz=,2,1`: the `/xx=` alternative payload is not part of the
+  // pattern, so the match must be cut at the first `/` (pyphen: [2,5]).
+  assert_eq([2, 5], try! hyphenate_positions("asszonyok", "hu_HU"))
 }
 
 ///|
@@ -105,6 +115,61 @@ test "language resolution keeps upstream short-name fallback" {
   assert_eq([2, 6, 7], try! hyphenate_positions("hyphenation", "en"))
   assert_eq([4], try! hyphenate_positions("wellknown", "EN-us"))
   assert_eq([2, 5, 7, 9], try! hyphenate_positions("extraordinary", "en-US"))
+}
+
+///|
+/// The five remaining short names select their canonical file, exactly like
+/// upstream's sorted-file winners (design D-15). Each pair is compared on one
+/// native word, and the short-name result is also pinned literally so the
+/// equality cannot pass vacuously.
+test "short names resolve to their full dictionaries" {
+  assert_eq("it_IT", resolve_dict("it"))
+  assert_eq("nl_NL", resolve_dict("nl"))
+  assert_eq("pl_PL", resolve_dict("pl"))
+  assert_eq("ru_RU", resolve_dict("ru"))
+  assert_eq("hu_HU", resolve_dict("hu"))
+  assert_eq([6, 8, 10], try! hyphenate_positions("straordinario", "it"))
+  assert_eq(
+    try! hyphenate_positions("straordinario", "it_IT"),
+    try! hyphenate_positions("straordinario", "it"),
+  )
+  assert_eq([3, 6, 9], try! hyphenate_positions("lettergrepen", "nl"))
+  assert_eq(
+    try! hyphenate_positions("lettergrepen", "nl_NL"),
+    try! hyphenate_positions("lettergrepen", "nl"),
+  )
+  assert_eq([3, 6], try! hyphenate_positions("niezwykły", "pl"))
+  assert_eq(
+    try! hyphenate_positions("niezwykły", "pl_PL"),
+    try! hyphenate_positions("niezwykły", "pl"),
+  )
+  assert_eq(
+    [2, 6, 8, 11],
+    try! hyphenate_positions("необыкновенный", "ru"),
+  )
+  assert_eq(
+    try! hyphenate_positions("необыкновенный", "ru_RU"),
+    try! hyphenate_positions("необыкновенный", "ru"),
+  )
+  assert_eq([2, 5], try! hyphenate_positions("asszonyok", "hu"))
+  assert_eq(
+    try! hyphenate_positions("asszonyok", "hu_HU"),
+    try! hyphenate_positions("asszonyok", "hu"),
+  )
+}
+
+///|
+/// `hyphenation_positions` takes an already-resolved code. An unknown code is
+/// a programming error and must raise instead of returning `[]`, which the
+/// syllable layer would count as a one-syllable word.
+test "unresolved dictionary codes fail instead of yielding no positions" {
+  let raised : String? = try {
+    let _ = hyphenation_positions("hyphenation", "xx_YY")
+    None
+  } catch {
+    UnsupportedLanguage(code) => Some(code)
+  }
+  assert_eq(Some("xx_YY"), raised)
 }
 
 ///|

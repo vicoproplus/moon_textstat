@@ -78,6 +78,10 @@ fn build_hyphenation_dictionaries() -> Map[String, HyphDict] {
 ///
 /// Later lines overwrite earlier ones for the same key, matching Python's dict
 /// assignment semantics (`pyphen/__init__.py:152`).
+///
+/// A code absent from the data package means the generated data and this
+/// engine disagree; that is an internal integrity failure, so the build aborts
+/// loudly instead of producing a dictionary that hyphenates nothing.
 fn parse_dictionary(code : String) -> HyphDict {
   let patterns : Map[String, (Int32, Array[Int32])] = Map([])
   let mut maxlen = 0
@@ -99,7 +103,7 @@ fn parse_dictionary(code : String) -> HyphDict {
           None => ()
         }
       }
-    None => ()
+    None => abort("missing embedded hyphenation dictionary: " + code)
   }
   { patterns, maxlen, }
 }
@@ -185,9 +189,11 @@ fn expand_hex_escapes(line : StringView) -> String {
 /// - the regular expression always yields a final empty match, so one trailing
 ///   zero is appended after the last character;
 /// - a digit followed by another digit produces an empty tag. The empty tag
-///   adds no key character but still occupies one value slot, so for those
-///   lines the value slice is longer than the key. This shift is observable
-///   (the German `...11...` compound patterns exercise it) and is preserved;
+///   adds no key character but still occupies one value slot, so the raw
+///   `findall` value list is longer than the key before zero-chopping. The
+///   trimmed slice may end up shorter (e.g. `aktionärs11ausschüsse` keeps only
+///   `[1, 1]` at `start = 9`); `start` carries the shift, and positions depend
+///   on it, so both are preserved (the German `...11...` lines exercise this);
 /// - Python's `\d` is Unicode-aware, while this scan accepts ASCII digits only.
 ///   None of the ten embedded tables contains a non-ASCII digit (verified
 ///   against pyphen over the vendored files), so the two agree on every
@@ -343,12 +349,16 @@ fn pointed_slice(chars : Array[Char], start : Int32, end : Int32) -> String {
 ///
 /// The wrapper removes points that leave fewer than two characters on either
 /// side, measured on the caller's word. Callers pass a code produced by
-/// `resolve_dict`; an unknown code yields no positions rather than inventing a
-/// dictionary.
-fn hyphenation_positions(word : String, dict_lang : String) -> Array[Int32] {
+/// `resolve_dict`; an unknown code raises `UnsupportedLanguage(dict_lang)`
+/// rather than silently reporting no positions, which the syllable layer would
+/// turn into a one-syllable word.
+fn hyphenation_positions(
+  word : String,
+  dict_lang : String,
+) -> Array[Int32] raise TextstatError {
   let dictionary = match hyphenation_dictionaries.get(dict_lang) {
     Some(dictionary) => dictionary
-    None => return []
+    None => raise UnsupportedLanguage(dict_lang)
   }
   let right = word.char_length() - 2
   let positions : Array[Int32] = []

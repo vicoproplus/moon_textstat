@@ -63,10 +63,12 @@
 
 1. `findall` 在末尾总有一个空匹配，因此每个模式在最后一个字符后再补一个 0；
    与前导/尾部 0 裁剪配合后等价。
-2. **连续数字产生空 tag**：`aktionärs11ausschüsse` 这类行（仅 `de_DE` 有 20 行）
-   在 `re.findall` 下得到 `tags = [... 's', '', 'a' ...]`、`values` 多一个槽；空
-   tag 不增加 key 字符但占一个 value 槽，因此 **value 切片比 key 长**，位置会整体
-   错开一格。本实现显式保留该行为（不做「数字覆盖当前 gap」的简化），并在
+2. **连续数字产生空 tag**：`aktionärs11ausschüsse` 这类行（`de_DE` 有 9 行、
+   `hu_HU` 有 11 行；按 pyphen 的 ignored 前缀过滤后统计）在 `re.findall` 下得到
+   `tags = [... 's', '', 'a' ...]`、`values` 多一个槽；空 tag 不增加 key 字符但占
+   一个 value 槽，因此 **裁剪前的 value 列表比 key 长**；裁剪后切片可能更短
+   （如 `aktionärs11ausschüsse` 只保留 `[1, 1]`，`start = 9`），位移由 `start`
+   承载。本实现显式保留该行为（不做「数字覆盖当前 gap」的简化），并在
    71,840 格对拍中覆盖。
 
 ### 2.3 位置计算（`HyphDict.positions` + `Pyphen.positions`）
@@ -199,7 +201,7 @@ $ git status --porcelain
 
 ## 4. 期望值与保真对拍
 
-### 4.1 brief 规定的断言（10 个字典，30 格）
+### 4.1 brief 规定的断言（10 个字典，27 个位置向量 + 大小写/空词/解析/失败断言）
 
 全部由本机 `pyphen 0.17.2` 现算并复核：
 
@@ -219,7 +221,7 @@ $ git status --porcelain
 
 ### 4.2 扩展对拍（编译产物级，71,840 格，0 差异）
 
-为避免「只对上 brief 的 30 格」，用临时白盒探针（`lib/t15probe_wbtest.mbt`，
+为避免「只对上 brief 的 27 个位置向量」，用临时白盒探针（`lib/t15probe_wbtest.mbt`，
 执行后已删除，不在工作树）对**编译后的** `hyphenate_positions` 产出
 `lang<TAB>word<TAB>positions`，再用 pyphen 0.17.2 逐格比对：
 
@@ -229,7 +231,7 @@ $ git status --porcelain
 | 每本字典模式左值每 37 行取 1 去数字 + 400 条随机字母串 | 6,055 | 10 | 60,550 | 0 |
 | **合计** | — | — | **71,840** | **0** |
 
-其中包含 `de_DE` 全部 20 条连续数字模式派生的词（`aktionärsausschüsse`、
+其中包含 `de_DE` 全部 9 条连续数字模式派生的词（`aktionärsausschüsse`、
 `äquatorialafrika`、`blutharnstoff`、`chorankündigung`、`dampfähnlich` 等）、
 `hu_HU` 2,396 条 `/alt=` 行派生的词、四套非 ASCII 字母表（波兰语、俄语、匈牙利
 语、德语变音）。两份语料还分别交叉跑全部 10 个字典，覆盖了 key 与字典语言不一致
@@ -295,10 +297,42 @@ T-36/T-40 的 bench 需按「首查 ≈0.7 s、后续 O(词长 × maxlen)」规�
 6. **`hyphenate_positions` 的 `#warnings("-unused_value")`**：本任务内没有任何
    非测试调用方（`moon check` 不计白盒测试的使用），T-17 的 `syllable_count` 接入
    后应删除该抑制。源码注释已说明。
-7. **`hyphenation_positions` 对未解析代码返回 `[]`**：只有 `resolve_dict` 能产出
-   合法代码，公开路径（T-17 将使用的 `hyphenate_positions`）先解析再计算，因此
-   该分支不可达；选择返回空而不是 panic，保持库内无 panic。
+7. **`hyphenation_positions` 对未解析代码显式失败**（修复轮 1 修改）：原实现返回
+   `[]`，评审指出 T-17 若直接调用会把未知语种静默变成「每词 1 音节」；现改为
+   `raise UnsupportedLanguage(dict_lang)`。`parse_dictionary` 对缺失的内嵌表同样
+   改为 `abort`（内部数据完整性不变量，不静默降级）。
 8. **门禁顺延**：`cmd/gate` 在 T-36 建立；本任务对 A-4.1（`--group=lang`）的等价
    证据是 §4 的断言与 71,840 格对拍，T-36 用同一批字典代码复验。
 9. `positions` 不实现上游的 `cache`：纯函数、结果与缓存无关；T-40 bench 若需要
    热缓存，另立任务加。
+
+---
+
+## 8. 修复轮 1（评审后）
+
+评审结论：算法通过，但提出 2 项 Important 与若干测试/文案项。本轮处置：
+
+| 项 | 处置 | 证据 |
+| --- | --- | --- |
+| Important 1：无连续数字/`/alt=` 的固定回归用例 | 新增 `aktionärsausschüsse` de_DE → `[2,4,5,9,10,12,17]`；`asszonyok` hu_HU → `[2,5]`（含 `/sz=` alternative 行） | `lib/hyphenation_wbtest.mbt`；两条均由本机 pyphen 0.17.2 现算 |
+| Important 2：`hyphenation_positions` 未知代码返回 `[]` | 改为 `raise UnsupportedLanguage(dict_lang)`；新增负向测试 | 同上；`unresolved dictionary codes fail instead of yielding no positions` |
+| Minor：`parse_dictionary` 缺失内嵌表静默为空 | 改为 `abort("missing embedded hyphenation dictionary: " + code)` | `lib/hyphenation.mbt` |
+| Minor：短名 `it/nl/pl/ru/hu` 未被断言 | 新增 `short names resolve to their full dictionaries`，同时钉住字面结果与「短名 = 全名」等式 | `it`→`[6,8,10]`、`nl`→`[3,6,9]`、`pl`→`[3,6]`、`ru`→`[2,6,8,11]`、`hu`→`[2,5]` |
+| Minor：日志数字不实 | 连续数字模式：`de_DE` 9 行、`hu_HU` 11 行（原写 20）；brief 向量 27 个（原写 30） | 本文件 §2.2/§4.1/§4.2/§4.2 表 |
+| Minor：`#warnings("-unused_value")` | 保留至 T-17 接入后删除（已登记） | `lib/hyphenation.mbt` |
+
+修复轮验证（2026-10-21）：
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date
+CHECK=0
+$ moon test --target native
+Total tests: 62, passed: 62, failed: 0.
+TEST=0
+$ moon fmt --check
+Finished. moon: ran 33 tasks, now up to date
+FMT=0
+```
+
+说明：修复轮由子代理完成代码；其会话在提交前中断，控制器复核了工作树差异、重跑上述命令后按显式路径提交。
