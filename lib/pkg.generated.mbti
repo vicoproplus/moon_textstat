@@ -8,6 +8,8 @@ pub fn letter_count(String) -> Int
 
 pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
 
+pub fn sentence_count(String) -> Int
+
 // Errors
 
 // Types and methods

@@ -1,0 +1,249 @@
+# T-14 `sentence_count` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`3bfe7b6 feat(count): implement lexicon_count with three switches`
+- 契约：PRD-A FR-05/FR-06；spec §4.3.1 第 4 行、§4.3.2 分句规则、§4.3.3；上游
+  `textstat/textstat/backend/counts/_count_sentences.py:24-32`；T-14 brief
+- 期望值来源环境：`textstat 0.7.13`，CPython `3.12.10`（`docs/facts/oracle_smoke.json` 头）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
+- **结论：PASS**（check 零警告 EXIT=0；test 47/47 EXIT=0；11 个 oracle 样本 + 6 条规则探针共 17 个断言与上游全等；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/sentence_count.mbt` | 新增：`pub fn sentence_count` + 4 个包内辅助（`\b`、终止符、匹配结束、切片转串） | 118 | `f809c41551a2e4a66340233b8101d8f507d462a3f3178b1860e6d9ce438592ea` |
+| `lib/sentence_count_test.mbt` | 新增：2 条黑盒测试（11 oracle 样本 + 6 条规则探针） | 85 | `c6252f0057513ea2dcd1d8ad60f1673213adb133761786699fd29fcd0b3e8b38` |
+| `lib/pkg.generated.mbti` | 工具链产物：Values 段新增 `pub fn sentence_count(String) -> Int` | — | `041d3aa38fb316fd8b78baf0654f9c16eb081be0a8df97e27b4eeb84c28c88c8` |
+
+其余文件零改动（`git status` 仅 ` M lib/pkg.generated.mbti` + 两个未跟踪新文件 + `.qoder/`）。
+未新增目录、未新增依赖（`lib/moon.pkg` 仍为空）、未实现其他计数或公式。
+
+公开面（`.mbti` diff 唯一变化，且只增不改）：
+
+```diff
++pub fn sentence_count(String) -> Int
+```
+
+`.mbti` 的 Values 段现为 `char_count` / `letter_count` / `lexicon_count` /
+`sentence_count` 四行；`list_words` 与 4 个辅助函数均不导出。
+
+---
+
+## 2. 实现（与上游逐字对应）
+
+上游 `_count_sentences.py:24-32`：
+
+```python
+if len(text) == 0:
+    return 0
+ignore_count = 0
+sentences = re.findall(r"\b[^.!?]+[.!?]*", text, re.UNICODE)
+for sentence in sentences:
+    if count_words(sentence) <= 2:
+        ignore_count += 1
+return max(1, len(sentences) - ignore_count)
+```
+
+本移植逐条对应，不引入正则库：
+
+| 上游成分 | 本移植 |
+| --- | --- |
+| `len(text) == 0` | 先 `text.to_array()`，`n == 0` 直接返回 0（在扫描之前） |
+| `re.findall` 左到右、不重叠 | `while p < n`：位置 `p` 能起匹配则记一个候选并从匹配末尾续扫，否则 `p += 1` |
+| `\b` | `sentence_boundary`：前/后（含起点、终点按非词处理）恰有一个 `is_python_word_char`；`p > 0` 时才看前一码点 |
+| `[^.!?]+` | `sentence_start` 要求当前码点非终止符，`sentence_match_end` 第一段循环消费到下一个终止符或文本末尾 |
+| `[.!?]*` | `sentence_match_end` 第二段循环消费整段 `.`/`!`/`?` |
+| `count_words(sentence)` | `list_words(chars_to_string(...)).length()`，默认 `removepunct=true`、不小写、不拆缩写、不拆连字符 |
+| `<= 2` 丢弃 | `discarded += 1`，否则 `kept += 1` |
+| `max(1, len - ignore)` | `max(1, kept)`；非空输入至少 1 |
+
+要点与边界：
+
+- **只认 `.` `!` `?`**：换行、`;`、`:`、`…`（U+2026）都是普通内容，不分割
+  （spec §4.3.2）。
+- **终止符前的 `\b` 起不了匹配**：词字符后紧跟 `.`/`!`/`?` 时边界为真，但
+  `[^.!?]+` 至少要消费一个非终止符，故该位置失败、`p` 前进 1；纯终止符串因此
+  产生 0 个候选。
+- `\w` 复用 `letter_count.mbt` 的 `is_python_word_char`（ASCII 字母数字、`_`、
+  BMP 非 ASCII；近似口径与局限在该谓词文档里陈述一次），`\s` 复用
+  `is_python_space`。冻结语料唯一的非 ASCII 字符是 `ó`，两者口径一致。
+- 候选串由 `chars_to_string` 用 `StringBuilder` 拼出，切片边界是半开区间
+  `[start, end)`。
+- 计数类型 `Int32`（源码写法；`moon fmt` 归一化为 `Int32`，`.mbti` 呈现为
+  `Int`），与 `TextStats.sentence_count : Int32`（PRD-A 10.3）一致。
+- 纯函数：无 I/O、无异常。
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+```
+
+零警告。`moon fmt` 后复跑同样为 `Finished. moon: ran 1 task, now up to date`。
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 47, passed: 47, failed: 0.
+EXIT=0
+```
+
+基线（T-13）45/45；本次新增 2 条 → 47/47。根包 25 条（脚手架 1 + 值对象 3 +
+`char_count` 5 + `letter_count` 4 + `list_words` 7 + `lexicon_count` 3 +
+`sentence_count` 2），`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+过滤后的两条新测试：
+
+```console
+$ cd lib && moon test --target native -v --filter "*sentence_count*"
+[vicoproplus/moon_textstat] test sentence_count_test.mbt:16 ("sentence_count matches the 11 frozen oracle samples") ok
+[vicoproplus/moon_textstat] test sentence_count_test.mbt:73 ("sentence_count follows the upstream boundary and discard rules") ok
+Total tests: 2, passed: 2, failed: 0.
+EXIT=0
+```
+
+### 3.3 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+
+$ moon fmt                   # 复跑幂等
+Finished. moon: no work to do
+EXIT=0
+```
+
+`moon fmt` 只把 `sentence_boundary` 的 `&&` 换行重排；三个文件 SHA-256 见 §1。
+
+### 3.4 S1 静态门（A-8.3 检索式，改动范围）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib"
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    sentence_count.mbt sentence_count_test.mbt pkg.generated.mbti | wc -l
+0
+```
+
+`numbers_and_symbols` 样本正文含 URL；沿用 T-11/T-12 约定把首字母写成 `\u{68}`
+（即 `h`），运行时文本与 oracle 原文逐字节相同。
+
+### 3.5 门禁探针
+
+```console
+$ moon run cmd/gate --target native --group=count
+Error: failed to resolve path `cmd/gate`
+EXIT=127
+```
+
+`cmd/gate` 在 T-36 才建立；`--group=count` / `--group=degenerate` 验收按 brief
+顺延，本任务的等价证据是 §4/§5 的 17 个上游断言。
+
+### 3.6 工作树
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/sentence_count.mbt
+?? lib/sentence_count_test.mbt
+```
+
+---
+
+## 4. 冻结 oracle 断言（11 样本，11 格）
+
+期望值全部取自 `docs/facts/oracle_smoke.json` 的
+`samples[].results.sentence_count.value`，非由本移植推导：
+
+| 样本 | sentence_count |
+| --- | --- |
+| short_simple_sentence | 1 |
+| long_multi_sentence_paragraph | 5 |
+| abbreviations_and_initials | 6 |
+| hyphenated_words | 2 |
+| numbers_and_symbols | 6 |
+| multiple_paragraphs_newlines | 5 |
+| very_short_under_5_words | 1 |
+| empty_string | 0 |
+| whitespace_only | 1 |
+| punctuation_only | 1 |
+| spanish_text | 3 |
+
+11 格全部与编译后的 `@moon_textstat.sentence_count` 相等。
+
+---
+
+## 5. 分句规则探针（6 条，期望值来自 vendored 上游）
+
+```console
+$ cd textstat && PYTHONPATH=. python -c "import textstat; ..."
+'Hi. Go. Bye now.'                         -> 1
+'This is a full sentence. Ok.'             -> 1
+'This is a full sentence. Another full one here!' -> 2
+'a;b:c'                                    -> 1
+'...'                                      -> 1
+''                                         -> 0
+textstat version (0, 7, 13)
+```
+
+覆盖的规则：
+
+| 探针 | 规则 |
+| --- | --- |
+| `Hi. Go. Bye now.` | 3 个候选（`Hi.` / `Go.` / `Bye now.`）全部 ≤2 词 → 全部丢弃 → `max(1, 0)=1` |
+| `This is a full sentence. Ok.` | 2 个候选，1 留 1 弃 → 1 |
+| `This is a full sentence. Another full one here!` | 2 个候选均保留 → 2 |
+| `a;b:c` | 无 `.`/`!`/`?`，`;` `:` 不分割 → 1 个 1 词候选 → 丢弃 → 1 |
+| `...` | 纯终止符，`[^.!?]+` 无内容可吃 → 0 候选 → 1 |
+| `""` | 空串在扫描前返回 0 |
+
+补充（同批上游现算，用于确认边界与终止符语义，未写入测试）：
+`'Hi.There'` → 1、`'abc !def'` → 1、`'A b c.!? D e f'` → 2、`'!!!'` → 1、
+`'...A b c...'` → 1。
+
+### 设计验证（算法级，不替代编译产物证据）
+
+在写 MoonBit 之前，用 Python 按同一扫描规则实现本算法（`\b` + `[^.!?]+` +
+`[.!?]*` + `list_words` 默认词数 + 丢弃与下界），与上游
+`re.findall` 实现在 11 个样本、上述 17 个探针以及 4000 条随机 ASCII 串
+（含空白、`.`/`!`/`?`、`;`/`:`、引号、连字符、`ó`）上对拍：**0 差异**。
+编译后 MoonBit 产物的证据是 §4/§5 的断言。
+
+---
+
+## 6. 测试内容（2 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `sentence_count matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 共 11 次 `assert_eq`；`assert_eq(11, samples.length())` 防止漏行；`numbers_and_symbols` 用 `\u{68}` 转义 URL 首字母但文本逐字节等同 oracle |
+| `sentence_count follows the upstream boundary and discard rules` | 6 条规则探针：`Hi. Go. Bye now.`=1、`This is a full sentence. Ok.`=1、双句=2、`a;b:c`=1、`...`=1、空串=0 |
+
+无快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。
+
+---
+
+## 7. 备注
+
+- 本任务只加 `sentence_count`，未新增其他计数或公式。
+- `re.UNICODE` 在 Python 3 中默认生效；本移植的 `\b` 由
+  `is_python_word_char` 承担，未额外引入 Unicode 属性表。
+- 上游 `@typed_cache` 只影响性能，不影响语义；本移植不实现缓存。
+- 11 格 + 6 探针即本任务对 `--group=count` / `--group=degenerate` 的等价证据；
+  门禁在 T-36 建立后复验同一批单元格。
