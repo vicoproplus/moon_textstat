@@ -1,0 +1,226 @@
+# T-29 — SMOG
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`5f70446 feat(formula): implement gunning_fog with non-unique root-threshold difficult words`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-19；spec §4.3.3、§4.4 表第 4 行与约束 1/2；A-5.1；上游
+`backend/metrics/_smog_index.py:9-40`、`backend/counts/_count_polysyllable_words.py:26`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 119/119 EXIT=0（T-28 后 115 + 本任务 4）；`.mbti` 只新增
+> `smog_index`；S1 零命中；11 个样本值按位相等（`==`，非容差）；纯空白/纯标点
+> 恰为 `3.1291`、空串 `0.0`；门禁顺延至 T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/smog_index.mbt` | 新增：公开 `smog_index` | 64 | `dfe169cb6ce1d09b3b6b02f52f063d82a142be129508432abce9d4ede71c51e3` |
+| `lib/smog_index_test.mbt` | 新增：4 条黑盒测试 | 138 | `a4a86b0bb41f05dca76b13c0d8a2d4c2c1bc5e97d462231a173ea4703b9ec47a` |
+| `lib/moon.pkg` | 新增核心包导入 `moonbitlang/core/math` | — | — |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `smog_index` 一行 | — | — |
+
+### 1.2 `lib/smog_index.mbt`
+
+```moonbit
+pub fn smog_index(
+  text : String,
+  lang~ : String = "en_US",
+) -> Double raise TextstatError {
+  let sentences = sentence_count(text)
+  let poly_syllab = polysyllabcount(text, lang~)
+  if sentences == 0 {
+    return 0.0
+  }
+  1.043 *
+  @math.pow(30.0 * (poly_syllab.to_double() / sentences.to_double()), 0.5) +
+  3.1291
+}
+```
+
+- 逐字对应上游：
+  `sentences = count_sentences(text)` → `sentence_count(text)`；
+  `poly_syllab = count_polysyllable_words(text, lang)` →
+  `polysyllabcount(text, lang~)`（T-18，逐词解析语种）。
+- **求值顺序**：`poly_syllab / sentences` 是两个计数的真除法 →
+  `30 *` → `^0.5` → `1.043 *` → `+ 3.1291`。spec §4.4 约束 1 禁止改写结合
+  顺序；计数先 `.to_double()` 再相除，等价于 CPython 的 `int / int` 真除法。
+- **幂运算（约束 2）**：保留 `x^0.5` 语义，用 `@math.pow(x, 0.5)`，不用
+  `sqrt`。计划文本写的是 builtin `Double::pow`，但本工具链已将其标为
+  deprecated（`Warning (deprecated): Use @math.pow instead`，见 §4.3），
+  二者是同一份 fdlibm 幂例程（`builtin/double_pow_nonjs.mbt` 与
+  `math/pow_double_nonjs.mbt`），指数固定 0.5，语义不变；为满足“零警告”验收，
+  改用 `@math.pow` 并在 `lib/moon.pkg` 导入 `moonbitlang/core/math`。
+- **零分支**：上游先算两个计数，只有除法位于
+  `try: ... except ZeroDivisionError: return 0.0`。空串是唯一句数为 0 的输入
+  （非空文本 `sentence_count ≥ 1`），它也切不出词，故守卫返回 0.0；实现保持
+  “先算 `polysyllabcount` 再判 `sentences == 0`” 的上游顺序。
+- **退化输入**：纯空白/纯标点为非空，句数 1、词数 0 → 多音节 0 → 比值 0.0 →
+  `0.0^0.5 = 0.0` → 恰为 `3.1291`；只有空串返回 `0.0`。
+- **失败通道**：`polysyllabcount` 逐词解析语种，含词文本在不支持语种下原样抛
+  `UnsupportedLanguage(requested)`；零词文本不解析词典，即使 `ar` 也返回上表
+  值。公式层不自行分词（spec §2.1 约束 2）。默认 `lang = "en_US"`。
+- 纯函数，无 I/O。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 11 个样本的计数与值
+
+```console
+$ cd textstat && python - <<'PY'
+# 对 oracle_smoke.json 的每个样本调用 count_sentences、
+# count_polysyllable_words 与 smog_index(text, 'en_US')
+PY
+id sentences poly_syllab smog_index(en_US) bits
+short_simple_sentence          1  0   3.1291                4009086594af4f0e
+long_multi_sentence_paragraph  5  24  15.6451               402f4a4a8c154c98
+abbreviations_and_initials     6  2   6.42735559955562      4019b59cb4cf6a5a
+hyphenated_words               2  7   13.81666964889586     402ba2228633497c
+numbers_and_symbols            6  2   6.42735559955562      4019b59cb4cf6a5a
+multiple_paragraphs_newlines   5  6   9.3871                4022c631f8a0902e
+very_short_under_5_words       1  0   3.1291                4009086594af4f0e
+empty_string                   0  0   0.0                   0000000000000000
+whitespace_only                1  0   3.1291                4009086594af4f0e
+punctuation_only               1  0   3.1291                4009086594af4f0e
+spanish_text                   3  5   10.504223727775692    402502299cc953de
+```
+
+上游返回值与 `oracle_smoke.json` 的
+`samples[].results.smog_index.value` 逐行 `==`（ALL True）。
+
+### 2.2 幂运算的样本值域
+
+实际参与 `^0.5` 的 `x = 30 * (poly/sentences)` 均为精确整数：
+`0, 144, 10, 105, 10, 36, 0, (空串走守卫), 0, 0, 50`。逐值比较
+`x**0.5` 与 `math.sqrt(x)` 的位模式：
+
+```console
+0.0   0000000000000000 0000000000000000 True
+10.0  40094c583ada5b53 40094c583ada5b53 True
+36.0  4018000000000000 4018000000000000 True
+50.0  401c48c6001f0ac0 401c48c6001f0ac0 True
+105.0 40247e7054af0989 40247e7054af0989 True
+144.0 4028000000000000 4028000000000000 True
+```
+
+即 `pow(0.5)` 与 `sqrt` 在样本值域内位模式相同（与 spec §4.4 约束 2 的实测
+一致）；实现仍保留 `pow(x, 0.5)`，不据此改成 `sqrt`。
+
+### 2.3 退化输入与失败通道
+
+```console
+'' en_US 0.0
+'' ar 0.0
+' ' ar 3.1291
+'   \n\t ' ar 3.1291
+' .? ' ar 3.1291
+'...' ar 3.1291
+'Hi there!' en_US 3.1291
+'Hi there!' ar KeyError (None,)
+'hello' ar KeyError (None,)
+'The cat sat on the mat.' xx_YY KeyError (None,)
+```
+
+空串在 `ar` 下仍 0.0（`count_polysyllable_words` 对零词文本不解析词典）；纯
+空白/纯标点在 `ar` 下为 3.1291；含词文本抛语言失败。注意这里与 Fog 不同：
+`hello` 在 SMOG 路径上也会失败（没有易读词表短路）。
+
+### 2.4 期望值位模式核对
+
+从 `lib/smog_index_test.mbt` 的 `samples` 表抽取 11 个数字字面量，与
+`docs/facts/oracle_smoke.json` 的 `samples[].results.smog_index.value` 用
+`struct.pack('>d', …)` 比较：
+
+```console
+short_simple_sentence           3.1291               4009086594af4f0e MATCH
+long_multi_sentence_paragraph   15.6451              402f4a4a8c154c98 MATCH
+abbreviations_and_initials      6.42735559955562     4019b59cb4cf6a5a MATCH
+hyphenated_words                13.81666964889586    402ba2228633497c MATCH
+numbers_and_symbols             6.42735559955562     4019b59cb4cf6a5a MATCH
+multiple_paragraphs_newlines    9.3871               4022c631f8a0902e MATCH
+very_short_under_5_words        3.1291               4009086594af4f0e MATCH
+empty_string                    0.0                  0000000000000000 MATCH
+whitespace_only                 3.1291               4009086594af4f0e MATCH
+punctuation_only                3.1291               4009086594af4f0e MATCH
+spanish_text                    10.504223727775692   402502299cc953de MATCH
+LEN 11 ALL True
+```
+
+字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`。
+
+## 3. 测试（4 条，115 → 119）
+
+| 文件 / 测试 | 断言 |
+| --- | --- |
+| `smog_index_test.mbt` / `smog_index matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`3.1291, 15.6451, 6.42735559955562, 13.81666964889586, 6.42735559955562, 9.3871, 3.1291, 0.0, 3.1291, 3.1291, 10.504223727775692`；末尾再断言省略 `lang` 与显式 `en_US` 同值 |
+| `smog_index_test.mbt` / `the abbreviations row is the x^0.5 formula over true division` | `sentence_count == 6`、`polysyllabcount == 2`；`1.043 * @math.pow(30.0 * (2.0/6.0), 0.5) + 3.1291 == 6.42735559955562`；该行在整数除法下会退化为 3.1291，故独立固定真除法；同时固定 `x^0.5` 拼写 |
+| `smog_index_test.mbt` / `A-5.1: degenerate text gives 3.1291 except the empty string` | `"   \n\t "`、`" .? "`、`" "`、`"\n"`、`"..."`、`"!?!"` 全部 `== 3.1291` 且 `!= 0.0`；`""` `== 0.0` |
+| `smog_index_test.mbt` / `unsupported languages keep zero-word text and raise for words` | `ar`/`xx_YY`：`""` → 0.0；空白与纯标点 → 3.1291；`"Hi there!"`、`"hello"`、`"The cat sat on the mat."` → `UnsupportedLanguage(code)`，code 为原始拼写 |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。
+
+## 4. 验收
+
+### 4.1 首次尝试：builtin `Double::pow` 触发两条 deprecated 警告
+
+```console
+$ cd lib && moon check --target native
+Warning (deprecated): Use `@math.pow` instead   # smog_index.mbt 与测试各一条
+Finished. moon: ran 3 tasks, now up to date (2 warnings, 0 errors)
+```
+
+`moon ide peek-def Double::pow` 指向
+`core/builtin/double_pow_nonjs.mbt:135`，其上一行是
+`#deprecated("Use `@math.pow` instead")`。与“零警告”验收冲突，故改用
+`@math.pow`（同一 fdlibm 幂例程）并在 `lib/moon.pkg` 导入
+`moonbitlang/core/math`；`moon tree` 仍只列 `vicoproplus/moon_textstat`。
+
+### 4.2 终态
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 119, passed: 119, failed: 0.          # EXIT=0；T-28 base 115 + 4
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/moon.pkg lib/pkg.generated.mbti
++  "moonbitlang/core/math",
++pub fn smog_index(String, lang? : String) -> Double raise TextstatError
+# .mbti 仅此一行（含空行），无其他符号变化
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/smog_index.mbt lib/smog_index_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ git status --porcelain
+ M lib/moon.pkg
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/smog_index.mbt
+?? lib/smog_index_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 与 A-5.1 的
+`--group=degenerate` 由 T-36/T-52 复验。本任务不宣称门禁等价，只把 11 个
+oracle 值、A-5.1 的 3.1291/0.0 与失败通道先固定在包测试里。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. **工具链偏差**：计划/任务书写 “Use `Double::pow(x, 0.5)`”；本工具链将该
+   内置方法标为 deprecated，要求 `@math.pow`。为满足零警告，改用
+   `@math.pow(x, 0.5)`（仍是幂运算，不是 `sqrt`；§2.2 位模式实测与 `sqrt`
+   相同，但实现不依赖该巧合），并新增 `lib/moon.pkg` 的
+   `moonbitlang/core/math` 导入。`moon tree` 不因此变化（核心包不是模块依赖）。
+   因此提交除任务书列出的 4 个路径外，还包含 `lib/moon.pkg`。
+3. 未新增 `pl_PL`/`hu_HU` 的 SMOG 断言（无 oracle 单元格；`pt` 非验收，
+   R-33 裁决 b）。语言探针值属 T-35 范围。
+4. 未新增白盒测试：本任务的中间量（`sentence_count`、`polysyllabcount`）均为
+   公开 API，黑盒即可断言；`polysyllabcount` 无新增开关。
