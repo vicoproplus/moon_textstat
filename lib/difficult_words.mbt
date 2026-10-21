@@ -44,9 +44,61 @@ fn is_difficult_word(
 }
 
 ///|
+/// The difficult words of `text` in occurrence order with their original
+/// spellings (upstream `list_difficult_words`, `_list_difficult_words.py:29-32`;
+/// spec §4.3.4). This is the single selection implementation: the count layer
+/// measures it and the public `difficult_words_list` wraps it, so membership
+/// and spelling cannot drift between the two entries.
+///
+/// `list_words(text)` runs with upstream's defaults — case preserved,
+/// punctuation removed, hyphens and contractions fused — and every token is
+/// kept when `is_difficult_word(word, syllable_threshold, lang)` is true. The
+/// predicate lowercases only for its easy-word lookup, so the returned
+/// spellings are the tokenizer's (`Readability`, `Washington`, `Prices`,
+/// `Depende`), exactly as the frozen oracle's `difficult_words_list` shows.
+fn list_difficult_words(
+  text : String,
+  syllable_threshold : Int32,
+  lang : String,
+) -> Array[String] raise TextstatError {
+  let difficult : Array[String] = []
+  for word in list_words(text) {
+    if is_difficult_word(word, syllable_threshold, lang) {
+      difficult.push(word)
+    }
+  }
+  difficult
+}
+
+///|
+/// Distinct spellings of `words`, in first-occurrence order, by exact
+/// `String` equality (Python `set[str]` membership; upstream
+/// `set_difficult_words`, `_set_difficult_words.py:28`).
+///
+/// The order is a deterministic presentation choice, not a contract: spec
+/// §4.3.4 and D-16 define the de-duplicated list by set equality (C-4). The
+/// count layer only reads the length, so it is unaffected by the order.
+/// `Array::contains` makes this a linear scan per word; the quadratic total is
+/// negligible for the texts this package targets and keeps the helper free of
+/// extra dependencies.
+fn unique_spellings(words : Array[String]) -> Array[String] {
+  let unique : Array[String] = []
+  for word in words {
+    if !unique.contains(word) {
+      unique.push(word)
+    }
+  }
+  unique
+}
+
+///|
 /// Count the difficult words in `text` (upstream `count_difficult_words`,
 /// `_count_difficult_words.py:10-36`; spec §4.3.4). This is the backend entry
 /// shared by the public field and by Gunning Fog (T-28).
+///
+/// **Selection.** The words come from `list_difficult_words`, the same
+/// package-private implementation behind the public `difficult_words_list`
+/// (T-22), so the two entries cannot disagree.
 ///
 /// **Tokenization.** Tokens come from `list_words(text)` with its defaults —
 /// uppercase preserved, punctuation removed, hyphens and contractions fused.
@@ -66,10 +118,11 @@ fn is_difficult_word(
 ///   `Prices`, `Depende`).
 ///
 /// **Modes.** `unique=true` counts distinct spellings. The collected words are
-/// sorted first only to group equal spellings adjacently; any total order
-/// consistent with equality works, and the order itself is not observable
-/// here. `unique=false` counts every occurrence in token order, including
-/// repetitions.
+/// de-duplicated by exact `String` equality into first-occurrence order, the
+/// same helper and order behind the public `difficult_words_list`; only the
+/// resulting size is observed here, and set equality is the contract (spec
+/// §4.3.4, C-4). `unique=false` counts every occurrence in token order,
+/// including repetitions.
 ///
 /// **Threshold.** The threshold is optional *for the Gunning Fog hook*:
 /// omitting it selects `difficult_threshold_for_root(lang_root(lang))`, the
@@ -93,27 +146,11 @@ fn count_difficult_words(
     Some(value) => value
     None => difficult_threshold_for_root(lang_root(lang))
   }
-  let difficult : Array[String] = []
-  for word in list_words(text) {
-    if is_difficult_word(word, threshold, lang) {
-      difficult.push(word)
-    }
-  }
+  let difficult = list_difficult_words(text, threshold, lang)
   if !unique {
     return difficult.length()
   }
-  let n = difficult.length()
-  if n == 0 {
-    return 0
-  }
-  difficult.sort()
-  let mut count = 1
-  for i = 1; i < n; i = i + 1 {
-    if difficult[i] != difficult[i - 1] {
-      count = count + 1
-    }
-  }
-  count
+  unique_spellings(difficult).length()
 }
 
 ///|

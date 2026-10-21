@@ -6,6 +6,8 @@ pub fn char_count(String, ignore_spaces? : Bool) -> Int
 
 pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
 
+pub fn difficult_words_list(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Array[String] raise TextstatError
+
 pub fn letter_count(String) -> Int
 
 pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
