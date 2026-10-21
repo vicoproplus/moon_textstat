@@ -6,6 +6,38 @@ package "vicoproplus/moon_textstat"
 // Errors
 
 // Types and methods
+pub(all) struct AnalyzeOptions {
+  lang : String
+  difficult_syllable_threshold : Int
+  difficult_unique : Bool
+  long_word_threshold : Int
+  ms_per_char : Double
+  linsear_strict_upper : Bool
+  linsear_strict_lower : Bool
+}
+pub fn AnalyzeOptions::default() -> Self
+
+pub(all) struct TextStats {
+  char_count : Int
+  letter_count : Int
+  lexicon_count : Int
+  sentence_count : Int
+  syllable_count : Int
+  polysyllabcount : Int
+  monosyllabcount : Int
+  difficult_words : Int
+  difficult_words_list : Array[String]
+  long_word_count : Int
+  reading_time : Double
+  flesch_reading_ease : Double
+  flesch_kincaid_grade : Double
+  gunning_fog : Double
+  smog_index : Double
+  automated_readability_index : Double
+  coleman_liau_index : Double
+  linsear_write_formula : Double
+  dale_chall_readability_score : Double
+}
 
 // Type aliases
 
