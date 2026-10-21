@@ -36,6 +36,7 @@ test "reading_time matches the 11 frozen oracle samples" {
       2.15943,
     ),
   ]
+  assert_eq(11, samples.length())
   for sample in samples {
     assert_eq(sample.1, @moon_textstat.reading_time(sample.0))
   }
