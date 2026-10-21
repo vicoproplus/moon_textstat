@@ -154,30 +154,6 @@ fn count_difficult_words(
 }
 
 ///|
-/// The difficult-word syllable threshold for a language root: 3 for English,
-/// 4 for Polish, 5 for Hungarian, and English's 3 for every other root
-/// (upstream `LANG_CONFIGS.syllable_threshold`, `utils/constants.py:15-65`,
-/// read through `get_lang_cfg`; spec §4.3.4, §4.5.1).
-///
-/// The argument is a **root**, not a full code: call with `lang_root(lang)`,
-/// because upstream's `get_lang_cfg` resolves the root before its table
-/// lookup. `es`, `de`, `fr`, `it`, `nl`, `ru` and every unknown root inherit
-/// the English 3; only `pl` and `hu` override it.
-///
-/// This is the T-28 hook: Gunning Fog resolves the threshold here and then
-/// calls `count_difficult_words` with `unique=false` (omitting the threshold
-/// does the same). T-25 will build the full `LANG_CONFIGS` table and may
-/// relocate this function; the root-only input and the five values are the
-/// contract.
-fn difficult_threshold_for_root(root : String) -> Int32 {
-  match root {
-    "pl" => 4
-    "hu" => 5
-    _ => 3
-  }
-}
-
-///|
 /// Number of difficult words in `text` (spec §4.3.4; upstream public
 /// `difficult_words`, `textstat.py:723-749`).
 ///
