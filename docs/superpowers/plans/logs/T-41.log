@@ -1,0 +1,232 @@
+# T-41 — `--group=data` 数据身份子集
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`969b78b test(gate): pin the bench signature, median and format invariants`
+（工作树已含 T-41 的未提交实现：`lib/cmd/gate/data_checks.mbt` 新文件、
+`data_checks_wbtest.mbt` 新文件、`main.mbt` / `moon.pkg` 修改）。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，`moonc v0.10.15+943464bfa`，native 目标。
+契约：AD-1（数据身份）；AD §6 的 `data` 组（「数据身份的抽查子集」）；spec §4.7 A-1.1 子集。
+
+> 验收原文（brief）：`moon run cmd/gate --target native --group=data` EXIT=0；
+> 篡改一个字节的负向用例 EXIT=1（临时副本，不改交付物）（A-1.1 子集；
+> A-1.4/A-1.5 的 `[LOCAL_DEAD_LINK]` 状态不变）。
+
+> 结论：PASS。`--group=data` → `cells=30 passed=30 floor=366 group=data inject=0`，EXIT=0；
+> 仓库外副本篡改 primary 行集 SHA-256 一个字 → `cells=30 passed=29`，EXIT=1，
+> `_gate/failures-native-*.jsonl` 恰 1 行、`grep -c '"metric":'` = 1。
+> 非 data 路径零回归：`--group=selfcheck` / `--group=all` 仍 366/366 EXIT=0，
+> `moon test --target native` 170/170，`moon check` / `moon fmt --check` EXIT=0，
+> 静态白名单 `extern`=5、`@env.`=2。
+
+## 1. 实际实现的检查清单（30 条）
+
+`lib/cmd/gate/data_checks.mbt` 的 `run_data_checks()` 是唯一执行体；`DATA_CHECK_COUNT = 30`
+（`data_checks.mbt:193`），`run_data_group` 在报告行之后用它做自证（`main.mbt:197-204`）。
+逐条统计（不是估计值，按源码 push 次数核对）：
+
+| # | 类别 | 条数 | 检查 id 形态 | metric | 期望来源 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 发音主表条目数 | 1 | `data.pronunciation.entries` | `pronunciation_entry_count` | manifest `pinned.pronunciation_entries` |
+| 2 | 发音补充表条目数 | 1 | `data.pronunciation_supplement.entries` | `pronunciation_supplement_entry_count` | manifest `pinned.pronunciation_supplement_entries` |
+| 3 | 发音主表行集 SHA-256 | 1 | `data.pronunciation.rows_sha256` | `pronunciation_rows_sha256` | manifest `pinned.pronunciation_sorted_rows_sha256` |
+| 4 | 发音补充表行集 SHA-256 | 1 | `data.pronunciation_supplement.rows_sha256` | `pronunciation_supplement_rows_sha256` | manifest `pinned.pronunciation_supplement_sorted_rows_sha256` |
+| 5 | 易读词根存在性（`en`、`es`） | 2 | `data.easy_words.<root>.present` | `easy_word_root_present` | manifest `pinned.easy_word_entries` 的键 |
+| 6 | 易读词条数（`en`、`es`） | 2 | `data.easy_words.<root>.count` | `easy_word_count` | manifest `pinned.easy_word_entries` |
+| 7 | 易读词根覆盖（集合相等） | 1 | `data.easy_words.roots` | `easy_word_root_coverage` | 同上，双向集合比较 |
+| 8 | 断字字典代码存在性（10 本） | 10 | `data.patterns.<code>.present` | `pattern_code_present` | manifest `pinned.pattern_lines` 的键 + `sources["pyphen/hyph_en_GB"]` |
+| 9 | 断字字典模式行数（10 本） | 10 | `data.patterns.<code>.lines` | `pattern_line_count` | 同上 |
+| 10 | 断字代码覆盖（集合相等） | 1 | `data.patterns.codes` | `pattern_code_coverage` | 同上，双向集合比较 |
+
+合计 **1+1+1+1+2+2+1+10+10+1 = 30**，与 brief 的分组（2 条目数 + 2 行集哈希 + 2 易读词存在性
++ 2 易读词条数 + 10 模式行数 + 10 模式代码存在性 + 1 代码覆盖 + 1 词根覆盖）逐项一致。
+
+两个实现细节值得记录：
+
+- **「存在性 + 行数」成对**：`stats.pattern_count(code)` 返回 `None` 时**不跳过**，而是写一条
+  `"actual":"missing"` 的失败记录（`data_checks.mbt:333-342`），因此条数恒为 30，
+  `DATA_CHECK_COUNT` 的自证不会因缺表而静默缩水。易读词同理（`data_checks.mbt:281-290`）。
+- **覆盖检查是双向的**：`data.patterns.codes` 与 `data.easy_words.roots` 用
+  `sorted_copy()` 排序后比较两个**集合**（`data_checks.mbt:90-102, 297-304, 349-357`），
+  所以「少一本字典」和「多一本字典」都会失败，且表的顺序变化不会误报。
+
+## 2. 钉死值与出处
+
+`lib/data/**` 是生成产物，`tools/l2_manifest.json` 在模块根之外，门禁运行期不能读它
+（AD §1.1 零 I/O），所以钉死值以常量形式重述在 `data_checks.mbt:26-82`，与 L3 表重述
+366 个冻结单元格同一口径。
+
+| 常量（`data_checks.mbt`） | 值 | 出处 |
+| --- | --- | --- |
+| `DATA_PRONUNCIATION_ENTRIES`（:26） | `48202` | `tools/l2_manifest.json` → `pinned.pronunciation_entries`；AD §1.3；T-06.log §2.1（实测 48,202 条） |
+| `DATA_PRONUNCIATION_SUPPLEMENT_ENTRIES`（:33） | `21782` | `pinned.pronunciation_supplement_entries`；T-06.log §8.1（`S` 实测 21,782 条） |
+| `DATA_PRONUNCIATION_ROWS_SHA256`（:39） | `5ab9e676…376a9854` | `pinned.pronunciation_sorted_rows_sha256`；T-06.log §8.1（排序后行集，515,949 字节） |
+| `DATA_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256`（:46） | `cb35f14b…e75705` | `pinned.pronunciation_supplement_sorted_rows_sha256`；T-06.log §8.1（231,288 字节） |
+| `data_pinned_pattern_lines`（:60-71） | `en_US 11125`、`en_GB 14057`、`de_DE 77847`、`es 859`、`fr 2908`、`it_IT 420`、`nl_NL 16256`、`pl_PL 4823`、`ru_RU 3874`、`hu_HU 102204` | 前九本 = `pinned.pattern_lines`（AD §1.3，T-06.log §2.2 第 3 列）；`en_GB` = `sources["pyphen/hyph_en_GB"].pattern_lines` |
+| `data_pinned_easy_word_counts`（:79-82） | `en 2941`、`es 20000` | `pinned.easy_word_entries`；AD §1.3；T-06.log §2.3 |
+
+### 2.1 `en_GB` 的 14,057 是**测量值**，为何仍然钉死
+
+- AD §1.3 只钉了九本字典的模式条数（合计 220,316），`en_GB` 不在其中——AD 对 `en_GB` 只钉了
+  源字节身份（`9fdc97f7…3f41` / 107,031 字节，见 AD §1.2 与 A-1.1 命令）。
+- `tools/l2_manifest.json` 把 `en_GB` 记为 `pattern_lines: 14057`、`distinct_patterns: 13932`、
+  `pinned_pattern_lines: null`、`pattern_count_status: "measured, not AD-pinned"`。
+- 钉死它的理由不是「AD 要求」，而是**失败可见性**：`en_GB` 是 T-06 §8.1 引入的补充表
+  （`S = {word : cmu(word) ≠ pyphen_en_GB(word)} \ A`）的断字回退来源。若 `en_GB` 表被截断，
+  补充表的裁剪判据会静默改变（更多/更少的词进入 `S`），而 `en_GB` 的断字回退会退化成
+  「用一本不完整的字典作答」——这类漂移不会触发任何其他检查。manifest 是生成器的身份记录，
+  把它记录下来的实测值一并钉死，等价于「只增不改」地把测量值升格为身份行。
+- 该值同时被白盒测试固定（`data_checks_wbtest.mbt:23-41`），任何人改常量都会先撞测试。
+
+## 3. `cells` / `passed` 在 data 组的含义，以及 366 下限为何仍然生效
+
+- **定义**：`cells` = 本次实际执行的检查条数，`passed` = 其中匹配的条数
+  （`main.mbt:194-196`：`cells = passed + records.length()`）。这是 AD §6 自报行
+  `cells=<总数> passed=<通过数>` 在 data 组上的自然读法：data 组不选 L3 单元格，
+  所以「总数」只能是检查条数。
+- **上界固定**：条数由钉死表决定，不由 `data` 包的运行期状态决定；`run_data_group` 在打印
+  报告行之后用 `DATA_CHECK_COUNT` 自证（`main.mbt:197-204`），条数偏离即 EXIT=2。
+  于是 `cells=30` 在每次运行都相同，不会出现「检查被跳过、分母变小、百分比好看」的空过。
+- **366 下限照旧**：`loaded = @gate_data.total_cells()` 读的是 L3 表加载量
+  （`main.mbt:205-214`），与 data 检查条数无关。若 L3 表缺失或截短，`loaded < 366` →
+  EXIT=2（AD §3.3 / A-6.3 的「禁止在空数据上通过」）。所以 `cells=30` 与 `floor=366`
+  并存不是矛盾：前者是「本组做了多少检查」，后者是「门禁的种子栈是否完整」。
+- **`passed < cells` → EXIT=1 并写失败记录**，与其它组同一条映射（AD §3.2）。
+- **`--inject=<n>` 在本组拒绝**：`run_data_group` 开头 `config.inject != 0` → EXIT=2
+  （`main.mbt:191-193`）。AD §6 只让 `--inject` 在 `selfcheck` 生效；data 组若接受扰动，
+  就会制造一个**假的**数据失败记录。
+
+## 4. 非单元格检查的七字段记录映射
+
+`data_failure_record()`（`data_checks.mbt:121-139`）复用 `records.mbt` 的
+`json_field` / `json_string`，字段名、顺序与单元格记录完全一致（AD §2.5）：
+
+| 字段 | data 组取值 | 理由 |
+| --- | --- | --- |
+| `input_sha256` | `sha256_hex(check_id)` | data 检查没有输入文本，检查 id 是它唯一的输入 |
+| `sample_id` | 检查 id（如 `data.patterns.en_GB.lines`） | 与单元格的 `sample_id` 同位，便于按 id 定位 |
+| `metric` | 被检查的属性（如 `pattern_line_count`） | 与单元格记录同名语义 |
+| `lang` | 字典代码（`en_US`…`hu_HU`）或语言根（`en`/`es`）；覆盖检查用逗号列表 | 保持「这一行属于哪个语种」可检索 |
+| `expected` | JSON 值（数字 / 字符串 / 字符串数组） | 已是 JSON 字面量，直接嵌入，不再二次转义 |
+| `actual` | JSON 值；缺表时为 `"missing"` | 缺表不改变字段集合，只改变值 |
+| `target` | `GATE_RECORD_TARGET` = `"native"` | 与单元格记录同一后端标记 |
+| `injected` | 恒 `false` | data 组从不接受 `--inject` |
+
+**不写 `expected_bits` / `actual_bits`**：这两个字段只在浮点位模式比较（AD-2）时有意义；
+data 检查比较的是整数与文本，没有浮点参与，写位模式字段会暗示一个不存在的比较。
+白盒测试 `a failing data check writes the seven contract fields`
+（`data_checks_wbtest.mbt:71-85`）显式断言 `record` 不含这两个串。
+
+## 5. 验收原始输出
+
+### 5.1 fmt / check / test
+
+```console
+$ cd lib && moon fmt --check; echo "FMT_EXIT=$?"
+Finished. moon: no work to do
+FMT_EXIT=0
+
+$ moon check --target native; echo "CHECK_EXIT=$?"
+Finished. moon: no work to do
+CHECK_EXIT=0
+
+$ moon test --target native; echo "TEST_EXIT=$?"
+Total tests: 170, passed: 170, failed: 0.
+TEST_EXIT=0
+```
+
+170 = 155（T-39 基线）+ 7（`bench_wbtest.mbt`）+ 8（`data_checks_wbtest.mbt`）。
+
+### 5.2 门禁各组
+
+```console
+$ moon run cmd/gate --target native --group=data; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=30 passed=30 floor=366 group=data inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=selfcheck; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=all; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=data --inject=1; echo "EXIT=$?"
+moon run cmd/gate --target native
+gate: --inject=<n> is only valid with --group=selfcheck
+EXIT=2
+```
+
+### 5.3 静态白名单（A-8.3）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | wc -l
+5
+
+$ grep -rnE '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | wc -l
+2
+```
+
+与 T-40 基线逐项相同：`extern`=5（`exit.mbt` 1 + `records.mbt` 4）、`@env.`=2
+（`main.mbt` 1 + `records.mbt` 1）。data 组未新增任何 FFI 或环境读取——它只调用
+`@data.data_stats()`，那是 `lib/data` 在初始化时算好的内存快照（`lib/data/data.mbt:196-235`）。
+
+## 6. 负向用例（仓库外副本，不改交付物）
+
+副本：`F:/moonbit比赛/_t41_scratch/lib`（`tar` 复制仓库 `lib/`，排除 `_build` / `_gate` / `target`）。
+
+篡改点：`lib/data/pronunciation_supplement_gb_data.mbt:251` 的 primary 行集 SHA-256 字面量，
+首字符 `5` → `6`（一个十六进制字符，等价于一个字节的改动）。
+
+```console
+$ cd /f/moonbit比赛/_t41_scratch/lib
+$ python - <<'EOF'
+p = r"data/pronunciation_supplement_gb_data.mbt"
+s = open(p, encoding="utf-8").read()
+old = 'let pronunciation_rows_sha256 : String = "5ab9e676'
+new = 'let pronunciation_rows_sha256 : String = "6ab9e676'
+assert s.count(old) == 1, s.count(old)
+open(p, "w", encoding="utf-8", newline="").write(s.replace(old, new))
+print("tampered:", old, "->", new)
+EOF
+tampered: let pronunciation_rows_sha256 : String = "5ab9e676 -> let pronunciation_rows_sha256 : String = "6ab9e676
+
+$ grep -n 'pronunciation_rows_sha256 : String' data/pronunciation_supplement_gb_data.mbt
+251:let pronunciation_rows_sha256 : String = "6ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854"
+
+$ moon run cmd/gate --target native --group=data; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=30 passed=29 floor=366 group=data inject=0
+EXIT=1
+
+$ cat _gate/failures-*.jsonl
+{"input_sha256":"7bcf2d59592e69de1539ae8124fe36728fd5c66ef77eeecbd3f53a37bfc8f7e8","sample_id":"data.pronunciation.rows_sha256","metric":"pronunciation_rows_sha256","lang":"en_US","expected":"5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854","actual":"6ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854","target":"native","injected":false}
+
+$ grep -c '"metric":' _gate/failures-*.jsonl
+1
+```
+
+读法：
+
+- `cells=30 passed=29`：只有被篡改的那一条失配，其余 29 条仍通过——检查之间互不遮蔽。
+- 记录里 `expected`/`actual` 是**两个不同的十六进制串**，`sample_id` 精确指向检查 id，
+  `injected` 为 `false`（不是扰动造成的假失败），七字段齐全且无 `expected_bits`/`actual_bits`。
+- 篡改前同一副本先跑过一次基线：`cells=30 passed=30 floor=366 group=data inject=0`，EXIT=0，
+  证明 EXIT=1 确实由篡改引起，不是副本本身的问题。
+- 副本已删除（`rm -rf F:/moonbit比赛/_t41_scratch`），交付物零改动。
+
+## 7. 文件面
+
+| 文件 | 状态 | 说明 |
+| --- | --- | --- |
+| `lib/cmd/gate/data_checks.mbt` | 新增 | 30 条数据身份检查、钉死常量、`sorted_copy`、七字段记录构造、`DATA_CHECK_COUNT` 自证常量 |
+| `lib/cmd/gate/data_checks_wbtest.mbt` | 新增 | 8 个白盒测试：钉死值不漂移（4 个）、`sorted_copy` 不改输入、通过检查不写记录、失败记录七字段且无位模式字段、缺表记 `"missing"`、交付数据 30/30 |
+| `lib/cmd/gate/main.mbt` | 修改 | 新增 `run_data_group`（`--inject` 拒绝、报告行、条数自证、366 下限、失败记录 + 退出码），并在 `run_gate` 中于选单元格之前分派 |
+| `lib/cmd/gate/moon.pkg` | 修改 | 新增 `"vicoproplus/moon_textstat/data"` 一行 import |
+| `docs/superpowers/plans/logs/T-41.log` | 新增 | 本日志 |
+
+未动：`lib/cmd/gate/bench.mbt`、`bench_wbtest.mbt`、`lib/data/**`、`lib/gate/data/**`、
+`lib/*.mbt` 库源码、任何 `pkg.generated.mbti`。

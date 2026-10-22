@@ -134,8 +134,9 @@ fn parse_args(args : Array[String]) -> GateConfig {
 
 ///|
 /// Select the cells of one group. `all` and `selfcheck` both mean all 366
-/// frozen cells; the other groups come from the L3 table. `data` is rejected
-/// earlier because it is not implemented before T-41.
+/// frozen cells; the other groups come from the L3 table. `data` is not a
+/// cell group at all: it is the data-identity subset of T-41, which is
+/// handled by `run_data_group` before this function is reached.
 fn select_cells(group : String) -> Array[@gate_data.Cell] {
   match group {
     "all" | "selfcheck" => @gate_data.all_cells()
@@ -164,6 +165,62 @@ fn report_line(
 }
 
 ///|
+/// Run the `--group=data` data-identity subset and map its outcome to the
+/// exit-code contract of AD section 3.2.
+///
+/// The subset checks the bundled L2 data against the pinned values of
+/// `tools/l2_manifest.json`: the entry counts of the two pronunciation
+/// tables and of the two easy-word lists, the row-set SHA-256 digests of
+/// the two pronunciation tables, the pattern-line count of every
+/// hyphenation dictionary, and the coverage of the pinned codes and roots
+/// in both directions. A failing check is a data mismatch, so the run exits
+/// with 1 and writes one failure record per failed check.
+///
+/// The two-line stdout contract of AD section 6 holds: the canonical
+/// invocation (printed by `main`) and then the self-report. For this group
+/// `cells` is the number of data checks performed and `passed` is the
+/// number of checks that matched; both are bounded by the pinned tables,
+/// not by the 366-cell L3 table, so the floor check of the cell runs does
+/// not apply to the count on the report line. The floor itself is still
+/// enforced below on the loaded L3 table, exactly as in every other group.
+///
+/// `--inject=<n>` is not accepted here: the perturbation switch is defined
+/// for `--group=selfcheck` only (AD section 6), and no data check may be
+/// perturbed into a false failure.
+fn run_data_group(config : GateConfig) -> Unit {
+  if config.inject != 0 {
+    gate_fail("--inject=<n> is only valid with --group=selfcheck")
+  }
+  let (records, passed) = run_data_checks()
+  let cells = passed + records.length()
+  println(report_line(cells, passed, config.group, config.inject))
+  if cells != DATA_CHECK_COUNT {
+    gate_fail(
+      "the data group performed " +
+      cells.to_string() +
+      " checks, but the pinned count is " +
+      DATA_CHECK_COUNT.to_string(),
+    )
+  }
+  let loaded = @gate_data.total_cells()
+  if loaded < FROZEN_FLOOR {
+    println(
+      "gate: loaded " +
+      loaded.to_string() +
+      " cells, below the frozen floor " +
+      FROZEN_FLOOR.to_string(),
+    )
+    exit_with_code(2)
+  }
+  if records.length() > 0 {
+    write_failure_records(records)
+    exit_with_code(1)
+  } else {
+    exit_with_code(0)
+  }
+}
+
+///|
 /// Evaluate the selected cells, report, and map the result to the exit-code
 /// contract of AD section 3.2: 0 = all cells aligned, 1 = at least one
 /// mismatch, 2 = environment or build problem (here: an empty selection, an
@@ -188,13 +245,17 @@ fn report_line(
 /// `--bench` branches off before any of that: it selects no cell, compares no
 /// expectation, writes no failure record and creates no `_gate/` directory.
 /// Its own report line and exit mapping live in `bench.mbt`.
+///
+/// `--group=data` branches off before any of that too: it is the data-identity
+/// subset of T-41, handled by `run_data_group`.
 fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
     run_bench()
     return
   }
   if config.group == "data" {
-    gate_fail("--group=data is not implemented until T-41")
+    run_data_group(config)
+    return
   }
   let cells = select_cells(config.group)
   if cells.length() == 0 {
