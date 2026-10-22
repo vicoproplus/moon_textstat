@@ -2,6 +2,8 @@
 package "vicoproplus/moon_textstat"
 
 // Values
+pub fn analyze(String, lang? : String) -> TextStats raise TextstatError
+
 pub fn automated_readability_index(String) -> Double
 
 pub fn char_count(String, ignore_spaces? : Bool) -> Int

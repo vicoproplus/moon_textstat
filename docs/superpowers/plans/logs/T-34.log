@@ -1,0 +1,232 @@
+# T-34 — `analyze` 与 19 个逐指标入口
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`0737197 docs(plans): record B2 batch review and gates`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-01..FR-23、10.3；spec §1.3.2、§4.2 schema 约束 1-4、§4.3.3、
+§4.5.4；design D-5。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 140/140 EXIT=0（T-33 后 135 + 本任务 5）；`.mbti` 只新增
+> `analyze` 一行；19 个入口名与 19 个字段名、顺序、类型全部一致，无缺失、
+> 无多余、未加薄包装；S1 零命中；门禁顺延至 T-36（不宣称门禁等价）。
+
+## 1. 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/analyze.mbt` | 新增：公开 `analyze`（19 字段值对象入口） | 89 | `440eba1cb4ca1846a8c14f413ab55921d7d88822fd926e39e1e25ec5129e9935` |
+| `lib/analyze_test.mbt` | 新增：5 条黑盒测试 | 262 | `3f5afd6bfbdf091703903204c9a1ca4724f6dec8347fba6ce8185cc0f5f51331` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 1 行 | 86 | `beff1831fd0622ad13a6a57d73f22851bd63d052f77cb5c8cd07bd0467b4749d` |
+
+`lib/moon.pkg`、`lib/types.mbt`、`lib/moon_textstat.mbt` 与其余既有文件均未改。
+本任务没有新增其他公开符号；19 个逐指标入口在 T-10..T-33 已全部存在且命名
+与字段同名，因此没有新增任何薄包装（见 §3）。
+
+## 2. 实现
+
+### 2.1 调用序列与默认形状
+
+`analyze` 只按字段顺序调用既有公开入口，每个字段恰好调用一次；不复制分词、
+分句、音节或公式逻辑，也没有第二条 tokenization 路径（spec §2.1 约束 2）。
+
+| # | 字段 | `analyze` 中的调用 | 默认形状（spec §4.2 约束 3 / oracle `results`） |
+| --- | --- | --- | --- |
+| 1 | `char_count` | `char_count(text)` | `ignore_spaces=true` |
+| 2 | `letter_count` | `letter_count(text)` | 无开关（API 收窄，spec §1.3.3） |
+| 3 | `lexicon_count` | `lexicon_count(text)` | `removepunct=true`、`split_contractions=false`、`split_hyphens=false` |
+| 4 | `sentence_count` | `sentence_count(text)` | 无开关 |
+| 5 | `syllable_count` | `syllable_count(text, lang~)` | 请求语种 |
+| 6 | `polysyllabcount` | `polysyllabcount(text, lang~)` | 请求语种 |
+| 7 | `monosyllabcount` | `monosyllabcount(text, lang~)` | 请求语种 |
+| 8 | `difficult_words` | `difficult_words(text, lang~)` | `syllable_threshold=2`、`unique=true` |
+| 9 | `difficult_words_list` | `difficult_words_list(text, lang~)` | `syllable_threshold=2`、`unique=true` |
+| 10 | `long_word_count` | `long_word_count(text)` | `threshold=6` |
+| 11 | `reading_time` | `reading_time(text)` | `ms_per_char=14.69` |
+| 12 | `flesch_reading_ease` | `flesch_reading_ease(text, lang~)` | 请求语种 |
+| 13 | `flesch_kincaid_grade` | `flesch_kincaid_grade(text, lang~)` | 请求语种（系数固定，仅音节依赖） |
+| 14 | `gunning_fog` | `gunning_fog(text, lang~)` | 请求语种 |
+| 15 | `smog_index` | `smog_index(text, lang~)` | 请求语种 |
+| 16 | `automated_readability_index` | `automated_readability_index(text)` | 无 `lang` 形参 |
+| 17 | `coleman_liau_index` | `coleman_liau_index(text)` | 无 `lang` 形参 |
+| 18 | `linsear_write_formula` | `linsear_write_formula(text, lang~, strict_lower=false, strict_upper=true)` | `strict_upper=true`、`strict_lower=false` |
+| 19 | `dale_chall_readability_score` | `dale_chall_readability_score(text, lang~)` | 请求语种（内部强制阈值 0/非去重，由该入口负责） |
+
+记录字面量按上表 1..19 的顺序书写，与 `TextStats` 声明顺序和 spec §4.2 表
+顺序一致；字段集合不增不减，无 `zh_` 字段（schema 约束 1）。
+
+### 2.2 `AnalyzeOptions` 映射（本任务未改该类型）
+
+`AnalyzeOptions` 保留为「文档化默认值包」，`analyze` 不接收它；变体开关由
+对应薄入口暴露（spec §1.3.2「变体开关」行）。映射如下：
+
+| `AnalyzeOptions` 字段 | 默认值 | `analyze` 中的落点 |
+| --- | --- | --- |
+| `lang` | `"en_US"` | `analyze` 的 `lang?` 默认；转发给 8 个受语种影响的入口 |
+| `difficult_syllable_threshold` | `2` | `difficult_words` / `difficult_words_list` 的默认 `syllable_threshold` |
+| `difficult_unique` | `true` | 同上两个入口的默认 `unique` |
+| `long_word_threshold` | `6` | `long_word_count` 的默认 `threshold` |
+| `ms_per_char` | `14.69` | `reading_time` 的默认 `ms_per_char` |
+| `linsear_strict_upper` | `true` | `linsear_write_formula(..., strict_upper=true)` |
+| `linsear_strict_lower` | `false` | `linsear_write_formula(..., strict_lower=false)` |
+
+因此默认调用 `analyze(text)` 与
+`AnalyzeOptions::default()` 的七项设置一一对应；需要非默认变体时，调用方
+直接使用相应单指标入口（例如 `long_word_count(text, threshold=9)`）。
+
+### 2.3 失败通道
+
+- **非空文本 + 不支持语种**：字段顺序中第 5 个 `syllable_count` 是第一个
+  音节类指标，它在进入词循环前解析断字字典，因此
+  `analyze("The cat sat on the mat.", lang="ar")` 与 `xx_YY` 都在此处抛出
+  `UnsupportedLanguage(原始代码)`，不会继续计算并返回英语结果（spec §4.5.4）。
+- **空串**：`syllable_count("")` 按既有契约在解析字典前返回 0（T-17 文档已
+  用 vendored upstream 0.7.13 验证：`syllable_count("", "ar")` 为 0）；随后
+  其余入口也返回各自的零形状，所以 `analyze("", lang="ar")` 返回全零而不是
+  抛错。这不是「静默替换英语」，而是逐指标空输入契约的组合；非空文本仍
+  必须显式失败。
+- 常量/词表缺失由既有入口静默回退英语，断字字典缺失由 `syllable_count`
+  （或公式内部的音节层）显式失败；`analyze` 不改变这些语义。
+
+## 3. 入口集合与字段集合一致性
+
+比对脚本从 spec §4.2 表抽取 19 个字段，从 `lib/types.mbt` 的 `TextStats`
+体抽取实现字段（按名 + 序），从 `lib/pkg.generated.mbti` 抽取公开函数名：
+
+```console
+spec_fields=19 impl_fields=19 order_match=True
+entries=19 entry_field_match=True
+missing_entries=[]
+extra_entries=[]
+public_fns=21 entries=19 analyze_count=1 analyze_options_default=1
+ 1 char_count                     char_count                     OK
+ 2 letter_count                   letter_count                   OK
+ 3 lexicon_count                  lexicon_count                  OK
+ 4 sentence_count                 sentence_count                 OK
+ 5 syllable_count                 syllable_count                 OK
+ 6 polysyllabcount                polysyllabcount                OK
+ 7 monosyllabcount                monosyllabcount                OK
+ 8 difficult_words                difficult_words                OK
+ 9 difficult_words_list           difficult_words_list           OK
+10 long_word_count                long_word_count                OK
+11 reading_time                   reading_time                   OK
+12 flesch_reading_ease            flesch_reading_ease            OK
+13 flesch_kincaid_grade           flesch_kincaid_grade           OK
+14 gunning_fog                    gunning_fog                    OK
+15 smog_index                     smog_index                     OK
+16 automated_readability_index    automated_readability_index    OK
+17 coleman_liau_index             coleman_liau_index             OK
+18 linsear_write_formula          linsear_write_formula          OK
+19 dale_chall_readability_score   dale_chall_readability_score   OK
+```
+
+`public_fns=21` = 19 个逐指标入口 + `analyze` + 既有 `AnalyzeOptions::default`；
+其中与字段同名的入口恰为 19 个。19 个入口名与字段名逐一相同，因此本任务
+**没有新增薄包装**；`.mbti` 的公开面变化只有 `analyze` 一行（§5.3）。
+
+## 4. 测试（5 条，135 → 140）
+
+| 测试 | 断言 |
+| --- | --- |
+| `analyze returns the 19 frozen fields of the cat sample` | `analyze("The cat sat on the mat.")` 的 19 个字段全部按 oracle 冻结值精确相等：18, 17, 6, 1, 6, 0, 6, 0, `[]`, 0, 0.26442, 116.14500000000001, -1.4499999999999993, 2.4000000000000004, 3.1291, -4.300000000000001, -4.299999999999997, 2.0, 0.2976 |
+| `analyze returns the 19 frozen fields of the punctuation sample` | `analyze(" .? ")`：2, 0, 0, 1, 0, 0, 0, 0, `[]`, 0, 0.02938, 0.0, 0.0, 0.0, 3.1291, 0.0, 0.0, -1.0, 0.0 |
+| `analyze returns the 19 zero fields of the empty string` | `analyze("")`：9 个整数计数全 0，`difficult_words_list` 为空，9 个 Double 全 0.0 |
+| `analyze returns the results_es fields for the Spanish sample` | `analyze(spanish_text, lang="es_ES")` 按 `results_es` 断言全部 19 字段：147, 144, 29, 3, 59, 10, 14, 2, 集合 `{legibilidad, medirla}`, 10, 2.15943, 74.91103448275865, 12.186896551724136, 6.625287356321839, 13.5591, 7.278160919540227, 9.937931034482759, 7.166666666666666, 5.204932183908046；末尾用默认调用断言 `results`（en_US）的 51 / 48.244022988505776 / 19.905966666666664，证明省略 `lang` 走默认且 `es_ES` 不静默复用英语值 |
+| `analyze raises UnsupportedLanguage for unsupported languages` | `ar` / `xx_YY` + 非空文本抛 `UnsupportedLanguage(raw code)`，原始代码原样返回 |
+
+四条样本辅助函数（`analyze_assert_*`）各自显式读取全部 19 个字段并标注
+`Int32` / `Array[String]` / `Double`，因此任何字段改名或缺失都会编译失败。
+西班牙语列表按集合语义排序后比较（spec §4.3.4，C-4）；其余断言的 Double
+均为 `assert_eq` 精确相等，无容差。
+
+期望值来源：
+- `short_simple_sentence`、`punctuation_only`、`empty_string`：
+  `docs/facts/oracle_smoke.json` 的 `samples[].results`。
+- `spanish_text`：`samples[].results_es`（es_ES）。**不是** `results`
+  （en_US）的 51 / 19.905966666666664；后者只用于末尾的默认语种对照断言。
+
+## 5. 验收
+
+### 5.1 `moon check --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+```
+
+零警告。
+
+### 5.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 140, passed: 140, failed: 0.
+EXIT=0
+```
+
+T-33 基线 135 + 本任务 5。
+
+### 5.3 `moon info && moon fmt`
+
+```console
+$ moon info && moon fmt && moon fmt --check
+Finished. moon: no work to do
+Finished. moon: ran 75 tasks, now up to date
+Finished. moon: ran 75 tasks, now up to date
+EXIT=0
+
+$ git diff -- lib/pkg.generated.mbti
++pub fn analyze(String, lang? : String) -> TextStats raise TextstatError
+```
+
+`.mbti` 只新增 `analyze` 一行（含空行），无删除、无改名、无其他公开符号。
+
+### 5.4 静态门 S1 与行长
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    analyze.mbt analyze_test.mbt
+# 无输出（grep EXIT=1，零命中）
+$ grep -c 'zh_' analyze.mbt analyze_test.mbt
+analyze.mbt:0
+analyze_test.mbt:0
+$ awk '{ if (length($0) > m) m = length($0) } END { print "MAX_LINE=" m }' \
+    analyze.mbt analyze_test.mbt
+MAX_LINE=190
+```
+
+`lib/moon.pkg` 未改，仍只依赖 `moonbitlang/core/math` 与
+`vicoproplus/moon_textstat/data`；新增源码无 I/O、无 FFI、无环境读取。
+
+### 5.5 工作树
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/analyze.mbt
+?? lib/analyze_test.mbt
+```
+
+`.qoder/` 为本地 IDE 配置，未加入索引；`lib/_build/` 被忽略。
+
+## 6. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-0.3 自报、A-3 公式组、A-4 语种组、A-5 退化/错误组
+由 T-36/T-52 复验。本任务只把 19 字段组合、默认形状、es_ES 样本与失败通道
+固定在包测试里，不宣称门禁等价。
+
+## 7. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. `analyze` 对每个字段只调用一次对应公开入口，没有字段被计算两次；公式
+   入口内部的计数复用属于公式层既有实现，`analyze` 未另建分词路径。
+3. 空串 + 不支持语种返回全零，原因是 `syllable_count("")` 的既有早返回契约
+   （不解析字典）；非空文本仍显式失败。详见 §2.3。
+4. 任务说明中的 51 / 19.905966666666664 是 oracle `spanish_text.results`
+   （en_US）；`results_es` 为 59 / 5.204932183908046。测试以 `results_es`
+   为主，并额外用默认调用对照 `results`，避免把两组值混淆。
+5. `difficult_words_list` 的顺序非契约；测试排序后按集合比较。
+6. `AnalyzeOptions` 未改、未被 `analyze` 接收；其七项默认值与入口参数的
+   映射见 §2.2。
