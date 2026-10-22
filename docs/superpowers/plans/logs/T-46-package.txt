@@ -1,0 +1,235 @@
+T-46 — 包内容清单核对（moon package zip vs design §12.3 允许文件面清单）
+================================================================================
+
+日期：2026-10-23。分支 sdd/moon-textstat-core。模块根 lib/。
+起始提交：831bd4b chore(module): fill the moon.mod release metadata（T-44）。
+工具链：moon 0.1.20261012 (748b63c 2026-10-12)，native 目标。
+契约：AD §7 DR-R6；AD §1.1；spec §4.8.2 注；design §12.1 ND2 / §12.3。
+判定口径：design §12.3「任何不在此列的文件面都必须在 spec 中显式申请，否则视为越界」。
+
+结论：FAIL（2 处越界，共 4 个条目）。其余 94 个条目全部落在允许清单内；
+无 .json 原始 oracle、无生成器源码、无 vendor/、无 textstat/、无 _build/、无 _gate/。
+按任务要求「不得删文件让它通过」，两处越界只登记为缺陷，未做任何删除或移动。
+
+
+1. 产物位置
+--------------------------------------------------------------------------------
+
+$ cd lib && moon package
+Running moon check ...
+Finished. moon: no work to do
+Check passed
+Package to F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+# EXIT=0
+
+zip 路径：lib/_build/publish/vicoproplus-moon_textstat-0.1.0.zip
+大小：1,350,394 字节
+SHA-256：f4e0431e43065980a73c3aab5361c0b0c94374303f17fc169638ac576c9c2a54
+条目数：98
+
+清单命令：
+python -c "import zipfile,sys; [print(n) for n in zipfile.ZipFile(sys.argv[1]).namelist()]" <zip>
+
+
+2. 全量条目 + 逐条判定
+--------------------------------------------------------------------------------
+
+判定代号：
+  A  = allowed（落在 design §12.3 某一行）
+  V  = violation（越界，§12.3 未列且 spec 未申请）
+
+列「依据」为 §12.3 的行（WB 编号）或越界说明。
+
+  #  条目                                       依据                 判定
+---  -----------------------------------------  -------------------  ----
+  1  AGENTS.md                                  §12.3 无此行；工具链模板文件   V
+  2  analyze.mbt                                WB1/2/3/8            A
+  3  analyze_test.mbt                           WB1/2/3/8            A
+  4  automated_readability_index.mbt            WB1/2/3/8            A
+  5  automated_readability_index_test.mbt       WB1/2/3/8            A
+  6  automated_readability_index_wbtest.mbt     WB1/2/3/8            A
+  7  averages.mbt                               WB1/2/3/8            A
+  8  char_count.mbt                             WB1/2/3/8            A
+  9  char_count_test.mbt                        WB1/2/3/8            A
+ 10  cmd/gate/bench.mbt                         WB11（--bench 子模式）  A
+ 11  cmd/gate/bench_wbtest.mbt                  WB11                 A
+ 12  cmd/gate/compare.mbt                       WB11                 A
+ 13  cmd/gate/data_checks.mbt                   WB11                 A
+ 14  cmd/gate/data_checks_wbtest.mbt            WB11                 A
+ 15  cmd/gate/exit.mbt                          WB11                 A
+ 16  cmd/gate/field_index.mbt                   WB11                 A
+ 17  cmd/gate/field_index_wbtest.mbt            WB11                 A
+ 18  cmd/gate/inject.mbt                        WB11                 A
+ 19  cmd/gate/main.mbt                          WB11                 A
+ 20  cmd/gate/moon.pkg                          WB11                 A
+ 21  cmd/gate/pkg.generated.mbti                WB11（moon info 产物）  A
+ 22  cmd/gate/records.mbt                       WB11                 A
+ 23  cmd/gate/samples.mbt                       WB11                 A
+ 24  cmd/gate/sha256.mbt                        WB11                 A
+ 25  cmd/gate/sha256_wbtest.mbt                 WB11                 A
+ 26  cmd/main/main.mbt                          §12.3 无 cmd/main；WB9 只允许可选 cmd/example   V
+ 27  cmd/main/moon.pkg                          §12.3 无 cmd/main     V
+ 28  cmd/main/pkg.generated.mbti                §12.3 无 cmd/main     V
+ 29  coleman_liau_index.mbt                     WB1/2/3/8            A
+ 30  coleman_liau_index_test.mbt                WB1/2/3/8            A
+ 31  dale_chall_readability_score.mbt           WB1/2/3/8            A
+ 32  dale_chall_readability_score_test.mbt      WB1/2/3/8            A
+ 33  data/data.mbt                              WB4/5/7              A
+ 34  data/data_test.mbt                         WB4/5/7              A
+ 35  data/easy_words_data.mbt                   WB4/5/7              A
+ 36  data/hyphenation_patterns_data.mbt         WB4/5/7              A
+ 37  data/moon.pkg                              WB4/5/7              A
+ 38  data/pkg.generated.mbti                    WB4/5/7              A
+ 39  data/pronunciation_data.mbt                WB4/5/7              A
+ 40  data/pronunciation_supplement_gb_data.mbt  WB4/5/7              A
+ 41  difficult_words.mbt                        WB1/2/3/8            A
+ 42  difficult_words_list.mbt                   WB1/2/3/8            A
+ 43  difficult_words_list_test.mbt              WB1/2/3/8            A
+ 44  difficult_words_test.mbt                   WB1/2/3/8            A
+ 45  difficult_words_wbtest.mbt                 WB1/2/3/8            A
+ 46  easy_words.mbt                             WB1/2/3/8            A
+ 47  easy_words_wbtest.mbt                      WB1/2/3/8            A
+ 48  flesch_kincaid_grade.mbt                   WB1/2/3/8            A
+ 49  flesch_kincaid_grade_test.mbt              WB1/2/3/8            A
+ 50  flesch_reading_ease.mbt                    WB1/2/3/8            A
+ 51  flesch_reading_ease_test.mbt               WB1/2/3/8            A
+ 52  gate/data/cell.mbt                        WB11                 A
+ 53  gate/data/l3_data.mbt                     WB11                 A
+ 54  gate/data/l3_test.mbt                      WB11                 A
+ 55  gate/data/moon.pkg                        WB11                 A
+ 56  gate/data/pkg.generated.mbti              WB11                 A
+ 57  gunning_fog.mbt                            WB1/2/3/8            A
+ 58  gunning_fog_test.mbt                       WB1/2/3/8            A
+ 59  gunning_fog_wbtest.mbt                     WB1/2/3/8            A
+ 60  hyphenation.mbt                            WB1/2/3/8            A
+ 61  hyphenation_wbtest.mbt                     WB1/2/3/8            A
+ 62  lang_config.mbt                            WB1/2/3/8            A
+ 63  lang_config_wbtest.mbt                     WB1/2/3/8            A
+ 64  lang_matrix_test.mbt                       WB1/2/3/8            A
+ 65  letter_count.mbt                           WB1/2/3/8            A
+ 66  letter_count_test.mbt                      WB1/2/3/8            A
+ 67  lexicon_count.mbt                          WB1/2/3/8            A
+ 68  lexicon_count_test.mbt                     WB1/2/3/8            A
+ 69  LICENSE                                    WB10                 A
+ 70  linsear_write_formula.mbt                  WB1/2/3/8            A
+ 71  linsear_write_formula_test.mbt             WB1/2/3/8            A
+ 72  list_words.mbt                             WB1/2/3/8            A
+ 73  list_words_wbtest.mbt                      WB1/2/3/8            A
+ 74  long_word_count.mbt                        WB1/2/3/8            A
+ 75  long_word_count_test.mbt                   WB1/2/3/8            A
+ 76  monosyllabcount.mbt                        WB1/2/3/8            A
+ 77  monosyllabcount_test.mbt                   WB1/2/3/8            A
+ 78  moon.mod                                   WB10                 A
+ 79  moon.pkg                                   WB1/2/3/8            A
+ 80  moon_textstat.mbt                          WB1/2/3/8            A
+ 81  moon_textstat_test.mbt                     WB1/2/3/8            A
+ 82  moon_textstat_wbtest.mbt                   WB1/2/3/8            A
+ 83  pkg.generated.mbti                         WB1/2/3/8（moon info）  A
+ 84  polysyllabcount.mbt                        WB1/2/3/8            A
+ 85  polysyllabcount_test.mbt                   WB1/2/3/8            A
+ 86  reading_time.mbt                           WB1/2/3/8            A
+ 87  reading_time_test.mbt                      WB1/2/3/8            A
+ 88  README.mbt.md                              WB9                  A
+ 89  sentence_count.mbt                         WB1/2/3/8            A
+ 90  sentence_count_test.mbt                    WB1/2/3/8            A
+ 91  smog_index.mbt                             WB1/2/3/8            A
+ 92  smog_index_test.mbt                        WB1/2/3/8            A
+ 93  syllables.mbt                             WB1/2/3/8            A
+ 94  syllables_wbtest.mbt                      WB1/2/3/8            A
+ 95  syllable_count.mbt                        WB1/2/3/8            A
+ 96  syllable_count_test.mbt                   WB1/2/3/8            A
+ 97  types.mbt                                 WB1/2/3/8            A
+ 98  types_test.mbt                            WB1/2/3/8            A
+
+汇总：allowed 94 / violation 4 / 条目总数 98。
+
+
+3. 负向断言（任务的硬性禁令）
+--------------------------------------------------------------------------------
+
+python 实测（对 namelist() 过滤）：
+  count 98
+  json   []                       # 无任何 .json（无原始 oracle）
+  vendor []                       # 无 vendor/
+  textstat []                     # 无 vendored 上游 Python 树
+  build  []                       # 无 _build/ 或 _gate/
+  gitignore/gitattributes []      # 二者被 moon package 排除，未入包
+
+生成器源码：模块内不存在 tools/ 或 *.py（zip 内无 .py 条目；lib/ 目录亦无），
+符合 §12.3「生成器不得位于模块内」。
+
+
+4. 缺陷登记（未修复，按任务要求）
+--------------------------------------------------------------------------------
+
+D-1  越界条目 AGENTS.md
+     规则：design §12.3 允许清单无此项，spec 亦未申请；§12.3 末段「任何不在此列
+           的文件面都必须在 spec 中显式申请，否则视为越界」。
+     来源：工具链 `moon new` 模板文件，随 T-02 的模块根创建一起提交（commit
+           061bc9d feat(module): create MoonBit module root under lib/）。
+     额外矛盾：计划 §W1b（plan.md:201）明确把 AGENTS.md 定位在**仓库根**，不是
+           模块目录内；现同时存在 lib/AGENTS.md，属落点错误。
+     影响：发布包内含面向 AI/贡献者的开发指引，与库使用者无关；且暴露内部工程约定。
+     建议（不属本任务文件面）：移到仓库根或加入 lib/.gitignore。
+
+D-2  越界条目 cmd/main/{main.mbt, moon.pkg, pkg.generated.mbti}
+     规则：design §12.3 WB9 只允许「可选 cmd/example」；WB11 只允许 cmd/gate/。
+           cmd/main 未在 spec 中申请。
+     来源：工具链模板脚手架（main.mbt 内容为 `println("Hello")`，moon.pkg 的
+           import 段整体被注释），随 061bc9d 一起提交。
+     影响：发布包内包含一个与本库无关的 "Hello" 可执行包；同时把模板残留物
+           当成对外文件面。
+     建议：删除该目录（或按 WB9 改名为 cmd/example 并在 spec 申请）。
+
+D-3  观察项（非越界，不计入 fail）：NOTICE 缺失
+     design §12.3 WB10 允许 LICENSE、NOTICE，但 zip 内无 NOTICE。
+     允许清单是上限，故不构成越界；但 spec §4.8.3 的 P-1 分支（假设采用）要求
+     「附 NOTICE 与逐文件许可声明」，当前该条件性契约未满足。因 P-1 仍属未决
+     假设（PRD-A 七、开放问题第 3 行），本任务只登记，不判 fail。
+
+D-4  观察项（非越界）：.gitignore 与 .gitattributes 未入包
+     二者在 §12.3 允许清单内（「行尾与忽略」行），但 moon package 会排除
+     .gitignore 命中的路径，故不出现。属预期，不构成缺陷。
+
+
+5. 与 T-44 的关系
+--------------------------------------------------------------------------------
+
+T-44 已确认 moon.mod 无 files 键（DR-R2），因此本清单无法通过清单裁剪修正——
+两处越界只能靠「删除/移动源文件」或「在 spec §12.3 显式申请」二选一，
+这正是 design §12.1 ND2 与 spec §4.8.2 注所预言的后果（E-20：moon package
+无差别打包模块内非忽略文件）。本任务无该二选一的裁决权，故登记待裁。
+
+
+6. Rubric 判定（rubric-task-46-brief.md，R1–R12）
+--------------------------------------------------------------------------------
+
+R1 验收（zip 条目 ⊆ 允许清单；无 .json oracle / 生成器 / vendor/）  FAIL
+   证据：4 个条目越界（AGENTS.md、cmd/main/* ×3，见 D-1/D-2）；但三项硬性禁令
+   全部满足（json/vendor/textstat/_build/_gate 命中均为 0）。验收行要求的是
+   合取，越界部分不成立 → FAIL。
+R2 上限（命令 ≤10 条 / 轮次 ≤3 / 30 分钟）                        PASS
+   证据：本轮 7 条命令（moon package、namelist 列举、4 条过滤统计、1 条 NOTICE
+   检查），1 轮次，用时约 3 分钟。
+R3 日志 docs/superpowers/plans/logs/T-46-package.txt               PASS
+   证据：本文件即该路径，随提交入库。
+R4 保真优先（改动须不改变任一 oracle 单元格）                      NA
+   证据：本任务只读，未改动任何源码或 oracle 数据；git status 仅新增本日志。
+R5 公式层只吃计数层                                               NA
+   证据：未改动公式层。
+R6 运行期零 I/O                                                   NA
+   证据：本任务未增删库内代码；zip 内无 FFI/文件读取面新增。T-47 已独立审计。
+R7 门禁唯一命令（moon run cmd/gate --target native）               NA
+   证据：本任务未运行门禁；验收不涉及门禁退出码。
+R8 字段契约唯一权威（PRD-A 10.3）                                  NA
+   证据：未新增/改动字段表；zip 内字段面与 T-42 的 19/19 一致（未改动）。
+R9 [EXT] 31 个 callable 不实现                                    NA
+   证据：未涉及 callable 面。
+R10 冻结下限 366 单元格                                           NA
+   证据：未改动 gate/data/l3_data.mbt 或任何期望值；本任务不重算单元格。
+R11 pt 不是验收项                                                 NA
+   证据：未涉及 pt 语种路径。
+R12 失败文本有意增强、不参与对拍                                    NA
+   证据：未改动失败文本。
+
+Coverage：judged 12 / 12（pass 2 / fail 1 / na 9）。
