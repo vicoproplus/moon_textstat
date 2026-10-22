@@ -283,6 +283,15 @@ fn run_data_group(config : GateConfig) -> Unit {
 ///
 /// `--group=data` branches off before any of that too: it is the data-identity
 /// subset of T-41, handled by `run_data_group`.
+///
+/// The A-11.3 field index (T-42, AD section 4) is enforced on the two groups
+/// that load the whole table — `all` and `selfcheck`, whose selections are
+/// identical — because only those see every field name. It runs **after** the
+/// self-report line and **after** `enforce_floor`, so the two-line stdout
+/// contract of AD section 6 holds even on the failure path, exactly like the
+/// floor branch. A problem in the index is a table-level environment problem,
+/// so it exits with 2 and writes no failure record: the cells did not fail,
+/// the table's shape is wrong.
 fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
     run_bench()
@@ -333,6 +342,10 @@ fn run_gate(config : GateConfig) -> Unit {
   }
   println(report_line(cells.length(), passed, config.group, config.inject))
   enforce_floor(loaded)
+  match config.group {
+    "all" | "selfcheck" => enforce_field_index()
+    _ => ()
+  }
   if failures.length() > 0 {
     let records : Array[String] = []
     for failure in failures {

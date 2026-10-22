@@ -205,3 +205,21 @@ test "field index: error expectations outside the errors group are reported" {
     ),
   )
 }
+
+///|
+/// The gate's execution path enforces the same index, not just the test
+/// suite: `run_gate` calls `enforce_field_index` for the two groups whose
+/// selection is the whole table.
+///
+/// `select_cells` is the very function `run_gate` uses to pick the cells, so
+/// asserting that both guarded groups select all 366 cells proves the check
+/// sees every field name. `enforce_field_index` is then called on the healthy
+/// table: it must return without printing and without exiting, which is what
+/// the green `--group=all` / `--group=selfcheck` runs in the log show from the
+/// outside.
+test "field index: the gate path enforces the index for all and selfcheck" {
+  assert_eq(select_cells("all").length(), 366)
+  assert_eq(select_cells("selfcheck").length(), 366)
+  enforce_field_index()
+  assert_eq(field_index_problems(@gate_data.all_cells()).length(), 0)
+}

@@ -244,29 +244,19 @@ fn field_value_key(value : FieldValue) -> String {
 }
 
 ///|
-/// Check that every index row's probe agrees with the row's declared kind and
-/// reads a distinct field of the real `TextStats`.
+/// Check that every index row's probe reads a distinct field of the real
+/// `TextStats`.
+///
+/// The `FieldValue` variant of a probe result is fixed by the `*_field`
+/// constructor, so it cannot disagree with the row's `kind`; the check that
+/// *does* carry information is the uniqueness of the values, because a row
+/// wired to the wrong struct field returns a sentinel another row already
+/// claimed.
 fn witness_problems(problems : Array[String]) -> Unit {
   let sentinel = field_index_sentinel()
   let keys : Array[String] = []
   for entry in align_field_index {
     let value = (entry.probe)(sentinel)
-    let value_kind = match value {
-      VCounter(_) => Counter
-      VScore(_) => Score
-      VWords(_) => WordList
-    }
-    if value_kind != entry.kind {
-      problems.push(
-        "field index: " +
-        entry.name +
-        " is declared " +
-        field_kind_name(entry.kind) +
-        " but its probe reads a " +
-        field_kind_name(value_kind) +
-        " value",
-      )
-    }
     let key = field_value_key(value)
     if keys.contains(key) {
       problems.push(
@@ -439,6 +429,32 @@ pub fn field_index_problems(cells : Array[@gate_data.Cell]) -> Array[String] {
     )
   }
   problems
+}
+
+///|
+/// Enforce the field index on the gate's execution path (AD section 4: the
+/// gate looks expected values up by field name, and a name the index does not
+/// know is an environment failure).
+///
+/// The check always reads the **delivered** table (`@gate_data.all_cells()`),
+/// never the selected or injected cells: `--inject=<n>` rewrites one
+/// expectation in memory, and a perturbed expectation must not be able to
+/// turn a healthy index into a reported problem.
+///
+/// On success nothing is printed, so the two-line stdout contract of AD
+/// section 6 is untouched. On failure every problem is printed with the
+/// `gate: ` diagnostic prefix used by the other environment failures, and the
+/// process exits with 2 (AD section 3.2: a malformed table is an environment
+/// problem, not a cell mismatch, so no failure record is written).
+pub fn enforce_field_index() -> Unit {
+  let cells = @gate_data.all_cells()
+  let problems = field_index_problems(cells)
+  if problems.length() > 0 {
+    for problem in problems {
+      println("gate: " + problem)
+    }
+    exit_with_code(2)
+  }
 }
 
 ///|

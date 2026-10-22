@@ -1,19 +1,20 @@
 # T-42 log — 字段名索引（AD-4 负承诺）
 
-日期 2026-10-23；分支 `sdd/moon-textstat-core`；模块根 `lib/`。
+日期 2026-10-23；分支 `sdd/moon-textstat-core`；模块根 `lib/`。含 **Fix round 1**（§7）。
 
 ## 1. 交付面
 
 | 文件 | 性质 |
 | --- | --- |
 | `lib/cmd/gate/field_index.mbt` | 新增；19 行字段索引 + 双向断言 + 证据行 |
-| `lib/cmd/gate/field_index_wbtest.mbt` | 新增；10 个 white-box 测试 |
+| `lib/cmd/gate/field_index_wbtest.mbt` | 新增；12 个 white-box 测试 |
+| `lib/cmd/gate/main.mbt` | Fix round 1：`run_gate` 在 `all`/`selfcheck` 上调用 `enforce_field_index()` |
 | `docs/superpowers/plans/logs/T-42.log` | 本日志 |
 | `docs/superpowers/sdd/.../task-42-report.md` | 报告 |
 
-未改 `main.mbt` / `data_checks.mbt` / `records.mbt` / `lib/types.mbt` / `lib/gate/data/**` /
-`lib/data/**` / `tools/` / `vendor/` / 任何 `.mbti`。`git status` 只显示两个新增文件（外加
-既存的 `.qoder/` 与 `2026-10-22-183204-empty-conversation.txt`，未触碰）。
+Fix round 1 起 `main.mbt` 已获授权（并发 worker 已结束）。仍**未**改 `data_checks.mbt` /
+`records.mbt` / `lib/types.mbt` / `lib/gate/data/**` / `lib/data/**` / `tools/` / `vendor/` /
+任何 `.mbti`。
 
 ## 2. 设计（AD-4 是负承诺）
 
@@ -21,12 +22,14 @@ AD-4 禁止在代码之外复制字段表。因此索引不是「第二真值源
 代码侧查找表：
 
 1. 每一行 `FieldEntry { name, kind, probe }` 的 `probe` 直接读 `@moon_textstat.TextStats`
-   的真实字段。`types.mbt` 改名或改类型 → 本包编译失败（AD §3.2 的「环境/构建失败」），
-   索引不可能以陈旧名字静默存活。
+   的真实字段。`types.mbt` 改名或改类型 → 本包编译失败（见 §6 注册偏离），索引不可能以
+   陈旧名字静默存活。
 2. `witness_problems` 用 19 个互异哨兵值的 `TextStats` 逐行探测，证明「每行读的是自己
    声明的那个字段」且「无两行读同一字段」——纯探针，不含名字→值表，不会与索引一起漂移。
 3. 运行时断言只读**已交付**的 `@gate_data.all_cells()`：名字与类型都从 `shape` 与
    `expected` 的构造子**反推**，再与索引双向比对（多一个名字、少一个名字、类型不符都报错）。
+4. `enforce_field_index()` 是门禁执行路径上的入口（Fix round 1 前只有测试调用它），
+   `run_gate` 在 `all` / `selfcheck` 两组上调用它；任一路径发现异常即 EXIT=2。
 
 `kind` 三态：`Counter`（Int32 按值）、`Score`（Double 按 IEEE-754 位模式）、`WordList`
 （`Array[String]` 按集合）。与 AD §2.2/§2.3 一一对应。
@@ -36,7 +39,7 @@ AD-4 禁止在代码之外复制字段表。因此索引不是「第二真值源
 | # | 断言 | 触发条件 |
 | --- | --- | --- |
 | 1 | 索引恰好 19 行、名字互异、无空名 | 索引被改动 |
-| 2 | 哨兵探针：每行读不同真实字段，类型与 `kind` 一致 | 探针接错字段 |
+| 2 | 哨兵探针：每行读不同真实字段 | 探针接错字段 |
 | 3 | 每格 `shape`/`group`/`sample_id`/`lang` 非空；`source` 以 `golden:oracle_smoke.json#` 开头 | 注解缺失（AD §8 出处） |
 | 4 | 每格 `shape` 去掉尾部 `[...]` 后的名字必须在 19 个之内 | 第 20 个名字 |
 | 5 | 每格 `expected` 构造子必须等于声明 kind；`EError` 只允许出现在 `errors` 组 | Double 当 Int / list 当 Int |
@@ -45,22 +48,25 @@ AD-4 禁止在代码之外复制字段表。因此索引不是「第二真值源
 `shape_field_name` 对畸形 shape（空、`[x]`、`char_count[`、`char_count[x]tail`、
 `char_count[a][b]`）返回 `""` 并单独报错，绝不回落到相邻字段。
 
-## 4. 验证
+## 4. 验证（Fix round 1 后重跑）
 
-### 4.1 正向
+### 4.1 静态与测试
 
 ```console
 $ cd lib && moon check --target native
 Finished. moon: ran 1 task, now up to date            EXIT=0
 $ cd lib && moon test --target native
-Total tests: 179, passed: 179, failed: 0.              EXIT=0
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 180, passed: 180, failed: 0.              EXIT=0
 $ cd lib && moon fmt --check
-Finished. moon: ran 91 tasks, now up to date           EXIT=0
+Finished. moon: no work to do                          EXIT=0
 ```
 
-基线 169 → 179（+10，全部来自 `field_index_wbtest.mbt`）。
+基线 169 → 180（+11，全部来自 `field_index_wbtest.mbt`）。白名单：`extern "c"` = 5
+（`exit.mbt` 1 + `records.mbt` 4），`@env.` = 2，全部位于 `lib/cmd/gate`；新文件 0 个
+`extern`、0 个 `@env`。
 
-A-11.3 证据行（`println` 于测试内，`-f 'field index: evidence*'` 过滤后可见）：
+A-11.3 证据行（测试内 `println`，同时被 `inspect` 钉成快照）：
 
 ```console
 $ cd lib && moon test --target native -p vicoproplus/moon_textstat/cmd/gate -f 'field index: evidence*'
@@ -68,24 +74,63 @@ field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
 Total tests: 1, passed: 1, failed: 0.
 ```
 
-同一行被 `inspect` 钉成快照，所以「19/19」是**被断言**的，不只是被打印的。
-
-### 4.2 门禁三组（未改 main.mbt，行为不变）
+### 4.2 门禁三组（字段索引已在执行路径上）
 
 ```console
-$ moon run cmd/gate --target native
+$ cd lib && moon run cmd/gate --target native
 moon run cmd/gate --target native
 cells=366 passed=366 floor=366 group=all inject=0        EXIT=0
-$ moon run cmd/gate --target native --group=selfcheck
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
 cells=366 passed=366 floor=366 group=selfcheck inject=0  EXIT=0
-$ moon run cmd/gate --target native --group=data
+$ cd lib && moon run cmd/gate --target native --group=data
+moon run cmd/gate --target native
 cells=30 passed=30 floor=366 group=data inject=0         EXIT=0
 ```
 
-白名单：`extern "c"` 仍为 5（`exit.mbt` 1 + `records.mbt` 4），`@env.` 仍为 2，全部在
-`lib/cmd/gate`；新文件 0 个 `extern`、0 个 `@env`。
+`all` / `selfcheck` 两组的 EXIT=0 同时证明 `enforce_field_index()` 已在路径上且在健康表上
+静默（不打印、不退出）；`data` 组不加载整表，故不调用它，报告行与退出码不变。
 
 ### 4.3 负向（副本 `F:/moonbit比赛/_t42_scratch`，已删除）
+
+**N3（Fix round 1 新增，**形式化验收证据**）— 表格侧出现索引外的字段名**
+（`l3_data.mbt` 的一个 `shape`：`gunning_fog` → `gunning_fog_index`）：
+
+```console
+$ cd _t42_scratch/lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+gate: field index: cell short_simple_sentence uses the unknown field gunning_fog_index (shape gunning_fog_index)
+...
+gate: field index: no cell exercises the field gunning_fog
+EXIT=2
+```
+
+两行 stdout 契约保持（首行规范调用串、次行自报），诊断走 `gate: ` 前缀，与其它环境失败
+一致；EXIT=2。同一改动下 `moon test` 亦失败（`20 distinct field names observed, expected 19`）。
+
+**N3b — 索引侧漂移**（`field_index.mbt` 一行的 `name` 字符串：`char_count` →
+`char_count_v2`，探针不动），即「索引与表格不再对齐」：
+
+```console
+$ cd _t42_scratch/lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+gate: field index: cell short_simple_sentence uses the unknown field char_count (shape char_count)
+gate: field index: cell short_simple_sentence uses the unknown field char_count (shape char_count[ignore_spaces=False])
+...
+gate: field index: no cell exercises the field char_count_v2
+EXIT=2
+```
+
+未加索引检查的组不受影响（健康表 + 无整表加载）：
+
+```console
+$ cd _t42_scratch/lib && moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+```
 
 **N1 — 改 `types.mbt` 的一个字段名**（`gunning_fog` → `gunning_fog_score`，只改这一行）：
 
@@ -98,55 +143,59 @@ $ moon test --target native
 TEST_EXIT=1
 ```
 
-结论：改名使整个模块**构建失败**，索引行不可能以陈旧名字继续存在。`moon run` 自身对构建
-失败返回 1（见 §6 关注点 1），未进入 `main`。
-
 **N1b — 全仓库一致改名、只留索引的 `name` 字符串陈旧**（模拟「字段改了、索引没跟上」）：
-`moon check` EXIT=0（编译通过），`moon test` 失败，索引与表格双向都不通过：
+编译通过，测试失败，索引与表格双向都不通过：
 
 ```console
 field index: cell short_simple_sentence uses the unknown field gunning_fog_score (shape gunning_fog_score)
 ...
 field index: no cell exercises the field gunning_fog
-Diff:
+Diff: (- expected, + actual)
 -field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
 +field index: fields=19/19 cells=366 counter=9 score=8 word_list=1
 Total tests: 179, passed: 177, failed: 2.          TEST_EXIT=2
 ```
 
-**N2 — 改 `l3_data.mbt` 的一个 cell `shape`**（`gunning_fog` → `gunning_fog_index`）：
-
-```console
-$ cd _t42_scratch/lib && moon run cmd/gate --target native
-gate: unknown call shape in the frozen cell table: gunning_fog_index
-GATE_EXIT=2
-$ moon test --target native
-[field_index_wbtest.mbt:8] FAILED: field index: cell short_simple_sentence uses the unknown field gunning_fog_index (shape gunning_fog_index)
-field index: 20 distinct field names observed, expected 19
-Diff:
--field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
-+field index: fields=20/19 cells=366 counter=9 score=9 word_list=1
-Total tests: 179, passed: 176, failed: 3.          TEST_EXIT=2
-```
-
-N2 同时给出 brief 要求的 `EXIT=2`：字段名与表格不符时门禁以 2 退出。
-
-副本已 `rm -rf`（`ls F:/moonbit比赛 | grep -c _t42_scratch` → 0）。
+ 副本已 `rm -rf`（`ls F:/moonbit比赛 | grep -c _t42_scratch` → 0）。
 
 ## 5. 未做/不做
 
-- 未给 `main.mbt` 加 hook：brief 明确禁止；测试即运行入口（brief 给的替代方案）。
 - 未新增字段表文档：AD-4 负承诺。
 - 未动 `[EXT]` 31 个 callable：索引只覆盖 19 个 `[ALIGN]` 字段，`EError` 格不带 kind。
+- 未修改 AD：§6 的偏离只登记，不改文档（Fix round 1 裁决：不需要改）。
+- 未把索引检查挂到 `count`/`variant`/`formula`/`lang`/`degenerate`/`errors`：它们只加载
+  子集，看不到全部 19 个名字。
 
-## 6. 关注点
+## 6. 注册偏离：类型级改名在构建期被拒（Fix round 1）
 
-1. **`moon run` 对编译失败返回 1，而 AD §3.2 把「构建失败」归为 EXIT=2。** 这是 `moon`
-   CLI 的行为，`main` 根本没运行，任何 `main.mbt` 里的 hook 都无法改变它。要真正得到 2，
-   需要在门禁外再包一层（例如 `tools/` 脚本把 `moon run` 的非 0 映射成 2），或修订 AD §3.2
-   的措辞。T-42 未擅自扩大范围；N2（表格侧不符）仍给出字面 EXIT=2。
-2. `field_index_problems` / `field_index_evidence` 设为 `pub`：否则非测试构建会报
-   `unused_value` 警告（`moon check` 仍 EXIT=0，但告警污染输出）。它们现在是
-   `cmd/gate` 可执行包内的 `pub`，不会导出到库的 `.mbti`。
-3. 证据行的 `counter=9 score=9 word_list=1` 只统计**被单元格覆盖**的字段，因此与
-   「19/19」互相印证；若某字段从表格消失，它会先降到 `8` 再触发失败。
+brief 的「人为改一个字段名 → EXIT=2」有两条路径，处置不同：
+
+| 路径 | 现象 | 为何如此 |
+| --- | --- | --- |
+| 表格侧名字（`gate/data` 的 `shape`，或索引 `name` 字符串）不在 19 之内 | 门禁打印 `gate: field index: ...`，**EXIT=2**（§4.3 N3/N3b） | 程序运行了，这是 AD §3.2 的环境失败 |
+| `types.mbt` 的字段名/类型 | **构建失败**，`moon run` 返回 1，`main` 未运行 | 索引每行的 `probe` 直读真实 `TextStats` 字段，哨兵 witness 亦如此；名字改了编译就不过 |
+
+裁决（Fix round 1）：类型级改名**不可能**由门禁产生任何退出码，因为二进制根本没有构建出来；
+而一致的改名同样过不了编译（哨兵 `TextStats` 字面量点名旧字段）。这是**比 EXIT=2 更强**
+的保证，不是更弱。AD §3.2 的退出码表**无需修改**：那条表描述的是「程序运行后」的语义，
+构建失败发生在程序存在之前，此时任何退出码都由构建工具产生而非门禁产生。本偏离仅登记，
+不改 AD。
+
+## 7. Fix round 1（review 后）
+
+| Review 项 | 处置 | 证据 |
+| --- | --- | --- |
+| Important 1 — 索引不在门禁执行路径上 | `field_index.mbt` 新增 `pub fn enforce_field_index()`；`run_gate` 在 `all`/`selfcheck` 上调用它，位置在 `println(report_line(...))` 与 `enforce_floor(loaded)` **之后**，因此两行 stdout 契约在失败路径上同样成立（与既有 floor 分支同序）。失败时逐条 `println("gate: " + problem)` 并 `exit_with_code(2)`，不写失败记录（不是单元格失败）。新增测试 `field index: the gate path enforces the index for all and selfcheck`：断言 `select_cells("all")`/`select_cells("selfcheck")` 各 366 格，并调用 `enforce_field_index()`。 | §4.2 三组 EXIT=0；§4.3 N3/N3b EXIT=2 |
+| Important 2 — 「改字段名 → EXIT=2」不是字面满足 | 采纳裁决：把**表格侧** case 定为形式化验收证据并附原始输出（§4.3 N3），补 §6 注册偏离小节，`task-42-report.md` 同步。不改 AD。 | §4.3 N3；§6 |
+| Minor — `witness_problems` 的 kind 分支不可达 | 删除该分支：`*_field` 构造子已固定 `FieldValue` 变体，与 `entry.kind` 不可能不一致。保留真正有信息的唯一性检查与 19 计数。测试改名为 `field index: every probe reads a distinct field`。 | §4.1 编译 0 错误 0 警告 |
+
+## 8. 关注点
+
+1. `enforce_field_index` 读 `@gate_data.all_cells()` 而非选中/注入后的 cells：`--inject=<n>`
+   只在内存里改一个期望值，一个被扰动的期望值不应把健康索引变成「发现问题」。
+2. 只有 `all` / `selfcheck` 调用它：其余组（`count`/`variant`/`formula`/`lang`/`degenerate`/
+   `errors`）不加载整表，看不到全部 19 个名字，无法做 19/19 判断；`data` 是数据身份子集，
+   不含单元格。
+3. `field_index_problems` / `field_index_evidence` / `enforce_field_index` 为 `pub`：
+   `field_index_problems` 供测试构造合成表，`enforce_field_index` 供 `run_gate` 调用；
+   不 `pub` 会在非测试构建里报 `unused_value`。三者位于 `cmd/gate` 可执行包内，不进库 `.mbti`。
