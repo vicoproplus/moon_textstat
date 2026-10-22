@@ -231,3 +231,97 @@ $ git status --short
      再以 EXIT=2 结束；下限始终作用于 `total_cells()`，与所选分组无关。
 - `--inject=0` 按「n != 0 未实现」的口径接受，并如实报告 `inject=0`。
 - `simplify`/「改进」：无。门禁只读取 L3 表，不推导、不修补、不替换期望值。
+
+## 6. 复核修复（round 2）
+
+日期：2026-10-22。复核发现两处 Important 契约缺口，本轮一并修复；退出码
+语义不变（0/1/2），未触碰任何 oracle 期望值，也未实现 T-37 的失败记录
+十六进制补位与 T-38 的 `--inject` 范围。
+
+1. **自报行恒为第二行**：`run_gate` 将失败诊断缓冲进
+   `Array[String]`，求值结束后先打印 `cells=... passed=...`，再逐行打印
+   `FAIL ...`；`print_failure` 改为返回字符串的 `failure_line`。
+2. **`EList` 真正按集合比较**：`same_word_set` 删除「长度必须相等」的
+   前置条件，改为双向成员判定；顺序与重复元素不影响结果，大小写仍敏感。
+3. **未知样本 id 硬失败**：`sample_text` 返回 `String?`；未知 id 使
+   `evaluate_cell` 调用 `gate_fail("unknown sample id: ...")`，EXIT=2，
+   不再用空文本求值而假通过。
+4. **零单元格选择硬失败**：已知分组（含 `all`/`selfcheck`）选中 0 个
+   单元格时 `gate_fail("group ... selected no cells")`，EXIT=2；
+   `data` 仍由 T-41 存根拒绝。
+
+### 6.1 全绿验收（修复后重跑）
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=count
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+# variant 40/40, formula 64/64, degenerate 96/96, lang 66/66, errors 12/12
+# 均 EXIT=0（逐条实测见本轮终端记录）
+
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+$ moon test --target native
+Total tests: 145, passed: 145, failed: 0.
+EXIT=0
+```
+
+### 6.2 仓库外临时副本故障注入（`F:\moonbit比赛\_t36_scratch`，已丢弃）
+
+```console
+$ moon run cmd/gate --target native --group=count   # 改一处 EList 期望词
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=multiple_paragraphs_newlines shape=difficult_words_list lang=en_US expected=list:[sentences,terminator,paragraph,longest] actual=list:[paragraph,longer,sentences,terminator]
+EXIT=1
+
+$ moon run cmd/gate --target native --group=count   # 期望表重复一个词
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=count   # 同一词改大小写 Longer
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=multiple_paragraphs_newlines shape=difficult_words_list lang=en_US expected=list:[sentences,terminator,paragraph,Longer] actual=list:[paragraph,longer,sentences,terminator]
+EXIT=1
+
+$ moon run cmd/gate --target native --group=count   # 样本 id 改为 unknown_sample
+moon run cmd/gate --target native
+gate: unknown sample id: unknown_sample
+EXIT=2
+
+$ moon run cmd/gate --target native --group=errors  # 该组 12 格改为 degenerate
+moon run cmd/gate --target native
+gate: group errors selected no cells
+EXIT=2
+```
+
+### 6.3 静态白名单（修复后）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+COUNT=1
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/main.mbt:206:  let args = @env.args()
+COUNT=1
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+COUNT=0
+```
+
+`pkg.generated.mbti` 无变化（改动均为包内私有函数）。提交后工作区仅剩
+未跟踪的 `.qoder/`。

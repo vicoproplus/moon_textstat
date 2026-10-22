@@ -50,7 +50,11 @@ fn capture_list(
 fn evaluate_cell(cell : @gate_data.Cell) -> Actual {
   let text = match cell.group {
     "lang" | "errors" => probe_text
-    _ => sample_text(cell.sample_id)
+    _ =>
+      match sample_text(cell.sample_id) {
+        Some(value) => value
+        None => gate_fail("unknown sample id: " + cell.sample_id)
+      }
   }
   let lang = cell.lang
   match cell.shape {
@@ -112,33 +116,20 @@ fn evaluate_cell(cell : @gate_data.Cell) -> Actual {
 }
 
 ///|
-/// A copy of `words` that can be sorted without mutating the input.
-fn copy_words(words : Array[String]) -> Array[String] {
-  let copy : Array[String] = []
-  for word in words {
-    copy.push(word)
-  }
-  copy
-}
-
-///|
-/// Set equality with case-sensitive string identity: both sides are copied,
-/// sorted and compared element by element (AD section 2.3; the word order of
-/// `difficult_words_list` is not contractual).
+/// Set equality with case-sensitive string identity: every element of one
+/// side must appear in the other, in both directions (AD section 2.3). Word
+/// order and multiplicity are not contractual, so duplicates are ignored;
+/// string identity itself stays exact, so a case change is a mismatch.
 fn same_word_set(left : Array[String], right : Array[String]) -> Bool {
-  if left.length() != right.length() {
-    return false
-  }
-  let a = copy_words(left)
-  let b = copy_words(right)
-  a.sort()
-  b.sort()
-  let mut index = 0
-  while index < a.length() {
-    if a[index] != b[index] {
+  for word in left {
+    if !right.contains(word) {
       return false
     }
-    index = index + 1
+  }
+  for word in right {
+    if !left.contains(word) {
+      return false
+    }
   }
   true
 }
@@ -180,19 +171,18 @@ fn actual_text(actual : Actual) -> String {
 }
 
 ///|
-/// Print the one-line diagnostic of a failing cell: sample id, call shape,
-/// language, expected value and actual value (T-36 step 6).
-fn print_failure(cell : @gate_data.Cell, actual : Actual) -> Unit {
-  println(
-    "FAIL sample_id=" +
-    cell.sample_id +
-    " shape=" +
-    cell.shape +
-    " lang=" +
-    cell.lang +
-    " expected=" +
-    expected_text(cell.expected) +
-    " actual=" +
-    actual_text(actual),
-  )
+/// Render the one-line diagnostic of a failing cell: sample id, call shape,
+/// language, expected value and actual value (T-36 step 6). The caller buffers
+/// these lines and prints them after the self-report (AD section 6).
+fn failure_line(cell : @gate_data.Cell, actual : Actual) -> String {
+  "FAIL sample_id=" +
+  cell.sample_id +
+  " shape=" +
+  cell.shape +
+  " lang=" +
+  cell.lang +
+  " expected=" +
+  expected_text(cell.expected) +
+  " actual=" +
+  actual_text(actual)
 }

@@ -145,8 +145,14 @@ fn report_line(
 ///|
 /// Evaluate the selected cells, report, and map the result to the exit-code
 /// contract of AD section 3.2: 0 = all cells aligned, 1 = at least one
-/// mismatch, 2 = environment or build problem (here: a loaded table below the
-/// frozen floor, even when the selected group is smaller).
+/// mismatch, 2 = environment or build problem (here: an empty selection or a
+/// loaded table below the frozen floor, even when the selected group is
+/// smaller).
+///
+/// Failure diagnostics are buffered and printed after the self-report, so the
+/// first two output lines stay fixed by AD section 6: the canonical
+/// invocation, then `cells=... passed=...`. A zero-cell selection of a known
+/// group is an environment failure (EXIT=2), not a vacuous pass.
 fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
     gate_fail("--bench is not implemented until T-40")
@@ -158,17 +164,24 @@ fn run_gate(config : GateConfig) -> Unit {
     gate_fail("--group=data is not implemented until T-41")
   }
   let cells = select_cells(config.group)
+  if cells.length() == 0 {
+    gate_fail("group " + config.group + " selected no cells")
+  }
   let loaded = @gate_data.total_cells()
   let mut passed = 0
+  let failures : Array[String] = []
   for cell in cells {
     let actual = evaluate_cell(cell)
     if cell_matches(cell.expected, actual) {
       passed = passed + 1
     } else {
-      print_failure(cell, actual)
+      failures.push(failure_line(cell, actual))
     }
   }
   println(report_line(cells.length(), passed, config.group, config.inject))
+  for failure in failures {
+    println(failure)
+  }
   if loaded < FROZEN_FLOOR {
     println(
       "gate: loaded " +
