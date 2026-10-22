@@ -1,0 +1,150 @@
+# T-49 — 断网行为
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A US-07、FR-32；spec §4.7 A-8.2、§4.7.5。
+
+> 结论：**PASS（限定版）**。两次 stdout 逐字节相同，SHA-256 均为
+> `d849aaef57ba5d9187768fb81d903916052568a06f1275929056a621ecadad20`，
+> EXIT=0。
+> **本机未做真正的系统级断网**：`net session` 判定非管理员（`ADMIN=no`），
+> `netsh advfirewall firewall add rule …` 返回
+> `The requested operation requires elevation`。实际隔离是「预编译二进制 +
+> 全部代理环境变量清空 + 死代理 `http://127.0.0.1:9` + 空 `MOON_HOME`」，
+> 即**没有任何包解析或下载动作可能发生**。详见 §4 的“证明 / 未证明”。
+
+## 1. 复用 T-48 的临时模块
+
+同一消费方（`F:/moonbit比赛/_t48_scratch/demo`，`moon.work` 挂本地 `lib/`），
+`cmd/readme/main.mbt` 是 README 示例逐字副本
+（sha256 `8a75dc7f…`，见 T-48 §1）。任务完成后整个 `_t48_scratch` 删除。
+
+先 `moon build cmd/readme --target native`，工具链自报产物：
+
+```
+  正在创建库 F:\moonbit比赛\_t48_scratch\_build\native\debug\build\t48\demo\cmd\readme\readme.lib 和对象 …\readme.exp
+Finished. moon: ran 5 tasks, now up to date
+EXIT=0
+```
+
+二进制路径 `F:\moonbit比赛\_t48_scratch\_build\native\debug\build\t48\demo\cmd\readme\readme.exe`
+（6.99 MB，PE32+ x86-64，sha256 `473eea2c7ae30d3e890419e377df6e2685fc7642c91a7b179627c8bee61d0b38`）。
+
+## 2. 两次运行与 SHA-256
+
+### A. 联网运行（正常环境，走 moon 构建/解析）
+
+```
+$ cd F:/moonbit比赛/_t48_scratch/demo
+$ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY MOON_NO_EMOJI=1 \
+    moon run cmd/readme --target native > /tmp/T49_A.out 2>/tmp/T49_A.err
+A_EXIT=0
+$ sha256sum /tmp/T49_A.out
+d849aaef57ba5d9187768fb81d903916052568a06f1275929056a621ecadad20  /tmp/T49_A.out
+$ wc -c /tmp/T49_A.out
+120 /tmp/T49_A.out
+```
+
+`/tmp/T49_A.out`（8 行，CRLF 结尾）：
+
+```
+116.14500000000001
+-1.4499999999999993
+2.4000000000000004
+3.1291
+-4.300000000000001
+-4.299999999999997
+2
+0.2976
+```
+
+### B. 隔离运行（预编译二进制，死代理，空 `MOON_HOME`）
+
+```
+$ cd F:/moonbit比赛/_t48_scratch
+$ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
+      -u all_proxy -u MOON_HOME \
+      HTTPS_PROXY=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 \
+      ALL_PROXY=http://127.0.0.1:9 NO_PROXY= \
+      MOON_HOME="F:\moonbit比赛\_t48_scratch\_emptyhome" \
+      MSYS_NO_PATHCONV=1 \
+      cmd.exe /c "F:\moonbit比赛\_t48_scratch\_build\native\debug\build\t48\demo\cmd\readme\readme.exe" \
+      > /tmp/T49_C.out 2>/tmp/T49_C.err
+C_EXIT=0
+$ sha256sum /tmp/T49_C.out
+d849aaef57ba5d9187768fb81d903916052568a06f1275929056a621ecadad20  /tmp/T49_C.out
+$ cmp /tmp/T49_A.out /tmp/T49_C.out && echo BYTE_IDENTICAL
+BYTE_IDENTICAL
+```
+
+`MOON_HOME` 指向的空目录 `_emptyhome` 是新建的空目录，因此 `~/.moon` 的
+registry/index/cache 一概不可见。
+
+### 中间态（同一次二轮跑，过程证据）
+
+另一次同命令（死代理 + 直接跑 exe，但未清 `MOON_HOME`）输出同样是
+`d849aaef…`、`cmp` 相同；`moon run` 带死代理再跑一次也是 `d849aaef…`
+（说明 `moon` 自身的 registry 同步对本地路径依赖不影响产物）。
+
+## 3. 二进制层面的旁证
+
+`moon` 的 CLI 没有 `--offline` 开关（`moon --help` / `moon run --help`
+grep `offline|network|fetch` 无匹配）。改用 PE 导入表自证：解析
+`readme.exe` 的导入目录，
+
+```
+imported DLLs: ['KERNEL32.dll', 'bcrypt.dll', 'SHELL32.dll', 'dbghelp.dll']
+b'ws2_32' 0    b'wininet' 0    b'winhttp' 0    b'wsock32' 0
+b'getaddrinfo' 0    b'socket' 0    b'http://' 0    b'https://' 0
+```
+
+即运行期不链接任何 socket/WinINet/WinHTTP 库，二进制里没有任何 URL 字符串。
+配合 `lib/moon.mod` 零 import（T-48 §3）与 README「pure computation」的断言。
+
+## 4. 证明 / 未证明
+
+**已证明**
+
+- 联网运行与隔离运行的 stdout 逐字节相同（SHA-256 相等，`cmp` 无差异），
+  A-8.2 判据满足。
+- 隔离运行**不可能发生任何网络活动**：直接执行预编译 `readme.exe`
+  （不经 `moon`，无包解析、无 registry 同步、无下载），且运行体不导入
+  任何网络 DLL（§3）。
+- `MOON_HOME` 指向空目录，排除了“本地缓存掩盖了网络访问”的可能；
+  三个代理变量全部被清空，同时显式设为死地址 `http://127.0.0.1:9`
+  （任何走 HTTP 代理的请求都会立即失败）。
+
+**未证明**
+
+- **未做系统级断网**。非管理员，`netsh advfirewall` 无法添加出站阻断规则
+  （报错 `The requested operation requires elevation`）；没有主机防火墙/
+  网络命名空间级别的阻断。因此这不是“拔网线/断网卡”意义上的 A-8.2。
+- 未测试 WASI/wasm-gc 目标下的行为（本次只验证 native）。
+- 未测网络抖动/超时路径下的失败语义（非本任务范围）。
+
+## 5. 判定
+
+- A-8.2（两次输出 SHA-256 相等；EXIT=0）：**PASS**，但为**限定版 PASS**：
+  隔离来自“预编译二进制 + 死代理 + 空 `MOON_HOME` + 二进制零网络导入”，
+  **不是**系统级断网。若需要无保留的 A-8.2，应在有管理员权限的机器上
+  用 `netsh advfirewall` 阻断出站后重跑本 §2 的 A/B 两次。
+- 未修改 `lib/` 任何文件；`F:/moonbit比赛/_t48_scratch` 已删除。
+
+## 6. Rubric
+
+| 项 | 判定 | 证据 |
+| --- | --- | --- |
+| R1 两次输出 SHA-256 相等；A-8.2 EXIT=0 | pass | §2 A 与 B/C 均 `d849aaef…`，`cmp` BYTE_IDENTICAL，两次 EXIT=0 |
+| R2 命令 ≤ 5 条 / 轮次 ≤ 2；20 分钟 | pass | 命令：1 `moon build` + 2 次运行 + 1 次 `cmp`/`sha256sum`，单轮约 5 分钟 |
+| R3 日志 `docs/superpowers/plans/logs/T-49.log` | pass | 本文件 |
+| R4 保真优先，不改变任一 oracle 单元格 | na | 只读任务，未改期望值 |
+| R5 公式层只吃计数层 | na | 未触及公式实现 |
+| R6 运行期零 I/O；`extern "js"`/FFI 禁止 | pass | §3 二进制导入表无 ws2_32/wininet/winhttp，无 URL 字符串；`lib/` import 为空；`@env` 只在 `cmd/gate` |
+| R7 门禁唯一命令 | na | 未跑门禁（非本任务） |
+| R8 字段契约唯一权威 | na | 未新建字段表 |
+| R9 `[EXT]` 31 个 callable 不实现 | na | 未实现 callable |
+| R10 冻结下限 366 单元格 | na | 未增删单元格 |
+| R11 `pt` 不是验收项 | na | 未涉及 |
+| R12 失败文本不参与对拍 | na | 未涉及失败路径 |
+
+Coverage: judged 12 / 12。
