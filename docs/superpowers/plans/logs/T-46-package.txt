@@ -7,9 +7,11 @@ T-46 — 包内容清单核对（moon package zip vs design §12.3 允许文件�
 契约：AD §7 DR-R6；AD §1.1；spec §4.8.2 注；design §12.1 ND2 / §12.3。
 判定口径：design §12.3「任何不在此列的文件面都必须在 spec 中显式申请，否则视为越界」。
 
-结论：FAIL（2 处越界，共 4 个条目）。其余 94 个条目全部落在允许清单内；
-无 .json 原始 oracle、无生成器源码、无 vendor/、无 textstat/、无 _build/、无 _gate/。
-按任务要求「不得删文件让它通过」，两处越界只登记为缺陷，未做任何删除或移动。
+结论（修订于 Fix round 1，见第 7 节）：PASS。两处越界（AGENTS.md、cmd/main/*）已于
+本轮删除，zip 由 98 条降为 94 条，94/94 全部落在 design §12.3 允许清单内；
+无 .json 原始 oracle、无生成器源码、无 vendor/、无 textstat/、无 _build/、无 _gate/、
+无 .gitignore/.gitattributes。
+下文第 1–6 节保留 Fix round 1 之前的原始判定（FAIL，2 处越界共 4 条目），作为审计痕迹。
 
 
 1. 产物位置
@@ -233,3 +235,168 @@ R12 失败文本有意增强、不参与对拍                                  
    证据：未改动失败文本。
 
 Coverage：judged 12 / 12（pass 2 / fail 1 / na 9）。
+
+## Fix round 1 — 按 AD §7 DR-R6 删除 moon new 模板残留
+--------------------------------------------------------------------------------
+
+任务要求对 T-46 登记的 2 处越界做「删除」分支的修正（design §12.1 ND2 的第三条路：
+修正源文件面，而非在 spec 申请）。本轮只删文件、不改任何源码/数据/门禁。
+
+### 7.1 死重确认（删除前的证据）
+
+`git grep -n "cmd/main" -- lib ':!lib/_build'` 仅 2 命中，且都在被删文件自身内部：
+
+```
+lib/cmd/main/main.mbt:4:/// Run with `moon run cmd/main` from the project root.
+lib/cmd/main/pkg.generated.mbti:2:package "vicoproplus/moon_textstat/cmd/main"
+```
+
+`git grep -n "AGENTS.md" -- lib ':!lib/_build'` EXIT=1（0 命中）——模块根无任何
+源码/文档/配置引用它。
+
+历史引用（非消费者，均为已成立的结论性记录）：
+- `docs/superpowers/designs/…核心库-design.md:51`：§12.3 制定时把 AGENTS.md 列为
+  越界样例的对照条目，即设计上它本就不该在模块根。
+- `docs/facts/moonbit-compile-probe.md`、`…embedding-and-naming-probe.md`：moon new
+  布局的事实记录（`moon new` 只生成「库包 + cmd/main 可执行包」一种布局）。
+- `docs/superpowers/designs/…核心库-design.md:443,457`：说明可执行包必须置于模块内、
+  目录名同构即可，`cmd/main` 只是 probe 里用过的同构样例，不是本模块的契约。
+- `lib/_build/**/packages.json`：构建缓存，随目录删除自然失效。
+
+来源提交（两条路径同为一次提交引入，即 `moon new` 脚手架）：
+
+```
+$ git log --oneline -- lib/cmd/main lib/AGENTS.md
+061bc9d feat(module): create MoonBit module root under lib/ with line-ending policy
+$ git log --oneline --diff-filter=A -- lib/cmd/main lib/AGENTS.md
+061bc9d feat(module): create MoonBit module root under lib/ with line-ending policy
+```
+
+即：二者自 `061bc9d`（模块根创建时）入库，此后无任何提交改过它们——典型
+`moon new` 残留，与本库功能面无关。
+
+### 7.2 删除与暂存
+
+```
+$ git rm -r -- lib/cmd/main lib/AGENTS.md
+rm 'lib/AGENTS.md'
+rm 'lib/cmd/main/main.mbt'
+rm 'lib/cmd/main/moon.pkg'
+rm 'lib/cmd/main/pkg.generated.mbti'
+
+$ git status --porcelain | grep -E '^(D|A|M)'
+D  lib/AGENTS.md
+D  lib/cmd/main/main.mbt
+D  lib/cmd/main/moon.pkg
+D  lib/cmd/main/pkg.generated.mbti
+```
+
+4 个暂存条目逐一核对：1 × AGENTS.md（D-1）+ 3 × cmd/main（D-2：main.mbt、moon.pkg、
+pkg.generated.mbti）。无其他暂存项；`lib/data/**`、`lib/gate/**`、`lib/*.mbt`、
+`lib/cmd/gate/**`、`lib/README.mbt.md`、`lib/moon.mod`、`lib/pkg.generated.mbti`、
+`lib/moon.pkg` 全部未动（`.qoder/` 与 `2026-10-22-183204-empty-conversation.txt`
+为环境产生的未跟踪文件，未 `git add`）。
+
+### 7.3 验证（lib/ 下，native）
+
+```
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+
+$ moon test --target native
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 179, failed: 0.
+EXIT=0
+```
+
+测试总数 179，与 T-42（179/179）、T-44（179/179）、T-50（179/179）一致：
+两个被删文件不含任何测试（`cmd/main` 下无 `*_test.mbt`），总数不变即证明删除
+没有触碰任何可执行测试面。`fields=19/19 cells=366` 亦不变。
+
+```
+$ moon fmt --check
+warning: in the working copy of '…\lib\moon.mod', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/…\lib\moon.mod" "b/…\lib\_build\wasm-gc\release\format\moon.mod"
+-keywords = [ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]
++keywords = [
++  "readability",
++  ...
++]
+Error: failed when formatting project
+EXIT=255
+```
+
+`moon fmt --check` 唯一差异是 `lib/moon.mod` 的 `keywords` 单行数组应折行，来自
+831bd4b（T-44 填 `keywords`）引入、与本轮删除无关（`git diff --stat 831bd4b --
+lib/moon.mod` 为空，本轮未改它）。该偏差在 T-44 提交后即已存在，不在本次任务的
+两个越界范围内，且 `lib/moon.mod` 属禁改清单，故原样保留并在此登记；
+`moon check`/`moon test`/`moon package`/门禁均不受其影响（EXIT=0）。
+
+```
+$ moon package
+Running moon check ...
+Finished. moon: no work to do
+Check passed
+Package to F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+EXIT=0
+```
+
+新 zip：`lib/_build/publish/vicoproplus-moon_textstat-0.1.0.zip`
+大小：1,348,515 字节（原 1,350,394）
+SHA-256：974ec51d09cbb839fd513dc82e4dfc784303eb00425a900065048cb254c2e7eb
+条目数：94（原 98，−4 = 1 × AGENTS.md + 3 × cmd/main）
+
+全量条目复核（`python -c "… namelist()"`，94 条逐条比对 §12.3 允许清单）：
+全部 94 条均为 A（allowed）——库源码 `*.mbt`/`*_test.mbt`/`*_wbtest.mbt`（WB1/2/3/8）、
+`types.mbt`、`data/**`（WB4/5，含 `data/moon.pkg`、`data/pkg.generated.mbti`）、
+`gate/**`（WB6/7）、`cmd/gate/**`（WB11）、`moon.mod`（WB12）、`moon.pkg`、
+`pkg.generated.mbti`（moon info 产物）、`LICENSE`（WB10）、`README.mbt.md`（WB13）。
+
+禁令过滤（同一 namelist 上按子串统计）：
+
+| 模式 | 命中 |
+| --- | --- |
+| `AGENTS.md` | 0 |
+| `cmd/main/` | 0 |
+| `.json` | 0 |
+| `textstat/` | 0 |
+| `vendor/` | 0 |
+| `_build/` | 0 |
+| `_gate/` | 0 |
+| `.gitignore` | 0 |
+| `.gitattributes` | 0 |
+| `tools/` | 0 |
+
+即：两项越界已消除，且三项硬性禁令（json/vendor/textstat/_build/_gate）依旧满足，
+没有任何新增越界。全量条目判定由 94 A + 4 V 变为 94 A + 0 V。
+
+门禁回归（lib/ 下）：
+
+```
+$ moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=data
+moon run cmd/gate --target native
+cells=30 passed=30 floor=366 group=data inject=0
+EXIT=0
+```
+
+`cells=366 passed=366 floor=366`（selfcheck）与 `cells=30 passed=30`（data）与
+Fix round 1 前完全一致，EXIT 均为 0——删除未改变任何单元格期望值（R10 冻结下限 366 不变）。
+
+### 7.4 修订后的判定
+
+- D-1 `AGENTS.md`（模块根）→ 已删除。计划 W1b 的 `AGENTS.md` 应置于**仓库根**，
+  属另一文件的独立事项，不在本模块根发布面内。
+- D-2 `cmd/main/**` → 已删除。§12.3 WB9 只允许可选的 `cmd/example`；本库不需要
+  "Hello" 脚手架（无任何消费者，见 7.1）。
+- D-3（NOTICE 缺失）、D-4（.gitignore/.gitattributes 未入包）维持观察项，未变。
+- AD §7 DR-R6（zip 条目 ⊆ §12.3 允许清单）现为**满足**。
+
+提交：`chore(module): drop the moon-new template leftovers from the published surface`
+暂存路径（按显式路径，无 `git add -A`）：`lib/AGENTS.md`、`lib/cmd/main/**`（4 个
+暂存删除）+ 本日志文件。
