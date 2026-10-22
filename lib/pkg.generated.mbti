@@ -8,6 +8,8 @@ pub fn char_count(String, ignore_spaces? : Bool) -> Int
 
 pub fn coleman_liau_index(String) -> Double
 
+pub fn dale_chall_readability_score(String, lang? : String) -> Double raise TextstatError
+
 pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
 
 pub fn difficult_words_list(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Array[String] raise TextstatError

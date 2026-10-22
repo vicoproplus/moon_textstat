@@ -1,0 +1,235 @@
+# T-33 — Dale-Chall
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`ea82dd4 feat(formula): implement linsear_write_formula with 100-word truncation`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-23；spec §4.4 表第 8 行（阈值 0；百分比 > 5 加 3.6365）、
+§4.3.4（Dale-Chall 强制阈值 0；后端 `unique` 默认 False）、§4.3.3、§4.2 约束 3；
+A-5.1；上游 `backend/metrics/_dale_chall_readability_score.py:44-56`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 135/135 EXIT=0（T-32 后 131 + 本任务 4）；`.mbti` 只新增
+> `dale_chall_readability_score`；S1 零命中；11 个 en_US 样本值按位相等
+> （`==`，非容差）；5% 边界三行证明 +3.6365 只在严格大于 5 时出现；
+> 空/纯空白/纯标点 = 0.0；不受支持语种行为与上游一致；门禁顺延至 T-36
+> （不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/dale_chall_readability_score.mbt` | 新增：公开 `dale_chall_readability_score` | 76 | `2616bf76648ab5122a4bc16882ad989ca04f5c4662473d22cc7ef009a0d1c679` |
+| `lib/dale_chall_readability_score_test.mbt` | 新增：4 条黑盒测试 | 224 | `ca21a0b52a2392feff03ec9005603b3bcdb5d4ba202af86a7f3499bc77d1b239` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 1 行 | — | — |
+
+`lib/moon.pkg` 未改（无需新导入：`lexicon_count`、`count_difficult_words`、
+`words_per_sentence` 都是同包既有符号）。
+
+### 1.2 上游函数体与逐句对应
+
+上游 `_dale_chall_readability_score.py:44-56`：
+
+```text
+word_count = count_words(text)
+hard_count = count_difficult_words(text, lang, syllable_threshold=0)
+try:
+    per_difficult_words = 100 * hard_count / word_count
+except ZeroDivisionError:
+    return 0.0
+score = (0.1579 * per_difficult_words) + (0.0496 * words_per_sentence(text))
+if per_difficult_words > 5:
+    score += 3.6365
+return score
+```
+
+本实现（`lib/dale_chall_readability_score.mbt:53-76`）：
+
+```moonbit
+pub fn dale_chall_readability_score(
+  text : String,
+  lang~ : String = "en_US",
+) -> Double raise TextstatError {
+  let word_count = lexicon_count(text)
+  let hard_count = count_difficult_words(
+    text,
+    lang,
+    syllable_threshold=0,
+    unique=false,
+  )
+  if word_count == 0 {
+    return 0.0
+  }
+  let per_difficult_words = (100 * hard_count).to_double() /
+    word_count.to_double()
+  let mut score = 0.1579 * per_difficult_words +
+    0.0496 * words_per_sentence(text)
+  if per_difficult_words > 5.0 {
+    score = score + 3.6365
+  }
+  score
+}
+```
+
+对应关系与易错点：
+
+1. **阈值强制 0、非去重。** 调用包内 `count_difficult_words(text, lang,
+   syllable_threshold=0, unique=false)`——上游 `_dale_chall_readability_score.py:45`
+   显式传 `syllable_threshold=0`，后端形参 `unique` 默认 `False`
+   （`_count_difficult_words.py:10-12`）。公开字段 `difficult_words` 默认阈值 2
+   且 `unique=true`，**不能**用于此处（spec §4.3.4，R-09/R-32/R-43）。
+   Oracle 的 11 行同时钉死这两个口径：阈值 0 下 `long_multi_sentence_paragraph`
+   非去重 36、去重 33；`abbreviations_and_initials` 阈值 0 为 17、阈值 2 为 6；
+   `very_short_under_5_words` 阈值 0 为 1、阈值 2 为 0。
+2. **先乘后除。** Python 的 `100 * hard_count / word_count` 是 `int` 乘
+   `int` 后真除法；实现先算 `100 * hard_count`（整数），再
+   `.to_double() / word_count.to_double()`。`(hard / word) * 100` 会改变舍入，
+   spec §4.4 约束 1 禁止。
+3. **加法形状。** `(0.1579 * per) + (0.0496 * wps)` 先各自乘再相加；`moon fmt`
+   去掉冗余括号后为 `0.1579 * per + 0.0496 * wps`，运算树不变（`*` 先于 `+`）。
+   加成是随后的独立 `score = score + 3.6365`，不是并入系数。
+4. **严格 `> 5`。** 恰好 5.0% 不加成：20 词 1 难词时 `100/20` 在 IEEE-754 中
+   恰为 `5.0`，`5 > 5` 为假。若写成 `>=`，20 词行会是 `5.418` 而非冻结的
+   `1.7815`。
+5. **零分支。** `word_count == 0` 返回 0.0，等价上游 `except ZeroDivisionError`。
+   空串、纯空白、纯标点都无词（纯标点有 1 句但 0 词），全部落入此分支。
+6. **失败通道。** 难词计数先于零分支执行（与上游相同）。零词文本不产生 token，
+   不解析断字字典，因此任何语种（含 `ar`/`xx_YY`）都返回 0.0；含非易读词的
+   非空文本在音节层抛 `UnsupportedLanguage(requested)`（上游
+   `KeyError: None`）。仅易读词的文本走词表分支，词表回退英语，因此
+   `"the cat sat on the mat"` 在 `ar`/`xx_YY` 下返回 0.2976，不抛异常。
+7. **默认语种 `en_US`**，纯函数：无 I/O、无缓存、无异常以外的失败面。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 11 个样本的分解（默认调用，`en_US`）
+
+列：词数 | 阈值 0 非去重难词 | 阈值 2 非去重 | 阈值 2 去重 | 难词百分比 |
+句长 | 值 | `struct.pack('>d')`。
+
+```console
+id                            w   h0   h2  h2u  per                   wps                    value                  bits
+short_simple_sentence          6   0    0   0   0.0                   6.0                    0.2976                 3fd30be0ded288ce
+long_multi_sentence_paragraph 88  36   33  31  40.90909090909091     17.6                  10.969005454545455     4025f0217ba1d631
+abbreviations_and_initials    31  17    6   6  54.83870967741935      5.166666666666667     12.551798924731184     40291a85637f6076
+hyphenated_words              17  11   11  11  64.70588235294117      8.5                   14.275158823529411     402c8ce19e088781
+numbers_and_symbols           28  16    7   7  57.142857142857146     4.666666666666667     12.89082380952381      4029c81a0ef0ce49
+multiple_paragraphs_newlines  27   9    7   4  33.333333333333336     5.4                    9.167673333333333     402255d9477627ec
+very_short_under_5_words       2   1    0   0  50.0                   2.0                   11.630700000000001     402742eb1c432ca6
+empty_string                   0   0    0   0  （零分支）             0.0                    0.0                    0000000000000000
+whitespace_only                0   0    0   0  （零分支）             0.0                    0.0                    0000000000000000
+punctuation_only               0   0    0   0  （零分支）             0.0                    0.0                    0000000000000000
+spanish_text                  29  29   13  13  100.0                  9.666666666666666     19.905966666666664     4033e7ed6e749976
+```
+
+`spanish_text` 一行是 **en_US**：oracle 的一参调用形状不传 `lang`，生成器使用
+默认全局语种。vendored 上游对同一文本 `es_ES` 返回 `5.204932183908046`
+（29 词中阈值 0 难词 2），`en_US` 返回 `19.905966666666664`（29 词全部难词，
+3 句），冻结值钉的是默认语种，不是样本的 `lang` 标签。
+
+上游返回值与 `oracle_smoke.json` 的
+`samples[].results.dale_chall_readability_score.value` 逐行 `==`（ALL True）。
+
+### 2.2 5% 边界（严格 `>`）
+
+三条单句文本，各恰有 1 个难词 `xyzzy`，其余全为易读词，故
+`per = 100 * 1 / 词数`：
+
+```console
+位置        文本词数  per                   base                  score                 bits
+just above  19        5.2631578947368425    1.7734526315789476    5.409952631578948     4015a3ca9f6629b2
+exactly 5   20        5.0                   1.7815                1.7815                3ffc810624dd2f1b
+just below  21        4.761904761904762     1.793504761904762     1.793504761904762     3ffcb2320c999e98
+```
+
+`base = 0.1579*per + 0.0496*wps`（单句，`wps` = 词数）。19 词行
+`score == base + 3.6365`；20 词与 21 词行 `score == base`，加成不存在。
+20 词行是关键：`100/20` 恰为 `5.0`，严格 `>` 为假。
+
+### 2.3 语种失败通道（`ar` / `xx_YY`）
+
+```console
+ar     ''                                             -> 0.0
+ar     '   \n\t '                                     -> 0.0
+ar     ' .? ' / '...' / '!?!'                         -> 0.0
+ar     'the cat sat on the mat'                       -> 0.2976（仅易读词，词表回退英语）
+ar     'xyzzy'                                        -> RAISE KeyError None
+ar     'The extraordinary readability of ...'         -> RAISE KeyError None
+xx_YY  同上                                            -> 同上
+```
+
+与实现一致：零词文本不解析字典；非易读词在音节层抛
+`UnsupportedLanguage(requested)`；仅易读词文本不失败。
+
+### 2.4 期望值位模式核对
+
+从 `lib/dale_chall_readability_score_test.mbt` 的 11 个样本字面量与 oracle 用
+`struct.pack('>d', …)` 比较，`LEN 11 ALL True`；边界派生字面量同样按位核对：
+`5.2631578947368425`=`40150d79435e50d8`、`1.7734526315789476`=`3ffc600fddda2ffe`、
+`5.409952631578948`=`4015a3ca9f6629b2`、`1.7815`=`3ffc810624dd2f1b`、
+`4.761904761904762`=`40130c30c30c30c3`、`1.793504761904762`=`3ffcb2320c999e98`。
+
+## 3. 测试（4 条，131 → 135）
+
+| 测试 | 断言 |
+| --- | --- |
+| `dale_chall_readability_score matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`0.2976, 10.969005454545455, 12.551798924731184, 14.275158823529411, 12.89082380952381, 9.167673333333333, 11.630700000000001, 0.0, 0.0, 0.0, 19.905966666666664`；末尾显式 `lang="en_US"` 得 0.2976 |
+| `the 3.6365 bonus fires only above five percent difficult words` | 19 词行 `per=5.2631578947368425`、`base=1.7734526315789476`、`score=5.409952631578948` 且 `score == base + 3.6365`；20 词行 `per=5.0`、`base == score == 1.7815` 且 `!= base + 3.6365`；21 词行 `per=4.761904761904762`、`base == score == 1.793504761904762` 且无加成 |
+| `wordless texts return exactly 0.0` | `" .? "`：`lexicon_count=0`、`sentence_count=1`、公式 0.0；`""`、`"   \n\t "`、`" "`、`"\n"`、`"..."`、`"!?!"` 均 0.0 |
+| `unsupported languages return zero for wordless text and raise otherwise` | `ar`/`xx_YY`：空、纯空白、纯标点 0.0；`"the cat sat on the mat"` 0.2976；`"xyzzy"` 与探针句抛 `UnsupportedLanguage(lang)` |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。11 个文本只写一份
+（`dale_chall_frozen_samples()`），避免多处字面量漂移；辅助函数名带
+`dale_chall_` 前缀，避免与 `linsear_write_formula_test.mbt` 的同名辅助函数冲突
+（黑盒测试共享顶层命名空间，首次 `moon check` 报 4051 已修正）。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 135, passed: 135, failed: 0.          # EXIT=0；T-32 base 131 + 4
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn dale_chall_readability_score(String, lang? : String) -> Double raise TextstatError
+# .mbti 仅此一行（含空行）；lib/moon.pkg 未改
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket'
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes \
+    lib/dale_chall_readability_score.mbt lib/dale_chall_readability_score_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）；全仓同式扫描亦为 0 行
+
+$ awk '{ if (length($0) > m) m = length($0) } END { print m }' \
+    lib/dale_chall_readability_score.mbt lib/dale_chall_readability_score_test.mbt
+603                                                # < 65,535（S1 第 2 式）
+
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/dale_chall_readability_score.mbt
+?? lib/dale_chall_readability_score_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 与 A-5.1 的
+`--group=degenerate` 由 T-36/T-52 复验。本任务不宣称门禁等价，只把 11 个
+oracle 值、5% 边界三行、零词三形态与失败通道固定在包测试里。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. `moon fmt` 去掉 `(0.1579 * per) + (0.0496 * wps)` 的冗余括号，打印为
+   `0.1579 * per + 0.0496 * wps`；运算树不变（`*` 先于 `+`，加法左结合）。
+3. 未新增 `_wbtest.mbt`：提交面只列实现与 `_test.mbt`；阈值 0 与非去重口径
+   由 11 个冻结值及边界行在公开面固定（`h0=36` 对 `h2=33`/`h2u=31` 等分解
+   只写在文档与日志，不作为内部调用断言）。
+4. 未新增 `es_ES`/`pl_PL`/`hu_HU`/`pt` 断言：oracle 的 `lang_probes` 不含该
+   字段，`pt` 非验收（R-33 裁决 b）；语种矩阵由 T-35 负责。
+5. `lib/moon.pkg` 未改；本任务只动两个新文件，外加 `moon info` 生成的
+   `.mbti`。
