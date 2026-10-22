@@ -50,3 +50,51 @@ fn sample_text(sample_id : String) -> String? {
 /// The language-probe sentence shared by the thirteen language codes and by
 /// the two failing codes. Its text is frozen with the L3 table as well.
 let probe_text : String = "The extraordinary readability of international documentation."
+
+///|
+/// The number of code points in the `--bench` sample text (A-9.1: a
+/// 600-character text).
+const BENCH_TEXT_CHARS : Int32 = 600
+
+///|
+/// The sentence repeated to build the `--bench` sample. It is 45 code points
+/// long and pure ASCII, so its code-point count equals its `String::length()`
+/// (UTF-16 code units) and the truncation below cannot split a character.
+const BENCH_SENTENCE : String = "The quick brown fox jumps over the lazy dog. "
+
+///|
+/// Build the deterministic text of the `--bench` sample (A-9.1/A-9.2).
+///
+/// The sentence above is repeated and cut at exactly `BENCH_TEXT_CHARS`
+/// (600) code points: thirteen whole copies are 585 code points, and the
+/// fourteenth copy contributes its first 15 code points, so the text ends
+/// with `"The quick brown"`. The construction uses only in-memory string
+/// operations (no file, no environment), therefore every `--bench` run
+/// analyzes the same 600-character English text. The eleven oracle samples
+/// above are untouched; this text is a twelfth, bench-only sample.
+///
+/// The final `char_length` check counts code points, not UTF-16 units, so a
+/// future non-ASCII sentence cannot silently make the sample longer or
+/// shorter than 600.
+fn bench_text() -> String {
+  let builder = StringBuilder()
+  let mut written = 0
+  while written < BENCH_TEXT_CHARS {
+    for ch in BENCH_SENTENCE {
+      if written < BENCH_TEXT_CHARS {
+        builder.write_char(ch)
+        written = written + 1
+      }
+    }
+  }
+  let text = builder.to_string()
+  if text.char_length() != BENCH_TEXT_CHARS {
+    gate_fail(
+      "bench text is " +
+      text.char_length().to_string() +
+      " code points, expected " +
+      BENCH_TEXT_CHARS.to_string(),
+    )
+  }
+  text
+}

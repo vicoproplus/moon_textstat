@@ -69,6 +69,10 @@ fn is_known_group(value : String) -> Bool {
 /// Parse the closed argument set. `args[0]` is the program path and is
 /// skipped; every other entry must be `--group=<id>`, `--bench` or
 /// `--inject=<n>`. Unknown, duplicate or malformed arguments exit with 2.
+///
+/// `--bench` is a standalone sampling mode (AD section 6): combining it with
+/// an explicit `--group=<id>` (even `--group=all`) or with `--inject=<n>`
+/// (even `--inject=0`) is a usage error and exits with 2.
 fn parse_args(args : Array[String]) -> GateConfig {
   let mut group : String? = None
   let mut bench = false
@@ -105,6 +109,17 @@ fn parse_args(args : Array[String]) -> GateConfig {
       gate_fail("unknown argument: " + arg)
     }
     index = index + 1
+  }
+  let has_group = match group {
+    Some(_) => true
+    None => false
+  }
+  let has_inject = match inject {
+    Some(_) => true
+    None => false
+  }
+  if bench && (has_group || has_inject) {
+    gate_fail("--bench cannot be combined with --group or --inject")
   }
   let selected_group = match group {
     Some(value) => value
@@ -169,9 +184,14 @@ fn report_line(
 /// written, so even a record-write failure (which exits with 2) leaves the
 /// canonical second line. A zero-cell selection of a known group is an
 /// environment failure (EXIT=2), not a vacuous pass.
+///
+/// `--bench` branches off before any of that: it selects no cell, compares no
+/// expectation, writes no failure record and creates no `_gate/` directory.
+/// Its own report line and exit mapping live in `bench.mbt`.
 fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
-    gate_fail("--bench is not implemented until T-40")
+    run_bench()
+    return
   }
   if config.group == "data" {
     gate_fail("--group=data is not implemented until T-41")
