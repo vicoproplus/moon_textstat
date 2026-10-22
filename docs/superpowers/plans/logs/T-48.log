@@ -104,7 +104,7 @@ $ grep -Ei "python|nltk|pyphen" /tmp/tree.txt
 | R3 日志 `docs/superpowers/plans/logs/T-48.log` | pass | 本文件 |
 | R4 保真优先，不改变任一 oracle 单元格 | na | 本任务只读：未改 `lib/` 任何源码或期望值 |
 | R5 公式层只吃计数层 | na | 只读验证任务，未触及公式实现 |
-| R6 运行期零 I/O；`extern "js"`/FFI 禁止 | pass | `lib/` 内 `extern`/`#external` 只出现在 `_build` 生成的测试驱动；`@env` 只在 `cmd/gate`（非库包）；库 import 为空 |
+| R6 运行期零 I/O；`extern "js"`/FFI 禁止 | pass | **库包**（`lib/*.mbt`、`lib/data/**`、`lib/gate/data/**`）零 `extern`、零 `@env`；全部 FFI 只在 `cmd/gate` 可执行包，且属两条已记录的用户裁决白名单：`cmd/gate/exit.mbt` 1 处 `extern "c"`（exit shim，T-36）、`cmd/gate/records.mbt` 4 处 `extern "c"`（`fopen`/`fwrite`/`fclose`/`mkdir`，门禁失败记录写盘）+ 2 处 `@env.`（`main.mbt` argv、`records.mbt` `@env.now`）。`grep -rn 'extern "c"' --include=*.mbt lib/ | grep -v _build` = 5 行；`grep -rn '@env\.' … ` = 2 行。库 import 为空 |
 | R7 门禁唯一命令 | na | 本任务不跑门禁（T-43 已记录 `--group=formula` EXIT=0） |
 | R8 字段契约唯一权威 | na | 未新建字段表 |
 | R9 `[EXT]` 31 个 callable 不实现 | na | 未实现任何 callable |
