@@ -1,60 +1,80 @@
 ///|
-/// The pinned data-identity values are the ones the generator recorded in
-/// `tools/l2_manifest.json`; they must not drift while the gate runs.
-test "the pinned data values match the manifest" {
-  assert_eq(DATA_PRONUNCIATION_ENTRIES, 48202)
-  assert_eq(DATA_PRONUNCIATION_SUPPLEMENT_ENTRIES, 21782)
-  assert_eq(
-    DATA_PRONUNCIATION_ROWS_SHA256,
-    "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854",
-  )
-  assert_eq(
-    DATA_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256,
-    "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705",
-  )
-  assert_eq(data_pinned_pattern_lines.length(), 10)
-  assert_eq(data_pinned_easy_word_counts.length(), 2)
-  assert_eq(DATA_CHECK_COUNT, 30)
-}
-
-///|
-/// The pinned pattern-line counts are the nine AD-pinned dictionaries plus
-/// the `en_GB` value the manifest measured.
-test "the pinned pattern counts are the manifest values" {
-  let expected : Array[(String, Int32)] = [
-    ("en_US", 11125),
-    ("en_GB", 14057),
-    ("de_DE", 77847),
-    ("es", 859),
-    ("fr", 2908),
-    ("it_IT", 420),
-    ("nl_NL", 16256),
-    ("pl_PL", 4823),
-    ("ru_RU", 3874),
-    ("hu_HU", 102204),
-  ]
-  assert_eq(data_pinned_pattern_lines.length(), expected.length())
-  for index in 0..<expected.length() {
-    assert_eq(data_pinned_pattern_lines[index].0, expected[index].0)
-    assert_eq(data_pinned_pattern_lines[index].1, expected[index].1)
-  }
-}
-
-///|
-/// The pinned easy-word counts are the two manifest values.
-test "the pinned easy-word counts are the manifest values" {
-  assert_eq(data_pinned_easy_word_counts[0].0, "en")
-  assert_eq(data_pinned_easy_word_counts[0].1, 2941)
-  assert_eq(data_pinned_easy_word_counts[1].0, "es")
-  assert_eq(data_pinned_easy_word_counts[1].1, 20000)
-}
-
-///|
 /// A sorted copy leaves the input untouched.
 test "sorted_copy sorts without mutating its input" {
   let input = ["hu_HU", "en_US", "de_DE"]
   assert_eq(sorted_copy(input), ["de_DE", "en_US", "hu_HU"])
   assert_eq(input, ["hu_HU", "en_US", "de_DE"])
+}
+
+///|
+/// True when `values` holds no duplicate.
+fn all_distinct(values : Array[String]) -> Bool {
+  let sorted = sorted_copy(values)
+  let mut distinct = true
+  for index in 1..<sorted.length() {
+    if sorted[index - 1] == sorted[index] {
+      distinct = false
+    }
+  }
+  distinct
+}
+
+///|
+/// The pinned key sets are unique, and the synthetic coverage `lang` can never
+/// collide with a real dictionary code or language root.
+///
+/// These are the properties the pinned constants cannot vouch for themselves:
+/// a duplicated key would silently shrink the coverage comparison (both sides
+/// would still match) while the per-key checks kept passing, and a coverage
+/// `lang` that happens to be a real code would make the record ambiguous.
+test "the pinned keys are unique and the coverage lang is not a code" {
+  let codes : Array[String] = data_pinned_pattern_lines.map(fn(entry) {
+    entry.0
+  })
+  let roots : Array[String] = data_pinned_easy_word_counts.map(fn(entry) {
+    entry.0
+  })
+  assert_true(all_distinct(codes))
+  assert_true(all_distinct(roots))
+  assert_false(codes.contains(DATA_COVERAGE_LANG))
+  assert_false(roots.contains(DATA_COVERAGE_LANG))
+  assert_true(DATA_COVERAGE_LANG.length() > 0)
+}
+
+///|
+/// `check_table` emits one presence check and one count check per pinned key
+/// plus one coverage check, and a key the data does not expose fails its
+/// count check as `"missing"` instead of being skipped.
+test "check_table never skips a missing key" {
+  let pinned : Array[(String, Int32)] = [("aa", 3), ("bb", 4)]
+  let results : Array[(String, Bool)] = []
+  check_table(
+    results,
+    pinned,
+    "probe.",
+    "probe_present",
+    "probe_count",
+    ".count",
+    "probe.keys",
+    "probe_coverage",
+    ["aa", "bb"],
+    fn(key) { if key == "aa" { Some(3) } else { None } },
+  )
+  assert_eq(results.length(), 5)
+  let mut passed = 0
+  let records : Array[String] = []
+  for result in results {
+    let (record, ok) = result
+    if ok {
+      passed = passed + 1
+    } else {
+      records.push(record)
+    }
+  }
+  assert_eq(passed, 4)
+  assert_eq(records.length(), 1)
+  assert_true(records[0].contains("\"sample_id\":\"probe.bb.count\""))
+  assert_true(records[0].contains("\"actual\":\"missing\""))
 }
 
 ///|
@@ -66,9 +86,10 @@ test "a matching data check passes and writes no record" {
 }
 
 ///|
-/// A failing check produces one record with the seven required fields and the
-/// same field names as the cell records.
-test "a failing data check writes the seven contract fields" {
+/// A failing check produces one record with the seven required fields, and the
+/// record is byte-identical to one built from `record_fields` — the single
+/// emission point the cell path also uses.
+test "a failing data check writes the same seven fields as a cell record" {
   let (record, ok) = data_check_int("data.probe", "probe", "en_US", 42, 41)
   assert_false(ok)
   assert_true(record.has_prefix("{\"input_sha256\":\""))
@@ -82,6 +103,16 @@ test "a failing data check writes the seven contract fields" {
   assert_false(record.contains("expected_bits"))
   assert_false(record.contains("actual_bits"))
   assert_true(record.has_suffix("}"))
+  let shared = record_fields(
+    sha256_hex("data.probe"),
+    "data.probe",
+    "probe",
+    "en_US",
+    "42",
+    "41",
+    false,
+  )
+  assert_eq(record, "{" + shared.join(",") + "}")
 }
 
 ///|

@@ -129,28 +129,58 @@ fn actual_json(actual : Actual) -> String {
 }
 
 ///|
+/// The seven-field record skeleton of AD section 2.5, plus the T-38
+/// `injected` marker.
+///
+/// This is the single emission point of the field set: `failure_record`
+/// (cell checks) and `data_failure_record` (the `--group=data` checks) both
+/// build their fields here, so the field names, their order and their
+/// meaning cannot drift apart between the two producers. `expected` and
+/// `actual` arrive already rendered as JSON values; `input_sha256` arrives
+/// as the lowercase hex digest of whatever input the producer hashed.
+fn record_fields(
+  input_sha256 : String,
+  sample_id : String,
+  metric : String,
+  lang : String,
+  expected : String,
+  actual : String,
+  injected : Bool,
+) -> Array[String] {
+  [
+    json_field("input_sha256", json_string(input_sha256)),
+    json_field("sample_id", json_string(sample_id)),
+    json_field("metric", json_string(metric)),
+    json_field("lang", json_string(lang)),
+    json_field("expected", expected),
+    json_field("actual", actual),
+    json_field("target", json_string(GATE_RECORD_TARGET)),
+    json_field("injected", if injected { "true" } else { "false" }),
+  ]
+}
+
+///|
 /// One failure record as a single-line JSON object (AD section 2.5).
 ///
-/// The seven required fields are always present: `input_sha256`, `sample_id`,
-/// `metric` (the frozen call shape), `lang`, `expected`, `actual`, `target`.
-/// `injected` is the T-38 marker. A bits field is emitted for each side that
-/// actually carries a bit pattern: `expected_bits` for every double cell, and
-/// `actual_bits` whenever the observed value is a double (absent when the
-/// observed call raised or returned another shape).
+/// The seven required fields always come from `record_fields`: `input_sha256`,
+/// `sample_id`, `metric` (the frozen call shape), `lang`, `expected`, `actual`,
+/// `target`; `injected` is the T-38 marker. A bits field is emitted for each
+/// side that actually carries a bit pattern: `expected_bits` for every double
+/// cell, and `actual_bits` whenever the observed value is a double (absent
+/// when the observed call raised or returned another shape).
 ///
 /// The input text never appears in the record; only its SHA-256 does.
 fn failure_record(failure : Failure) -> String {
   let cell = failure.cell
-  let fields : Array[String] = [
-    json_field("input_sha256", json_string(sha256_hex(input_text(cell)))),
-    json_field("sample_id", json_string(cell.sample_id)),
-    json_field("metric", json_string(cell.shape)),
-    json_field("lang", json_string(cell.lang)),
-    json_field("expected", expected_json(cell.expected)),
-    json_field("actual", actual_json(failure.actual)),
-    json_field("target", json_string(GATE_RECORD_TARGET)),
-    json_field("injected", if failure.injected { "true" } else { "false" }),
-  ]
+  let fields = record_fields(
+    sha256_hex(input_text(cell)),
+    cell.sample_id,
+    cell.shape,
+    cell.lang,
+    expected_json(cell.expected),
+    actual_json(failure.actual),
+    failure.injected,
+  )
   match cell.expected {
     @gate_data.EDouble(bits) =>
       fields.push(json_field("expected_bits", json_string(bits_hex(bits))))

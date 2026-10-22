@@ -165,6 +165,31 @@ fn report_line(
 }
 
 ///|
+/// Enforce the frozen floor on the loaded L3 table.
+///
+/// Called after the self-report line has been printed and **before** any
+/// failure record is written, on every group (T-41 review, minor 3: the cell
+/// path used to write its records first and the data path last, so the two
+/// paths disagreed). The order is now: report line → floor → records →
+/// exit code. Rationale: a table below the floor is an environment failure
+/// (AD section 3.2, EXIT=2), and a run whose environment is broken must not
+/// leave comparison evidence behind that looks like a data-identity finding;
+/// it also keeps "EXIT=1 means the records are on disk" literally true. The
+/// diagnostic still appears after the two contract lines, so the self-report
+/// remains observable on this path (T-36 section 5, T-39 section 2.3).
+fn enforce_floor(loaded : Int32) -> Unit {
+  if loaded < FROZEN_FLOOR {
+    println(
+      "gate: loaded " +
+      loaded.to_string() +
+      " cells, below the frozen floor " +
+      FROZEN_FLOOR.to_string(),
+    )
+    exit_with_code(2)
+  }
+}
+
+///|
 /// Run the `--group=data` data-identity subset and map its outcome to the
 /// exit-code contract of AD section 3.2.
 ///
@@ -176,13 +201,21 @@ fn report_line(
 /// in both directions. A failing check is a data mismatch, so the run exits
 /// with 1 and writes one failure record per failed check.
 ///
+/// **Registered deviation from AD section 6.** AD section 6 reads literally
+/// as "`cells >= floor`, else EXIT=2", and a `--group=data` run reports
+/// `cells=30 floor=366`. The literal reading cannot apply to this group:
+/// `cells` here is the number of data checks performed (bounded by the
+/// pinned tables, 30), not the number of L3 alignment cells, so a comparison
+/// of the two counts is a category error. What the floor protects — "never
+/// pass on an empty or truncated seed stack" (AD section 3.3, A-6.3) — is
+/// still enforced, on `@gate_data.total_cells()`, by `enforce_floor` below,
+/// exactly as in every other group. The self-report line keeps `floor=366`
+/// so the guarantee stays visible. This needs an AD section 6 sub-clause
+/// stating the exception; editing the AD is out of scope for T-41 (registered
+/// as a deviation in `T-41.log` section 8.4, item 8).
+///
 /// The two-line stdout contract of AD section 6 holds: the canonical
-/// invocation (printed by `main`) and then the self-report. For this group
-/// `cells` is the number of data checks performed and `passed` is the
-/// number of checks that matched; both are bounded by the pinned tables,
-/// not by the 366-cell L3 table, so the floor check of the cell runs does
-/// not apply to the count on the report line. The floor itself is still
-/// enforced below on the loaded L3 table, exactly as in every other group.
+/// invocation (printed by `main`) and then the self-report.
 ///
 /// `--inject=<n>` is not accepted here: the perturbation switch is defined
 /// for `--group=selfcheck` only (AD section 6), and no data check may be
@@ -202,16 +235,7 @@ fn run_data_group(config : GateConfig) -> Unit {
       DATA_CHECK_COUNT.to_string(),
     )
   }
-  let loaded = @gate_data.total_cells()
-  if loaded < FROZEN_FLOOR {
-    println(
-      "gate: loaded " +
-      loaded.to_string() +
-      " cells, below the frozen floor " +
-      FROZEN_FLOOR.to_string(),
-    )
-    exit_with_code(2)
-  }
+  enforce_floor(@gate_data.total_cells())
   if records.length() > 0 {
     write_failure_records(records)
     exit_with_code(1)
@@ -226,6 +250,17 @@ fn run_data_group(config : GateConfig) -> Unit {
 /// mismatch, 2 = environment or build problem (here: an empty selection, an
 /// unusable `--inject=<n>`, or a loaded table below the frozen floor, even
 /// when the selected group is smaller).
+///
+/// The output order is the same as in `run_data_group`: report line, then
+/// `enforce_floor`, then the failure records, then the exit code. A run that
+/// dies below the floor therefore leaves no `.jsonl` behind on either path.
+///
+/// Importing the `data` package (`moon.pkg` line 9) makes the L2 tables build
+/// at package initialization on every gate run, including `--bench`: the
+/// pronunciation maps, the ten pattern tables and the two easy-word lists are
+/// parsed eagerly, once, before `main` runs. That work is untimed and
+/// precedes any sampling or cell evaluation, so it is outside the A-9 budget
+/// and outside every reported count.
 ///
 /// A nonzero `--inject=<n>` is a 1-based index into the selected cells and is
 /// only accepted for `--group=selfcheck` (AD section 6). The indexed cell's
@@ -297,6 +332,7 @@ fn run_gate(config : GateConfig) -> Unit {
     index = index + 1
   }
   println(report_line(cells.length(), passed, config.group, config.inject))
+  enforce_floor(loaded)
   if failures.length() > 0 {
     let records : Array[String] = []
     for failure in failures {
@@ -304,15 +340,7 @@ fn run_gate(config : GateConfig) -> Unit {
     }
     write_failure_records(records)
   }
-  if loaded < FROZEN_FLOOR {
-    println(
-      "gate: loaded " +
-      loaded.to_string() +
-      " cells, below the frozen floor " +
-      FROZEN_FLOOR.to_string(),
-    )
-    exit_with_code(2)
-  } else if passed < cells.length() {
+  if passed < cells.length() {
     exit_with_code(1)
   } else {
     exit_with_code(0)

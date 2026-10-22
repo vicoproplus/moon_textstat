@@ -36,6 +36,19 @@ const DATA_PRONUNCIATION_SUPPLEMENT_ENTRIES : Int32 = 21782
 /// Pinned SHA-256 of the primary table's sorted `word<TAB>count\n` row set.
 ///
 /// Provenance: `tools/l2_manifest.json`, `pinned.pronunciation_sorted_rows_sha256`.
+///
+/// LIMITATION (T-41 review, fix 1): this check compares the pinned digest
+/// against the digest *literal* the generator emitted beside the payload
+/// (`lib/data/pronunciation_supplement_gb_data.mbt`, surfaced unchanged by
+/// `DataStats::pronunciation_rows_checksum`). The `@data` API exposes no
+/// enumerable pronunciation table — only counts and this digest — so the
+/// embedded payload is **not** re-hashed at runtime. A payload edit that
+/// keeps the entry count (for example one syllable digit) therefore leaves
+/// this check green; the entry-count checks do not see it either. The
+/// payload is covered at generator time (`tools/l2_manifest.json`), and the
+/// hyphenation and easy-word payloads are covered by count checks that do
+/// read the parsed tables. `T-41.log` section 6.2 records the payload-level
+/// tamper run that shows which checks do bite.
 const DATA_PRONUNCIATION_ROWS_SHA256 : String = "5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854"
 
 ///|
@@ -43,6 +56,11 @@ const DATA_PRONUNCIATION_ROWS_SHA256 : String = "5ab9e6766293b319475eee0fa73c7f3
 ///
 /// Provenance: `tools/l2_manifest.json`,
 /// `pinned.pronunciation_supplement_sorted_rows_sha256`.
+///
+/// LIMITATION: identical to `DATA_PRONUNCIATION_ROWS_SHA256` above — the
+/// gate compares the generator-emitted digest literal, not a digest
+/// recomputed over the embedded payload, because `@data` exposes no
+/// enumerable supplement table either.
 const DATA_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256 : String = "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705"
 
 ///|
@@ -86,34 +104,31 @@ let data_pinned_easy_word_counts : Array[(String, Int32)] = [
 ///
 /// The coverage checks compare two *sets* of codes or roots, so both sides
 /// are sorted before they are compared and rendered; otherwise a data package
-/// that merely reordered its tables would look like a mismatch.
+/// that merely reordered its tables would look like a mismatch. Sorting uses
+/// core's `Array::sort` over a `copy()`, the same call `bench.mbt` makes for
+/// the median, so the input array is left untouched.
 fn sorted_copy(values : Array[String]) -> Array[String] {
   let out = values.copy()
-  for index in 1..<out.length() {
-    let key = out[index]
-    let mut position = index
-    while position > 0 && out[position - 1] > key {
-      out[position] = out[position - 1]
-      position = position - 1
-    }
-    out[position] = key
-  }
+  out.sort()
   out
 }
 
 ///|
 /// The JSONL record of one failed data check.
 ///
-/// The seven required fields of AD section 2.5 are always present, with the
-/// same names, the same order and the same meaning as in the cell records:
-/// `input_sha256`, `sample_id`, `metric`, `lang`, `expected`, `actual`,
-/// `target`. A data check has no input text, so `input_sha256` is the
-/// SHA-256 of the check id: the id is the only input a data check has, and
-/// the check id is also the `sample_id`. `expected` and `actual` are already
-/// JSON values here (a number, a string or an array of strings), so a missing
-/// table can be reported as `"actual":"missing"` without changing the field
-/// set. No `expected_bits` / `actual_bits` field is emitted: a data check
-/// compares integers and texts, never floating-point bit patterns.
+/// The field set comes from `record_fields` in `records.mbt`, the single
+/// emission point shared with the cell records, so the seven fields of AD
+/// section 2.5 carry the same names, the same order and the same meaning on
+/// both paths: `input_sha256`, `sample_id`, `metric`, `lang`, `expected`,
+/// `actual`, `target` (plus `injected`).
+///
+/// A data check has no input text, so `input_sha256` is the SHA-256 of the
+/// check id: the id is the only input a data check has, and the check id is
+/// also the `sample_id`. `expected` and `actual` are already JSON values here
+/// (a number, a string or an array of strings), so a missing table can be
+/// reported as `"actual":"missing"` without changing the field set. No
+/// `expected_bits` / `actual_bits` field is emitted: a data check compares
+/// integers and texts, never floating-point bit patterns.
 ///
 /// The `injected` marker is always `false`: the data subset is never
 /// perturbed by `--inject=<n>`, which is accepted only for
@@ -125,16 +140,15 @@ fn data_failure_record(
   expected : String,
   actual : String,
 ) -> String {
-  let fields : Array[String] = [
-    json_field("input_sha256", json_string(sha256_hex(id))),
-    json_field("sample_id", json_string(id)),
-    json_field("metric", json_string(metric)),
-    json_field("lang", json_string(lang)),
-    json_field("expected", expected),
-    json_field("actual", actual),
-    json_field("target", json_string(GATE_RECORD_TARGET)),
-    json_field("injected", "false"),
-  ]
+  let fields = record_fields(
+    sha256_hex(id),
+    id,
+    metric,
+    lang,
+    expected,
+    actual,
+    false,
+  )
   "{" + fields.join(",") + "}"
 }
 
@@ -183,6 +197,18 @@ fn data_check_text(
 }
 
 ///|
+/// The synthetic `lang` of a coverage check.
+///
+/// A coverage check compares two whole sets of dictionary codes or language
+/// roots, so no single language code describes the row. The `lang` field must
+/// still carry exactly one value (AD section 2.5), and the records keep the
+/// invariant "`lang` is a single token, normally a language code": `"*"` is
+/// not a language code, is one token, and can be told apart from every
+/// per-table check. Writing the whole comma list here instead would break
+/// that invariant.
+const DATA_COVERAGE_LANG : String = "*"
+
+///|
 /// The number of data-identity checks the `data` group performs.
 ///
 /// The count is fixed by the pinned tables, not by the data package, so the
@@ -191,6 +217,81 @@ fn data_check_text(
 /// presence check and a line-count check per dictionary) and 2 coverage
 /// checks (one per table family).
 const DATA_CHECK_COUNT : Int32 = 30
+
+///|
+/// Append the checks of one pinned table family: for every pinned key a
+/// presence check and a count check, then one coverage check comparing the
+/// whole key set in both directions.
+///
+/// The two families (hyphenation dictionaries and easy-word roots) have the
+/// same shape and differ only in names and in how a count is looked up, so
+/// both go through this one body: a change to the pairing, the ordering or
+/// the "missing is never skipped" rule cannot land on one family only.
+/// A key that the data does not expose still yields both checks — the count
+/// is recorded as the JSON string `"missing"` — so the performed-check count
+/// stays at `DATA_CHECK_COUNT`.
+fn check_table(
+  results : Array[(String, Bool)],
+  pinned : Array[(String, Int32)],
+  id_prefix : String,
+  present_metric : String,
+  count_metric : String,
+  count_suffix : String,
+  coverage_id : String,
+  coverage_metric : String,
+  actual_keys : Array[String],
+  count_of : (String) -> Int32?,
+) -> Unit {
+  for entry in pinned {
+    let (key, count) = entry
+    let present = actual_keys.contains(key)
+    results.push(
+      data_check_text(
+        id_prefix + key + ".present",
+        present_metric,
+        key,
+        "present",
+        if present {
+          "present"
+        } else {
+          "missing"
+        },
+      ),
+    )
+    match count_of(key) {
+      Some(actual) =>
+        results.push(
+          data_check_int(
+            id_prefix + key + count_suffix,
+            count_metric,
+            key,
+            count,
+            actual,
+          ),
+        )
+      None =>
+        results.push(
+          data_check(
+            id_prefix + key + count_suffix,
+            count_metric,
+            key,
+            count.to_string(),
+            json_string("missing"),
+          ),
+        )
+    }
+  }
+  let pinned_keys : Array[String] = pinned.map(fn(entry) { entry.0 })
+  results.push(
+    data_check(
+      coverage_id,
+      coverage_metric,
+      DATA_COVERAGE_LANG,
+      json_string_array(sorted_copy(pinned_keys)),
+      json_string_array(sorted_copy(actual_keys)),
+    ),
+  )
+}
 
 ///|
 /// Run every data-identity check and collect the results.
@@ -205,13 +306,16 @@ const DATA_CHECK_COUNT : Int32 = 30
 ///
 /// 1. the entry counts of the two pronunciation tables (2 checks) and the
 ///    row-set SHA-256 digests of the two pronunciation tables (2 checks);
-/// 2. the easy-word counts of the two pinned roots (2 checks);
-/// 3. the pattern-line count of every pinned dictionary code (10 checks) —
-///    an unknown code fails the check, it is never skipped;
-/// 4. coverage in both directions: every pinned code and root must be
-///    present in the data (12 checks), and the set of codes and roots
-///    present in the data must equal the pinned set (2 checks), so neither a
-///    dropped nor an extra table can pass.
+///    the digests are the generator-emitted literals, not a re-hash of the
+///    embedded payload (see the constants above);
+/// 2. the easy-word checks of the two pinned roots (5 checks: presence and
+///    count per root, plus the root-set coverage);
+/// 3. the pattern checks of every pinned dictionary code (21 checks:
+///    presence and line count per dictionary, plus the code-set coverage) —
+///    an unknown code fails its checks, it is never skipped;
+/// 4. coverage in both directions: every pinned key must be present in the
+///    data, and the set of keys present in the data must equal the pinned
+///    set, so neither a dropped nor an extra table can pass.
 fn run_data_checks() -> (Array[String], Int32) {
   let stats = @data.data_stats()
   let results : Array[(String, Bool)] = []
@@ -251,109 +355,29 @@ fn run_data_checks() -> (Array[String], Int32) {
       stats.pronunciation_supplement_rows_checksum(),
     ),
   )
-  for entry in data_pinned_easy_word_counts {
-    let (root, count) = entry
-    let present = stats.easy_word_roots().contains(root)
-    results.push(
-      data_check_text(
-        "data.easy_words." + root + ".present",
-        "easy_word_root_present",
-        root,
-        "present",
-        if present {
-          "present"
-        } else {
-          "missing"
-        },
-      ),
-    )
-    match stats.easy_word_count(root) {
-      Some(actual) =>
-        results.push(
-          data_check_int(
-            "data.easy_words." + root + ".count",
-            "easy_word_count",
-            root,
-            count,
-            actual,
-          ),
-        )
-      None =>
-        results.push(
-          data_check(
-            "data.easy_words." + root + ".count",
-            "easy_word_count",
-            root,
-            count.to_string(),
-            json_string("missing"),
-          ),
-        )
-    }
-  }
-  let pinned_roots : Array[String] = []
-  for entry in data_pinned_easy_word_counts {
-    pinned_roots.push(entry.0)
-  }
-  results.push(
-    data_check(
-      "data.easy_words.roots",
-      "easy_word_root_coverage",
-      "en,es",
-      json_string_array(sorted_copy(pinned_roots)),
-      json_string_array(sorted_copy(stats.easy_word_roots())),
-    ),
+  check_table(
+    results,
+    data_pinned_easy_word_counts,
+    "data.easy_words.",
+    "easy_word_root_present",
+    "easy_word_count",
+    ".count",
+    "data.easy_words.roots",
+    "easy_word_root_coverage",
+    stats.easy_word_roots(),
+    fn(root) { stats.easy_word_count(root) },
   )
-  for entry in data_pinned_pattern_lines {
-    let (code, count) = entry
-    let present = stats.pattern_languages().contains(code)
-    results.push(
-      data_check_text(
-        "data.patterns." + code + ".present",
-        "pattern_code_present",
-        code,
-        "present",
-        if present {
-          "present"
-        } else {
-          "missing"
-        },
-      ),
-    )
-    match stats.pattern_count(code) {
-      Some(actual) =>
-        results.push(
-          data_check_int(
-            "data.patterns." + code + ".lines",
-            "pattern_line_count",
-            code,
-            count,
-            actual,
-          ),
-        )
-      None =>
-        results.push(
-          data_check(
-            "data.patterns." + code + ".lines",
-            "pattern_line_count",
-            code,
-            count.to_string(),
-            json_string("missing"),
-          ),
-        )
-    }
-  }
-  let pinned_codes : Array[String] = []
-  for entry in data_pinned_pattern_lines {
-    pinned_codes.push(entry.0)
-  }
-  results.push(
-    data_check(
-      "data.patterns.codes",
-      "pattern_code_coverage",
-      "en_US,en_GB,de_DE,es,fr,it_IT,nl_NL,pl_PL,ru_RU,hu_HU",
-      json_string_array(sorted_copy(pinned_codes)),
-      json_string_array(sorted_copy(stats.pattern_languages())),
-    ),
+  check_table(
+    results,
+    data_pinned_pattern_lines,
+    "data.patterns.",
+    "pattern_code_present",
+    "pattern_line_count",
+    ".lines",
+    "data.patterns.codes",
+    "pattern_code_coverage",
+    stats.pattern_languages(),
+    fn(code) { stats.pattern_count(code) },
   )
   let records : Array[String] = []
   let mut passed = 0
