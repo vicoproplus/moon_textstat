@@ -1,0 +1,152 @@
+# T-42 log — 字段名索引（AD-4 负承诺）
+
+日期 2026-10-23；分支 `sdd/moon-textstat-core`；模块根 `lib/`。
+
+## 1. 交付面
+
+| 文件 | 性质 |
+| --- | --- |
+| `lib/cmd/gate/field_index.mbt` | 新增；19 行字段索引 + 双向断言 + 证据行 |
+| `lib/cmd/gate/field_index_wbtest.mbt` | 新增；10 个 white-box 测试 |
+| `docs/superpowers/plans/logs/T-42.log` | 本日志 |
+| `docs/superpowers/sdd/.../task-42-report.md` | 报告 |
+
+未改 `main.mbt` / `data_checks.mbt` / `records.mbt` / `lib/types.mbt` / `lib/gate/data/**` /
+`lib/data/**` / `tools/` / `vendor/` / 任何 `.mbti`。`git status` 只显示两个新增文件（外加
+既存的 `.qoder/` 与 `2026-10-22-183204-empty-conversation.txt`，未触碰）。
+
+## 2. 设计（AD-4 是负承诺）
+
+AD-4 禁止在代码之外复制字段表。因此索引不是「第二真值源」，而是**绑定到真实类型**的
+代码侧查找表：
+
+1. 每一行 `FieldEntry { name, kind, probe }` 的 `probe` 直接读 `@moon_textstat.TextStats`
+   的真实字段。`types.mbt` 改名或改类型 → 本包编译失败（AD §3.2 的「环境/构建失败」），
+   索引不可能以陈旧名字静默存活。
+2. `witness_problems` 用 19 个互异哨兵值的 `TextStats` 逐行探测，证明「每行读的是自己
+   声明的那个字段」且「无两行读同一字段」——纯探针，不含名字→值表，不会与索引一起漂移。
+3. 运行时断言只读**已交付**的 `@gate_data.all_cells()`：名字与类型都从 `shape` 与
+   `expected` 的构造子**反推**，再与索引双向比对（多一个名字、少一个名字、类型不符都报错）。
+
+`kind` 三态：`Counter`（Int32 按值）、`Score`（Double 按 IEEE-754 位模式）、`WordList`
+（`Array[String]` 按集合）。与 AD §2.2/§2.3 一一对应。
+
+## 3. 断言清单（全部硬失败）
+
+| # | 断言 | 触发条件 |
+| --- | --- | --- |
+| 1 | 索引恰好 19 行、名字互异、无空名 | 索引被改动 |
+| 2 | 哨兵探针：每行读不同真实字段，类型与 `kind` 一致 | 探针接错字段 |
+| 3 | 每格 `shape`/`group`/`sample_id`/`lang` 非空；`source` 以 `golden:oracle_smoke.json#` 开头 | 注解缺失（AD §8 出处） |
+| 4 | 每格 `shape` 去掉尾部 `[...]` 后的名字必须在 19 个之内 | 第 20 个名字 |
+| 5 | 每格 `expected` 构造子必须等于声明 kind；`EError` 只允许出现在 `errors` 组 | Double 当 Int / list 当 Int |
+| 6 | 19 个字段每个至少出现一次；distinct 名字数 == 19 | 少一个字段 |
+
+`shape_field_name` 对畸形 shape（空、`[x]`、`char_count[`、`char_count[x]tail`、
+`char_count[a][b]`）返回 `""` 并单独报错，绝不回落到相邻字段。
+
+## 4. 验证
+
+### 4.1 正向
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date            EXIT=0
+$ cd lib && moon test --target native
+Total tests: 179, passed: 179, failed: 0.              EXIT=0
+$ cd lib && moon fmt --check
+Finished. moon: ran 91 tasks, now up to date           EXIT=0
+```
+
+基线 169 → 179（+10，全部来自 `field_index_wbtest.mbt`）。
+
+A-11.3 证据行（`println` 于测试内，`-f 'field index: evidence*'` 过滤后可见）：
+
+```console
+$ cd lib && moon test --target native -p vicoproplus/moon_textstat/cmd/gate -f 'field index: evidence*'
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 1, passed: 1, failed: 0.
+```
+
+同一行被 `inspect` 钉成快照，所以「19/19」是**被断言**的，不只是被打印的。
+
+### 4.2 门禁三组（未改 main.mbt，行为不变）
+
+```console
+$ moon run cmd/gate --target native
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0        EXIT=0
+$ moon run cmd/gate --target native --group=selfcheck
+cells=366 passed=366 floor=366 group=selfcheck inject=0  EXIT=0
+$ moon run cmd/gate --target native --group=data
+cells=30 passed=30 floor=366 group=data inject=0         EXIT=0
+```
+
+白名单：`extern "c"` 仍为 5（`exit.mbt` 1 + `records.mbt` 4），`@env.` 仍为 2，全部在
+`lib/cmd/gate`；新文件 0 个 `extern`、0 个 `@env`。
+
+### 4.3 负向（副本 `F:/moonbit比赛/_t42_scratch`，已删除）
+
+**N1 — 改 `types.mbt` 的一个字段名**（`gunning_fog` → `gunning_fog_score`，只改这一行）：
+
+```console
+$ cd _t42_scratch/lib && moon run cmd/gate --target native
+Error: [4091] ... 84 │     gunning_fog: fog,
+                     │          ╰─────── The fields gunning_fog is not defined in the record type TextStats.
+GATE_EXIT=1
+$ moon test --target native
+TEST_EXIT=1
+```
+
+结论：改名使整个模块**构建失败**，索引行不可能以陈旧名字继续存在。`moon run` 自身对构建
+失败返回 1（见 §6 关注点 1），未进入 `main`。
+
+**N1b — 全仓库一致改名、只留索引的 `name` 字符串陈旧**（模拟「字段改了、索引没跟上」）：
+`moon check` EXIT=0（编译通过），`moon test` 失败，索引与表格双向都不通过：
+
+```console
+field index: cell short_simple_sentence uses the unknown field gunning_fog_score (shape gunning_fog_score)
+...
+field index: no cell exercises the field gunning_fog
+Diff:
+-field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
++field index: fields=19/19 cells=366 counter=9 score=8 word_list=1
+Total tests: 179, passed: 177, failed: 2.          TEST_EXIT=2
+```
+
+**N2 — 改 `l3_data.mbt` 的一个 cell `shape`**（`gunning_fog` → `gunning_fog_index`）：
+
+```console
+$ cd _t42_scratch/lib && moon run cmd/gate --target native
+gate: unknown call shape in the frozen cell table: gunning_fog_index
+GATE_EXIT=2
+$ moon test --target native
+[field_index_wbtest.mbt:8] FAILED: field index: cell short_simple_sentence uses the unknown field gunning_fog_index (shape gunning_fog_index)
+field index: 20 distinct field names observed, expected 19
+Diff:
+-field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
++field index: fields=20/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 176, failed: 3.          TEST_EXIT=2
+```
+
+N2 同时给出 brief 要求的 `EXIT=2`：字段名与表格不符时门禁以 2 退出。
+
+副本已 `rm -rf`（`ls F:/moonbit比赛 | grep -c _t42_scratch` → 0）。
+
+## 5. 未做/不做
+
+- 未给 `main.mbt` 加 hook：brief 明确禁止；测试即运行入口（brief 给的替代方案）。
+- 未新增字段表文档：AD-4 负承诺。
+- 未动 `[EXT]` 31 个 callable：索引只覆盖 19 个 `[ALIGN]` 字段，`EError` 格不带 kind。
+
+## 6. 关注点
+
+1. **`moon run` 对编译失败返回 1，而 AD §3.2 把「构建失败」归为 EXIT=2。** 这是 `moon`
+   CLI 的行为，`main` 根本没运行，任何 `main.mbt` 里的 hook 都无法改变它。要真正得到 2，
+   需要在门禁外再包一层（例如 `tools/` 脚本把 `moon run` 的非 0 映射成 2），或修订 AD §3.2
+   的措辞。T-42 未擅自扩大范围；N2（表格侧不符）仍给出字面 EXIT=2。
+2. `field_index_problems` / `field_index_evidence` 设为 `pub`：否则非测试构建会报
+   `unused_value` 警告（`moon check` 仍 EXIT=0，但告警污染输出）。它们现在是
+   `cmd/gate` 可执行包内的 `pub`，不会导出到库的 `.mbti`。
+3. 证据行的 `counter=9 score=9 word_list=1` 只统计**被单元格覆盖**的字段，因此与
+   「19/19」互相印证；若某字段从表格消失，它会先降到 `8` 再触发失败。
