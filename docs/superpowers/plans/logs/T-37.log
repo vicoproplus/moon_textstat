@@ -7,21 +7,24 @@
 契约：spec §4.6；AD §2.5、§3.2、§3.3、§6；用户裁决
 `docs/superpowers/plans/logs/T-36-exit-shim-decision.md` 补充二。
 
-> 结论：PASS。绿跑 366/366 EXIT=0 且不创建 `_gate/`；人为偏差 EXIT=1，
-> 落盘 `_gate/failures-native-<ms>.jsonl`，一单元格一行，七字段 + `injected`
-> + 浮点两列 16 位十六进制位模式，记录不含输入原文。`moon check` /
-> `moon fmt --check` 零警告；`moon test --target native` 155/155（原 145 +
-> 新增 10）；静态白名单 `extern`=5、`@env.`=2，全部在 `lib/cmd/gate`。
+> 结论：PASS（R1 除外，见 §4）。绿跑 366/366 EXIT=0 且不创建 `_gate/`；
+> 人为偏差 EXIT=1，落盘 `_gate/failures-native-<ms>.jsonl`，一单元格一行，
+> 七字段 + `injected` + 浮点两列 16 位十六进制位模式，记录不含输入原文。
+> 硬化轮把目录创建改为可移植的 `mkdir(path, 511)`、JSONL 改为二进制追加
+> `"ab"`（行尾恒 LF）、自报移到落盘之前（写失败仍保留规范第二行）；
+> R1 更正为 fail/deferred to T-38。`moon check` / `moon fmt --check` 零警告；
+> `moon test --target native` 155/155（原 145 + 新增 10）；静态白名单
+> `extern`=5、`@env.`=2，全部在 `lib/cmd/gate`。
 
 ## 1. 改动面
 
 | 文件 | 角色 | 行数 | SHA-256 |
 | --- | --- | --- | --- |
 | `lib/cmd/gate/sha256.mbt` | 新增：纯 MoonBit SHA-256（FIPS 180-4，含填充与压缩） | 173 | `9f623a06d3f8da2d4a9a2da1900305cfb64322351f693f14b228c3e0cd650cd3` |
-| `lib/cmd/gate/records.mbt` | 新增：JSON 转义、位模式格式化、七字段记录、4 个 C 文件声明与落盘 | 259 | `c54b6d8a57e2112b282055ac653b0af40a38fda652177791db7d1a6bc0859978` |
+| `lib/cmd/gate/records.mbt` | 新增：JSON 转义、位模式格式化、七字段记录、4 个 C 文件声明与落盘（硬化轮：可移植 `mkdir` + `"ab"`） | 267 | `92323b916cd938b98093d9057af135c111b685d8c032ddeaef016dd4daa8a835` |
 | `lib/cmd/gate/sha256_wbtest.mbt` | 新增：SHA-256 向量、记录 schema、A-3.2 十行位模式共 10 条测试 | 173 | `ea1db707d1f3e2af4e60b8ea022986f9880a32ce14556414a5f979bddfd0db10` |
 | `lib/cmd/gate/compare.mbt` | 改：抽出 `input_text`（求值与哈希共用同一文本） | 199 | `dd2b7473bedcc6fda12ea37dccf33c875b9f7d3fd5d9fdb598734b8bc2ff784b` |
-| `lib/cmd/gate/main.mbt` | 改：失败列表改存 `Failure`，先落盘记录再打印报告与诊断 | 216 | `c030b2b35e619e2a66927f1e29c3ad5aefc56129f365206070488d7c855b212f` |
+| `lib/cmd/gate/main.mbt` | 改：失败列表改存 `Failure`，先打印报告再落盘记录（硬化轮前为先落盘） | 218 | `ed31a3199537cb851fd93a80ca803b203b1861f7e78e43d0a5860ee0501dccb6` |
 | `lib/cmd/gate/moon.pkg` | 改：新增 `moonbitlang/core/encoding/utf8`（UTF-8 字节与 C 字符串） | 8 | `def21e48367b0b38a2f3fa289db437e330d0135311d548a10f18deba1bf56992` |
 | `lib/cmd/gate/pkg.generated.mbti` | `moon info` 生成：新增私有类型名 `Failure` | 17 | `68a19829ea4daa8867fe6fadd31a97aebbbcfd1baa8dd14957ce8258190ca89d` |
 | `docs/superpowers/plans/logs/T-37.log` | 新增：本日志 | — | — |
@@ -72,10 +75,12 @@
 
 ### 2.3 落盘
 
-- 仅在存在失败单元格时写：创建 `_gate/`（`_mkdir`，已存在时忽略返回值），
-  以追加模式打开 `_gate/failures-native-<timestamp>.jsonl`，一次写入全部
-  行并关闭。绿跑既不建目录也不建文件。
-- 四个 C 声明集中在 `records.mbt`（`fopen`/`fwrite`/`fclose`/`_mkdir`），
+- 仅在存在失败单元格时写：创建 `_gate/`（可移植的 `mkdir(path, 511)`
+  即 `0777`，已存在时忽略返回值），以二进制追加模式 `"ab"` 打开
+  `_gate/failures-native-<timestamp>.jsonl`，一次写入全部行并关闭。绿跑
+  既不建目录也不建文件。`"ab"` 保证 Windows 上不把 `\n` 扩成 `\r\n`，
+  每条记录恒以单个 LF 结束（JSONL 字节稳定）。
+- 四个 C 声明集中在 `records.mbt`（`fopen`/`fwrite`/`fclose`/`mkdir`），
   与 `exit.mbt` 的 `exit` 垫片合计 `extern` = 5，全部在 `lib/cmd/gate`。
   T-36 裁决补充二允许此面；库、`data/`、`gate/data/` 仍为 0。
 - 时间戳来自 `records.mbt` 内唯一的 `@env.now()`（毫秒，十进制拼进文件名）。
@@ -86,9 +91,11 @@
 
 ### 2.4 输出顺序
 
-`run_gate` 先求出全部单元格，失败时**先写记录**，再打印第二行自报
-`cells=... passed=... floor=366 group=... inject=...`，最后逐行打印
-`FAIL ...` 诊断——T-36 的两行头部契约不变。
+`run_gate` 先求出全部单元格，然后**先打印第二行自报**
+`cells=... passed=... floor=366 group=... inject=...`；若有失败再写记录
+（打开/写入/关闭失败 → 打印 `gate: cannot ...` 诊断并以 EXIT=2 结束，
+此时规范的前两行已输出）；最后逐行打印 `FAIL ...` 诊断，EXIT=1——
+T-36 的两行头部契约在成功、失败与写失败三条路径上都不变。
 
 ### 2.5 `injected`
 
@@ -255,7 +262,7 @@ $ git status --short
 
 | 项 | 判定 | 一行证据 |
 | --- | --- | --- |
-| R1 | pass | `grep -c '"metric":'`=1（§3.3）；A-3.2 十行位模式与实现侧相等（§3.6，`moon test` 用例）；`_gate/` 命中 `lib/.gitignore:3`（§3.8）。A-5.3 的 `injected=true` 半条属 T-38（本任务要求恒 `false`）。 |
+| R1 | **fail/deferred to T-38** | `grep -c '"metric":'`=1（§3.3）；A-3.2 十行位模式与实现侧相等（§3.6）；`_gate/` 命中 `lib/.gitignore:3`（§3.8）。但 A-5.3 还要求 `"injected":true` 的可 grep 记录，本任务恒写 `false`，`--inject=1` 属 T-38，故此条不记 pass，随 T-38 回填。 |
 | R2 | pass | 1 轮完成，用时远低于 60 分钟；无回退轮次。 |
 | R3 | pass | 本文件 `docs/superpowers/plans/logs/T-37.log` 已落盘并纳入提交。 |
 | R4 | pass | 只改 `cmd/gate`；库、`data/`、`gate/data/` 与全部 366 个 oracle 期望值未动。 |
@@ -272,15 +279,16 @@ $ git status --short
 
 1. **A-5.3 的 `injected=true` 与 `--inject=1`**：本任务按要求恒写
    `"injected":false`，`--inject=1` 仍以 EXIT=2 拒绝；T-38 接管后该半条
-   验收才可回填。七字段与 `metric` 可检索性已就绪。
+   验收才可回填，故 R1 记 **fail/deferred to T-38**。七字段与 `metric`
+   可检索性已就绪。
 2. **浮点 `expected`/`actual` 的十进制文本不是契约**：判等只看
    `UInt64` 位模式（T-36 起即如此），记录里的十进制串仅供人读；若某次
    打印形态变化，不影响任何对拍结论。
 3. **`actual_bits` 的出现条件**：实际值是浮点才写。浮点单元格实际抛出时
    该键缺席（没有位模式可写），`expected_bits` 仍在——比写 `null` 更少歧义。
 4. **写盘失败 → EXIT=2**：AD §3.2 把 EXIT=1 定义为“失败记录已落盘”，
-   写不成就不能报 1。该路径会先打印一行 `gate: ...` 再退出，属环境失败
-   分支；正常绿/红路径的前两行契约不受影响。
+   写不成就不能报 1。硬化轮后自报先于落盘打印，该路径输出为“第 1 行 +
+   第 2 行自报 + `gate: ...` 诊断”，随后 EXIT=2；规范头部不受影响。
 5. **格式化归一**：`moon fmt` 把 `extern` 形参/返回的 `Int` 规范为
    `Int32`（C ABI 同宽）；落盘行为经三次临时副本实测无差异。
 6. **记录中可能出现输入中的词**：`difficult_words_list` 的 `actual` 是
@@ -288,3 +296,71 @@ $ git status --short
    之外不写任何完整原文/整句。
 7. **未新增依赖**：只多了 core 自带的 `moonbitlang/core/encoding/utf8`，
    无第三方包。
+
+## 6. 硬化轮（2026-10-22）
+
+改动：`records.mbt` 用单个可移植绑定
+`extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"`
+（`moon fmt` 将 `Int` 归一为 `Int32`）替换 Windows-only 的 `_mkdir`，
+调用 `mkdir(path, 511)`（`0777`），`extern` 总数保持 5；JSONL 以 `"ab"`
+打开；`main.mbt` 自报移到写记录之前。
+
+### 6.1 绿跑（先删 `_gate`）
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+$ ls -d _gate 2>/dev/null || echo NO_GATE_AFTER
+NO_GATE_AFTER
+```
+
+### 6.2 失败路径与 LF（临时副本 `F:\moonbit比赛\_t37_hardening_scratch`，已丢弃）
+
+同 §3.3，改 `short_simple_sentence.char_count` 18 → 19。
+
+```console
+$ moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=short_simple_sentence shape=char_count lang=en_US expected=int:19 actual=int:18
+EXIT=1
+$ od -c _gate/failures-native-*.jsonl | tail -2
+0000320   d   "   :   f   a   l   s   e   }  \n
+0000332
+$ python -c "import glob; p=glob.glob('_gate/failures-native-*.jsonl')[0]; b=open(p,'rb').read(); print(p, 'bytes', len(b), 'LF', b.count(b'\n'), 'CR', b.count(b'\r'), 'last', hex(b[-1]))"
+_gate\failures-native-1792652781797.jsonl bytes 218 LF 1 CR 0 last 0xa
+```
+
+单行、LF=1、CR=0、末字节 `0x0a`：`"ab"` 生效；第 2 行即自报。
+
+### 6.3 写记录失败仍保留第二行（同一副本）
+
+```console
+$ rm -rf _gate && printf 'blocker\n' > _gate   # 同名文件堵住目录创建
+$ moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+gate: cannot open failure record file: _gate/failures-native-1792652709696.jsonl
+EXIT=2
+```
+
+顺序为：第 1 行、第 2 行自报、写失败诊断、EXIT=2。
+
+### 6.4 检查与静态面
+
+```console
+$ cd lib && moon test --target native
+Total tests: 155, passed: 155, failed: 0.
+$ moon check ; moon fmt --check
+Finished. moon: no work to do
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build . | wc -l
+5          # 全部在 lib/cmd/gate（exit 1 + records 4）
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build . | wc -l
+2          # main.mbt argv + records.mbt now
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build . | wc -l
+0
+```
+
+`git status` 提交后仅剩未跟踪的 `.qoder/`。

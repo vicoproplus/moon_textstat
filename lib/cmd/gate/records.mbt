@@ -220,9 +220,12 @@ extern "c" fn gate_fwrite(
 extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
 
 ///|
+/// The portable `mkdir` binding: POSIX signature on every non-Windows target,
+/// and the same two-argument form links on Windows (the CRT provides it). The
+/// mode is the caller's responsibility; `persist_records` passes `0777`.
 #cfg(any(target="native", target="llvm"))
 #borrow(path)
-extern "c" fn gate_mkdir(path : Bytes) -> Int32 = "_mkdir"
+extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
 
 ///|
 /// Append `data` to `path`, creating `_gate/` first if needed.
@@ -230,10 +233,15 @@ extern "c" fn gate_mkdir(path : Bytes) -> Int32 = "_mkdir"
 /// A failed create or write is an environment problem, not a cell mismatch:
 /// EXIT=1 promises that the failure records are on disk (AD section 3.2), so
 /// the gate exits with 2 instead of pretending the log exists.
+///
+/// The file is opened in binary append mode (`"ab"`): on Windows `fopen`'s
+/// text mode would translate each `\n` into `\r\n`, breaking the one-record-
+/// per-line JSONL byte contract. `mkdir` is called with mode `0777` and its
+/// result ignored, because an existing `_gate/` is not an error.
 #cfg(any(target="native", target="llvm"))
 fn persist_records(path : String, data : Bytes) -> Unit {
-  let _ = gate_mkdir(c_string(GATE_RECORD_DIR))
-  let file = gate_fopen(c_string(path), c_string("a"))
+  let _ = mkdir(c_string(GATE_RECORD_DIR), 511)
+  let file = gate_fopen(c_string(path), c_string("ab"))
   if file == 0 {
     gate_fail("cannot open failure record file: " + path)
   }
