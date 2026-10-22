@@ -46,3 +46,13 @@
 - 其余禁止面（`@fs`、`read_file`、`write_file`、`open_file`、`http`、`socket`）仍为 0。
 
 此补充不改变库、`data/`、`gate/data/` 的任何运行时行为；若用户不同意，可将该一处参数读取改为 `argparse` 的内部实现（仍会间接读取 argv），但不会改变「门禁需要 argv」这一事实。
+
+## 补充二（2026-10-22，用户裁决：失败记录的文件写入）
+
+A-5.3 要求门禁在失败时写 `_gate/failures-native-<timestamp>.jsonl`；core 无文件 API。用户选择「允许门禁专用文件 FFI」。
+
+**口径**：
+- `lib/cmd/gate/records.mbt` 允许最小的 C 文件写入声明（`fopen`/`fwrite`/`fclose`，以及创建 `_gate` 目录所需的 `mkdir` 等价声明）；只写 `_gate/failures-*.jsonl`。
+- `lib/cmd/gate` 允许第二处 `@env.now()`，仅用于文件名时间戳。
+- A-8.3 机器检查改为：全仓（排除 `_build`）所有禁止面命中必须落在 `lib/cmd/gate/` 内；库、`data/`、`gate/data/` 仍为 0。具体计数以 T-37 完成后的实测为准，并在 `T-47`/`T-52` 记录。
+- 失败记录不得包含输入原文；浮点写 16 位十六进制位模式。
