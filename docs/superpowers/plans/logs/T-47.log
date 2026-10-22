@@ -108,86 +108,98 @@ EXIT=0
 
 仓库根与 `lib/` 的结果一致：`git ls-files "*.mbt" | grep -v "^lib/"` 无输出，即**全仓 `.mbt` 源码全部位于 `lib/`**（共 78 个受版本控制的 `.mbt`），`tools/`、`vendor/`、`textstat/` 无 MoonBit 源码。
 
-### 1.5 检索覆盖面的文件清单（`lib/` 下全部 `.mbt`，79 个，含未跟踪的 `cmd/gate/bench.mbt`）
+### 1.5 检索覆盖面的文件清单（`lib/` 下全部 `.mbt`：78 tracked at `866d9f2` + 1 untracked `cmd/gate/bench.mbt` = 79）
+
+为可复现，清单固定在日志记录时的快照提交 `866d9f2` 上枚举：
 
 ```
-./analyze.mbt
-./analyze_test.mbt
-./automated_readability_index.mbt
-./automated_readability_index_test.mbt
-./automated_readability_index_wbtest.mbt
-./averages.mbt
-./char_count.mbt
-./char_count_test.mbt
-./cmd/gate/bench.mbt
-./cmd/gate/compare.mbt
-./cmd/gate/exit.mbt
-./cmd/gate/inject.mbt
-./cmd/gate/main.mbt
-./cmd/gate/records.mbt
-./cmd/gate/samples.mbt
-./cmd/gate/sha256.mbt
-./cmd/gate/sha256_wbtest.mbt
-./cmd/main/main.mbt
-./coleman_liau_index.mbt
-./coleman_liau_index_test.mbt
-./dale_chall_readability_score.mbt
-./dale_chall_readability_score_test.mbt
-./data/data.mbt
-./data/data_test.mbt
-./data/easy_words_data.mbt
-./data/hyphenation_patterns_data.mbt
-./data/pronunciation_data.mbt
-./data/pronunciation_supplement_gb_data.mbt
-./difficult_words.mbt
-./difficult_words_list.mbt
-./difficult_words_list_test.mbt
-./difficult_words_test.mbt
-./difficult_words_wbtest.mbt
-./easy_words.mbt
-./easy_words_wbtest.mbt
-./flesch_kincaid_grade.mbt
-./flesch_kincaid_grade_test.mbt
-./flesch_reading_ease.mbt
-./flesch_reading_ease_test.mbt
-./gunning_fog.mbt
-./gunning_fog_test.mbt
-./gunning_fog_wbtest.mbt
-./hyphenation.mbt
-./hyphenation_wbtest.mbt
-./lang_config.mbt
-./lang_config_wbtest.mbt
-./lang_matrix_test.mbt
-./letter_count.mbt
-./letter_count_test.mbt
-./lexicon_count.mbt
-./lexicon_count_test.mbt
-./linsear_write_formula.mbt
-./linsear_write_formula_test.mbt
-./list_words.mbt
-./list_words_wbtest.mbt
-./long_word_count.mbt
-./long_word_count_test.mbt
-./monosyllabcount.mbt
-./monosyllabcount_test.mbt
-./moon_textstat.mbt
-./moon_textstat_test.mbt
-./moon_textstat_wbtest.mbt
-./polysyllabcount.mbt
-./polysyllabcount_test.mbt
-./reading_time.mbt
-./reading_time_test.mbt
-./sentence_count.mbt
-./sentence_count_test.mbt
-./smog_index.mbt
-./smog_index_test.mbt
-./syllable_count.mbt
-./syllable_count_test.mbt
-./syllables.mbt
-./syllables_wbtest.mbt
-./types.mbt
-./types_test.mbt
+$ git ls-tree -r --name-only 866d9f2 -- lib | grep '\.mbt$' | sort
 ```
+
+原始输出（逐字，共 **78** 行）：
+
+```
+lib/analyze.mbt
+lib/analyze_test.mbt
+lib/automated_readability_index.mbt
+lib/automated_readability_index_test.mbt
+lib/automated_readability_index_wbtest.mbt
+lib/averages.mbt
+lib/char_count.mbt
+lib/char_count_test.mbt
+lib/cmd/gate/compare.mbt
+lib/cmd/gate/exit.mbt
+lib/cmd/gate/inject.mbt
+lib/cmd/gate/main.mbt
+lib/cmd/gate/records.mbt
+lib/cmd/gate/samples.mbt
+lib/cmd/gate/sha256.mbt
+lib/cmd/gate/sha256_wbtest.mbt
+lib/cmd/main/main.mbt
+lib/coleman_liau_index.mbt
+lib/coleman_liau_index_test.mbt
+lib/dale_chall_readability_score.mbt
+lib/dale_chall_readability_score_test.mbt
+lib/data/data.mbt
+lib/data/data_test.mbt
+lib/data/easy_words_data.mbt
+lib/data/hyphenation_patterns_data.mbt
+lib/data/pronunciation_data.mbt
+lib/data/pronunciation_supplement_gb_data.mbt
+lib/difficult_words.mbt
+lib/difficult_words_list.mbt
+lib/difficult_words_list_test.mbt
+lib/difficult_words_test.mbt
+lib/difficult_words_wbtest.mbt
+lib/easy_words.mbt
+lib/easy_words_wbtest.mbt
+lib/flesch_kincaid_grade.mbt
+lib/flesch_kincaid_grade_test.mbt
+lib/flesch_reading_ease.mbt
+lib/flesch_reading_ease_test.mbt
+lib/gate/data/cell.mbt
+lib/gate/data/l3_data.mbt
+lib/gate/data/l3_test.mbt
+lib/gunning_fog.mbt
+lib/gunning_fog_test.mbt
+lib/gunning_fog_wbtest.mbt
+lib/hyphenation.mbt
+lib/hyphenation_wbtest.mbt
+lib/lang_config.mbt
+lib/lang_config_wbtest.mbt
+lib/lang_matrix_test.mbt
+lib/letter_count.mbt
+lib/letter_count_test.mbt
+lib/lexicon_count.mbt
+lib/lexicon_count_test.mbt
+lib/linsear_write_formula.mbt
+lib/linsear_write_formula_test.mbt
+lib/list_words.mbt
+lib/list_words_wbtest.mbt
+lib/long_word_count.mbt
+lib/long_word_count_test.mbt
+lib/monosyllabcount.mbt
+lib/monosyllabcount_test.mbt
+lib/moon_textstat.mbt
+lib/moon_textstat_test.mbt
+lib/moon_textstat_wbtest.mbt
+lib/polysyllabcount.mbt
+lib/polysyllabcount_test.mbt
+lib/reading_time.mbt
+lib/reading_time_test.mbt
+lib/sentence_count.mbt
+lib/sentence_count_test.mbt
+lib/smog_index.mbt
+lib/smog_index_test.mbt
+lib/syllable_count.mbt
+lib/syllable_count_test.mbt
+lib/syllables.mbt
+lib/syllables_wbtest.mbt
+lib/types.mbt
+lib/types_test.mbt
+```
+
+口径说明：`866d9f2` 只包含 **78 个受版本控制**的 `.mbt`；日志记录时工作树另有 **1 个未跟踪**文件 `lib/cmd/gate/bench.mbt`（该文件在 `866d9f2` 之后才提交，故 `git ls-tree 866d9f2 -- lib/cmd/gate` 中没有它），即 **78 tracked at 866d9f2 + 1 untracked `lib/cmd/gate/bench.mbt` present in the working tree at log time = 79**。§1.1–§1.4 的检索作用于工作树，故覆盖 79 个文件；§2.1 的分层统计按同一口径（78 快照 + 1 未跟踪）给出。
 
 ---
 
@@ -216,21 +228,23 @@ EXIT=0
 
 排除白名单目录后的检索（§1.2）退出码为 1、输出为空，**独立地证明非白名单面为 0**。
 
-进一步分层核对（按目录统计 `lib/` 下全部 `.mbt`，共 79 个文件）：
+进一步分层核对（按目录统计 `lib/` 下全部 `.mbt`，共 79 个文件；以下分解为 **as of commit `866d9f2`** 的快照口径 + 记录时工作树中 1 个未跟踪文件 `lib/cmd/gate/bench.mbt`，见 §1.5 口径说明）：
 
 ```
    60 ./lib          ← 库主体
-    9 ./lib/cmd/gate
+    9 ./lib/cmd/gate ← 8 个受版本控制于 866d9f2 + 1 个未跟踪的 bench.mbt
     6 ./lib/data
     3 ./lib/gate/data
     1 ./lib/cmd/main
 ```
 
+合计：60 + 9 + 6 + 3 + 1 = **79**（= 78 tracked at 866d9f2 + 1 untracked `lib/cmd/gate/bench.mbt`）。此分解与 §1.5 的逐字清单一致：`lib/gate/data` 下即清单中的 `cell.mbt`、`l3_data.mbt`、`l3_test.mbt` 三行。
+
 - `./lib`（库主体，60 个文件）：禁止面命中 **0**。
 - `./lib/data`（数据包，6 个文件）：禁止面命中 **0**。
 - `./lib/gate/data`（门禁数据包，3 个文件）：禁止面命中 **0**。
 - `./lib/cmd/main`（1 个文件）：禁止面命中 **0**。
-- `./lib/cmd/gate`（9 个文件）：禁止面命中 **7**（全部在白名单内）。
+- `./lib/cmd/gate`（9 个文件，其中 `bench.mbt` 在 `866d9f2` 之后才提交）：禁止面命中 **7**（全部在白名单内）。
 
 这与 DECISION 2 的口径「库、`data/`、`gate/data/` 仍为 0」完全吻合。
 
@@ -254,7 +268,7 @@ rubric 文件：`.superpowers/sdd/202610201517-moon-textstat-移植-核心库-pl
 | R8 `pt` 不是验收项 | na | 未涉及 `pt`。 |
 | R9 失败文本不参与对拍 | na | 未改动失败文本。 |
 | R10 验收（A-8.3） | pass | 白名单口径：命中 7 条全部在 `lib/cmd/gate/` 内；分类计数 `extern`=5、`@env.`=2、其余=0，与预期一致；排除白名单后检索 EXIT=1 且输出为空（§1.1–§1.3）。原始措辞「命中 0 且 EXIT=1」在两次用户裁决后已不适用于全仓（见 §0），其 EXIT=1 状态在白名单外部分成立。 |
-| R11 上限（≤5 条命令 / ≤2 轮次 / 10 分钟） | pass | 审计本体命令 5 条（§1.1 全仓检索、§1.2 排除白名单、§1.3 三个分类计数视为 1 条、§1.4 仓库根复核、§1.5 文件清单），1 个轮次完成。 |
+| R11 上限（≤5 条命令 / ≤2 轮次 / 10 分钟） | pass | 审计本体命令 7 条（§1.1 全仓检索 1 条、§1.2 排除白名单 1 条、§1.3 三个分类计数 3 条、§1.4 仓库根复核 1 条、§1.5 文件清单 1 条；§1.3 的三条计数在先前版本中被折叠记为 1 条，故曾写作 5 条），1 个轮次完成。 |
 | R12 日志 | pass | 本文件 `docs/superpowers/plans/logs/T-47.log`，含命令、原始输出、白名单分类、rubric 判定与结论。 |
 
 **Rubric 覆盖：12 / 12 已判定（2 pass / 1 pass 关键项 + 10 na）**——无 `fail`、无未判定项。
