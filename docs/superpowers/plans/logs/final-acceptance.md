@@ -4,8 +4,11 @@
 模块根 `lib/`。契约：全部 FR；spec §4.7 全表、§4.7.4 closure gate；AD-3。
 
 > 结论：**PASS**。门禁 `cells=366 passed=366 floor=366 group=all inject=0`，EXIT=0；
-> 注入 EXIT=1、失败记录 1 条；38 行中 32 行 PASS、5 行未验证（均为 `[LOCAL_DEAD_LINK]`）、
-> 1 行不适用（A-4.4），0 行 FAIL。
+> 注入 EXIT=1、失败记录 1 条；38 行中 32 行 PASS、5 行未验证、1 行不适用
+> （A-4.4），0 行 FAIL。5 行未验证**不全是** `[LOCAL_DEAD_LINK]`：spec §4.7.1 的
+> 登记表共五行，其中仍是 unresolved 的是 A-7.1 / A-7.2 / A-7.3 / A-10.2 四行；
+> **A-10.1（`moon test --target js`）不在该表内**，它没有四要素记录，因此不能
+> 算作 `[LOCAL_DEAD_LINK]`，只是「未验证」。
 
 ## 0. 目标环境标识（三要素之一）
 
@@ -67,9 +70,11 @@ $ grep -c '"injected":true' _gate/failures-native-*.jsonl
 $ grep -c '"metric":' _gate/failures-native-*.jsonl
 1
 $ rm -rf _gate
-$ moon run cmd/gate --target native --group=selfcheck | head -1
+$ moon run cmd/gate --target native --group=selfcheck | head -1; echo "PIPESTATUS=${PIPESTATUS[*]}"
 moon run cmd/gate --target native
-EXIT=0
+PIPESTATUS=0 0
+$ echo ${PIPESTATUS[0]}
+0
 $ moon run cmd/gate --target native --bench
 bench runs=100 median_ms=9.926 stable=true warmup_ms=12.136
 EXIT=0
@@ -238,7 +243,7 @@ EXIT=0
 | A-5.4 | 包测试 `lang_matrix_test.mbt:88`（失败文本三项） | 0 | `language matrix: ar and xx_YY fail all six fields` ok；文本含指标名 + 语种代码 + `no hyphenation dictionary` | 是（§5.3） | PASS |
 | A-6.1 | 注入 / 不注入 selfcheck | 1 / 0 | `passed=365 … inject=1` EXIT=1；`passed=366 … inject=0` EXIT=0；`grep -c '"injected":true'`=1 | 是（§1） | PASS |
 | A-6.2 | 首行 + AD §3.1 命中数（剥 CR） | 0 | 首行 `moon run cmd/gate --target native`；`grep -c '^moon run cmd/gate --target native$'`=1 | 是（§1/§5.4） | PASS |
-| A-6.3 | `--group=selfcheck`；截短 365 的负向用例 | 0 | 自报 `cells=366`；截短副本 `loaded 365` + EXIT=2（T-39 §2.3 实测，未在本次重复改数据） | 是（§1/§5.5） | PASS |
+| A-6.3 | `--group=selfcheck`；截短 365 的负向用例 | 0 / 2 / 2 / 2 | 自报 `cells=366`（§1）；截短副本 `loaded 365` + EXIT=2 于 **2026-10-23 在仓库外副本上重测**，三组（selfcheck / count / data）均为 EXIT=2（§5.5） | 是（§1/§5.5） | PASS（证据更新） |
 | A-7.1 | 安装即运行（§4.7.5） | — | 未发布，注册表不可 `moon add`；T-54 受阻于 P-LICENSE | 否 | 未验证 |
 | A-7.2 | `moon view vicoproplus/moon_textstat` | — | 未发布 → 不可核对版本/许可证/仓库地址 | 否 | 未验证 |
 | A-7.3 | 注册表页面渲染 | — | 依赖发布与站点，本地无渲染面；属 unit B 的行 | 否 | 未验证 |
@@ -314,8 +319,38 @@ $ sed -n '/^### 3.1/,/^### 3.2/p' docs/superpowers/designs/202610201517-moon-tex
 
 ### 5.5 A-6.3
 
-正向：`cells=366 passed=366 floor=366`（§1）。负向（人为截短到 365 后 `loaded 365`、
-EXIT=2）在 `T-39.log` §2.3 实测；本次为只读终验，未再改 `gate/data/` 制造负向副本。
+正向：`cells=366 passed=366 floor=366`（§1）。
+
+负向的旧证据来自 `T-39.log` §2.3，**且早于 T-41/T-42 的门禁改动**——T-41 引入了
+`--group=data` / `--group=count` 的分组装载与独立的 `floor` 分支，T-42 引入字段索引
+契约，EXIT=2 的判定路径此后被改过，因此不能再直接引用 T-39 的输出当作现行证据。
+终评 fix wave 于 **2026-10-23** 在仓库外副本（`F:/moonbit比赛/_fixd_scratch`，
+复制 `lib/` 但不含 `_build`）上重测：从副本的 `lib/gate/data/l3_data.mbt` 删除一格
+`raw_cells`（366 → 365，删的是表格最后一格，`xx_YY` 的 `monosyllabcount`），
+随后逐组运行：
+
+```
+$ moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=365 passed=365 floor=366 group=selfcheck inject=0
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+$ moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+$ moon run cmd/gate --target native --group=data
+moon run cmd/gate --target native
+cells=30 passed=30 floor=366 group=data inject=0
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+```
+
+即 T-39 §2.3 的两个关键判据在现行门禁上**仍然成立**：负向用例自报截短后的装载数
+（`selfcheck` 组 365、`count` 组 88、`data` 组 30），却仍打印 `loaded 365 cells,
+below the frozen floor 366` 并以 EXIT=2 结束——下限比较的是**全表装载数**，而非
+所选分组。副本已在复测后删除。
 
 ### 5.6 A-8.2 的限定
 

@@ -27,9 +27,11 @@ whose optional arguments carry the same defaults as `analyze`.
 
 ## Installation
 
-```bash
-moon add vicoproplus/moon_textstat
-```
+**Not yet published to the registry**, so `moon add vicoproplus/moon_textstat`
+404s today. Use a path dependency instead: a `moon.work` beside your module
+with `members = ["demo", "../moon_textstat/lib"]`, and in `demo/moon.mod` the
+versioned `import { "vicoproplus/moon_textstat@0.1.0" }`. The `moon add` form
+is the future install path, once published.
 
 Then import the module from a package's `moon.pkg`:
 
