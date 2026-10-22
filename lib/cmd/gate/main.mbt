@@ -10,6 +10,10 @@ const FROZEN_FLOOR : Int32 = 366
 
 ///|
 /// The parsed command line. The argument set is closed (AD section 6).
+///
+/// `inject` is 0 when absent or explicitly `--inject=0`. A nonzero value is
+/// only meaningful for `--group=selfcheck`, where it is a 1-based index into
+/// the selected cells (AD section 6: `--inject=<n>` only takes effect there).
 struct GateConfig {
   group : String
   bench : Bool
@@ -27,7 +31,9 @@ fn[T] gate_fail(message : String) -> T {
 
 ///|
 /// Parse a non-negative decimal integer of at most six digits. Anything else
-/// is malformed and makes the gate exit with 2.
+/// is malformed and makes the gate exit with 2. Zero is the "no injection"
+/// sentinel shared with an absent flag; the 1-based range check happens after
+/// the cells are selected, because it depends on their count.
 fn parse_inject(value : String) -> Int32? {
   if value.length() == 0 || value.length() > 6 {
     return None
@@ -145,9 +151,16 @@ fn report_line(
 ///|
 /// Evaluate the selected cells, report, and map the result to the exit-code
 /// contract of AD section 3.2: 0 = all cells aligned, 1 = at least one
-/// mismatch, 2 = environment or build problem (here: an empty selection or a
-/// loaded table below the frozen floor, even when the selected group is
-/// smaller).
+/// mismatch, 2 = environment or build problem (here: an empty selection, an
+/// unusable `--inject=<n>`, or a loaded table below the frozen floor, even
+/// when the selected group is smaller).
+///
+/// A nonzero `--inject=<n>` is a 1-based index into the selected cells and is
+/// only accepted for `--group=selfcheck` (AD section 6). The indexed cell's
+/// expectation is replaced in memory before evaluation; the injected
+/// expectation is designed to differ from the actual value, so the cell fails
+/// and its record carries `"injected":true`. Nothing is written to the
+/// generated table or to `gate/data`.
 ///
 /// Failure diagnostics are buffered and printed after the self-report, so the
 /// first two output lines stay fixed by AD section 6: the canonical
@@ -159,9 +172,6 @@ fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
     gate_fail("--bench is not implemented until T-40")
   }
-  if config.inject != 0 {
-    gate_fail("--inject=<n> with n != 0 is not implemented until T-38")
-  }
   if config.group == "data" {
     gate_fail("--group=data is not implemented until T-41")
   }
@@ -169,16 +179,40 @@ fn run_gate(config : GateConfig) -> Unit {
   if cells.length() == 0 {
     gate_fail("group " + config.group + " selected no cells")
   }
+  let mut inject_index : Int32? = None
+  if config.inject != 0 {
+    if config.group != "selfcheck" {
+      gate_fail("--inject=<n> is only valid with --group=selfcheck")
+    }
+    let index = config.inject - 1
+    if index < 0 || index >= cells.length() {
+      gate_fail(
+        "--inject=" +
+        config.inject.to_string() +
+        " is out of range for " +
+        cells.length().to_string() +
+        " selected cells",
+      )
+    }
+    cells[index] = injected_cell(cells[index])
+    inject_index = Some(index)
+  }
   let loaded = @gate_data.total_cells()
   let mut passed = 0
   let failures : Array[Failure] = []
+  let mut index = 0
   for cell in cells {
     let actual = evaluate_cell(cell)
     if cell_matches(cell.expected, actual) {
       passed = passed + 1
     } else {
-      failures.push({ cell, actual, injected: false, })
+      let injected = match inject_index {
+        Some(target) => target == index
+        None => false
+      }
+      failures.push({ cell, actual, injected, })
     }
+    index = index + 1
   }
   println(report_line(cells.length(), passed, config.group, config.inject))
   if failures.length() > 0 {

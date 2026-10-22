@@ -1,0 +1,282 @@
+# T-38 — `--inject=<n>` 内存注入
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`6b75170 fix(gate): make the failure-record writer portable and keep line two`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-30；spec §4.7 A-6.1/A-5.3；AD §3.6 A3-3、AD §6。
+
+> 结论：PASS（1 轮）。`--inject=1 --group=selfcheck` →
+> `cells=366 passed=365 floor=366 group=selfcheck inject=1`、EXIT=1，
+> `_gate/failures-native-<ms>.jsonl` 恰好 1 行且 `"injected":true`，
+> `"metric":` 命中 1 次；去掉注入 → 366/366、`inject=0`、EXIT=0 且不创建
+> `_gate/`。注入只发生在内存中：未改任何生成文件、`gate/data` 或 oracle
+> 期望值。`moon check` / `moon fmt --check` 零警告；`moon test --target
+> native` 155/155；静态白名单 `extern`=5、`@env.`=2，全部在 `lib/cmd/gate`。
+
+## 1. 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/cmd/gate/main.mbt` | 改：`--inject` 校验（仅 selfcheck、1-based 范围）、注入替换、`injected` 逐格标记；移除 T-37 占位拒绝 | 252 | `4c3670ae785691eaf8673923739a40200f4d5d3fb923976682c9d9adac7ce965` |
+| `lib/cmd/gate/inject.mbt` | 新增：四种期望形态的内存扰动与 `Cell` 副本 | 54 | `ac40e706474ad1a4809f517b38c3380282ab057418070f293dae2f2ef6ac6668` |
+| `docs/superpowers/plans/logs/T-38.log` | 新增：本日志 | — | — |
+
+`pkg.generated.mbti` 未变（新增函数均为私有）；`lib/gate/data/`、`lib/data/`
+与全部 366 个 oracle 期望值未动（见 §3.7 的 `git diff --stat` 为空）。
+
+## 2. 实现要点
+
+### 2.1 参数语义
+
+- `--inject` 仍由 `parse_inject` 解析为最多六位十进制非负整数；空值、十六进制
+  （`0x`）、负号、非数字一律 `gate: malformed --inject value: ...` + EXIT=2。
+- `0` 是「不注入」哨兵，与缺省值一致：`--inject=0` 可配任何组，自报
+  `inject=0`，不触发任何替换（沿用 T-36「`--inject=0` 接受」的口径）。
+- 非零值只允许配 `--group=selfcheck`（AD §6「`--inject=<n>` 只在此组生效」）。
+  `--group=all` 也被拒绝（A-6.1 用的是 `selfcheck`；`all` 与 `selfcheck`
+  选择的单元格相同，但参数契约不因此放宽），诊断
+  `gate: --inject=<n> is only valid with --group=selfcheck` + EXIT=2。
+- `n` 是所选单元格表序的 1-based 下标：`selfcheck` 即 `all_cells()` 的 366
+  格生成器顺序。`n > cells`（含 `n=367`）→
+  `gate: --inject=367 is out of range for 366 selected cells` + EXIT=2。
+- 选择在 `select_cells` 之后进行，因此 `n` 的范围随实际选中的单元格数变化；
+  这保持了「表序的所选单元格」定义，且不会在空选择上先报范围错。
+
+### 2.2 内存扰动（`inject.mbt`）
+
+| 期望形态 | 注入值 | 失败机制 |
+| --- | --- | --- |
+| `EInt(v)` | `EInt(v + 1)` | 计数不同 |
+| `EDouble(bits)` | `EDouble(bits ^ 1)` | 最低位翻转，位模式必不同（`NaN`/`±0` 也成立） |
+| `EList(words)` | `EList(words + ["__injected__"])` | 集合比较缺该词；先复制数组，不改共享期望数组 |
+| `EError(_)` | `EInt(0)` | 错误格的实际值是抛出，`EInt` 期望与 `ARaised` 不匹配 |
+
+`injected_cell` 用六个字段构造一个 `Cell` 副本，仅 `expected` 不同；替换的是
+`select_cells("selfcheck")` 返回的数组（`all_cells()` 已经是逐格副本），
+`raw_cells` 与任何生成文件都不被写入。四种形态均经实跑验证（§3.4）。
+
+### 2.3 `injected` 标记
+
+`Failure.injected` 不再恒为 `false`：求值循环维护表序下标，只有被替换的那一格
+（`inject_index`）失败时置 `true`。记录里的 `expected` / `expected_bits` 取自
+注入后的 `Cell`，因此显示的是被扰动的期望；`metric` 仍是原始 `shape`
+（`automated_readability_index`），`input_sha256` 仍是求值文本的哈希。若注入格
+恰好通过（正常运行不可能），它不产生记录，其他失败仍标 `false`。
+
+### 2.4 输出顺序
+
+自报行仍是第二行，`inject=<n>` 原样回显；失败记录先于 `FAIL` 诊断落盘，
+写盘失败仍以 EXIT=2 结束且前两行不变（T-37 硬化轮口径未动）。
+
+## 3. 验收原始输出
+
+### 3.1 A-6.1 / A-5.3：注入一次（`_gate` 已先删除）
+
+```console
+$ moon run cmd/gate --target native --group=selfcheck --inject=1
+moon run cmd/gate --target native
+cells=366 passed=365 floor=366 group=selfcheck inject=1
+FAIL sample_id=short_simple_sentence shape=automated_readability_index lang=en_US expected=bits:0xc011333333333335 actual=bits:0xc011333333333334
+EXIT=1
+$ grep -c '"injected":true' _gate/failures-native-*.jsonl
+1
+$ echo GREP_EXIT=$?
+GREP_EXIT=0
+$ grep -c '"metric":' _gate/failures-native-*.jsonl
+1
+$ echo GREP_EXIT=$?
+GREP_EXIT=0
+$ wc -l < _gate/failures-native-*.jsonl
+1
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"6d67a445d1e5c7d98997d412fd71e5eb9a450b2c5f6e206d8511fe1b9009ec90","sample_id":"short_simple_sentence","metric":"automated_readability_index","lang":"en_US","expected":"-4.300000000000002","actual":"-4.300000000000001","target":"native","injected":true,"expected_bits":"0xc011333333333335","actual_bits":"0xc011333333333334"}
+```
+
+- 第 2 行逐字为 `cells=366 passed=365 floor=366 group=selfcheck inject=1`。
+- 记录恰好 1 行；`"injected":true` 与 `"metric":` 各命中 1 次；七字段齐全。
+- `metric` 是首格形态 `automated_readability_index`；浮点两列位模式均在场且为
+  16 位十六进制，最低位 5→4（注入侧 `^ 1`）。
+- `wc -l` = 1（单行 JSONL）。
+
+### 3.2 去掉注入：366/366，EXIT=0，无文件
+
+```console
+$ rm -rf _gate
+$ moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+$ ls -d _gate 2>/dev/null || echo NO_GATE_DIR
+NO_GATE_DIR
+```
+
+绿跑既不创建 `_gate/`，也不创建任何记录文件；`--inject=0` 同样：
+
+```console
+$ moon run cmd/gate --target native --group=selfcheck --inject=0
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=count --inject=0
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+```
+
+### 3.3 非法参数与范围（全部 EXIT=2）
+
+```console
+$ moon run cmd/gate --target native --inject=367
+moon run cmd/gate --target native
+gate: --inject=<n> is only valid with --group=selfcheck
+EXIT=2
+$ moon run cmd/gate --target native --group=selfcheck --inject=367
+moon run cmd/gate --target native
+gate: --inject=367 is out of range for 366 selected cells
+EXIT=2
+$ moon run cmd/gate --target native --inject=0x
+moon run cmd/gate --target native
+gate: malformed --inject value: 0x
+EXIT=2
+$ moon run cmd/gate --target native --group=count --inject=1
+moon run cmd/gate --target native
+gate: --inject=<n> is only valid with --group=selfcheck
+EXIT=2
+$ moon run cmd/gate --target native --group=all --inject=1
+moon run cmd/gate --target native
+gate: --inject=<n> is only valid with --group=selfcheck
+EXIT=2
+$ moon run cmd/gate --target native --group=selfcheck --inject=
+moon run cmd/gate --target native
+gate: malformed --inject value: 
+EXIT=2
+```
+
+`--inject=367` 单独运行时先被组校验拒绝（缺省 `all`），加
+`--group=selfcheck` 后由范围校验拒绝；两条路径都是 EXIT=2。
+
+### 3.4 四种期望形态与边界格（每次先删 `_gate`）
+
+```console
+# n=2：EInt（第二格 char_count）
+$ moon run cmd/gate --target native --group=selfcheck --inject=2
+moon run cmd/gate --target native
+cells=366 passed=365 floor=366 group=selfcheck inject=2
+FAIL sample_id=short_simple_sentence shape=char_count lang=en_US expected=int:19 actual=int:18
+EXIT=1
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"6d67a445d1e5c7d98997d412fd71e5eb9a450b2c5f6e206d8511fe1b9009ec90","sample_id":"short_simple_sentence","metric":"char_count","lang":"en_US","expected":19,"actual":18,"target":"native","injected":true}
+
+# n=7：EList（difficult_words_list）
+$ moon run cmd/gate --target native --group=selfcheck --inject=7
+moon run cmd/gate --target native
+cells=366 passed=365 floor=366 group=selfcheck inject=7
+FAIL sample_id=short_simple_sentence shape=difficult_words_list lang=en_US expected=list:[__injected__] actual=list:[]
+EXIT=1
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"6d67a445d1e5c7d98997d412fd71e5eb9a450b2c5f6e206d8511fe1b9009ec90","sample_id":"short_simple_sentence","metric":"difficult_words_list","lang":"en_US","expected":["__injected__"],"actual":[],"target":"native","injected":true}
+
+# n=366：最后一格，EError（xx_YY）
+$ moon run cmd/gate --target native --group=selfcheck --inject=366
+moon run cmd/gate --target native
+cells=366 passed=365 floor=366 group=selfcheck inject=366
+FAIL sample_id=xx_YY shape=monosyllabcount lang=xx_YY expected=int:0 actual=error:raised
+EXIT=1
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"2860e80c12460899392e97b51fcce9064060fb7c2be8d681dfa661395ede65df","sample_id":"xx_YY","metric":"monosyllabcount","lang":"xx_YY","expected":0,"actual":"error","target":"native","injected":true}
+```
+
+`n=366` 证明 1-based 上界可注入且第 366 格失败；`n=367` 已在上节证明越界
+EXIT=2。`EInt`、`EDouble`（§3.1）、`EList`、`EError` 四条分支均命中。
+
+### 3.5 测试、检查与格式
+
+```console
+$ cd lib && moon test --target native
+Total tests: 155, passed: 155, failed: 0.
+EXIT=0
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+$ moon check
+Finished. moon: no work to do
+EXIT=0
+$ moon fmt --check
+Finished. moon: no work to do
+EXIT=0
+```
+
+未新增测试：任务验收要求保持 155/155；注入行为由门禁实跑覆盖（§3.1-§3.4）。
+
+### 3.6 静态白名单（排除 `_build`）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build .
+lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+lib/cmd/gate/records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+lib/cmd/gate/records.mbt:211:extern "c" fn gate_fwrite(
+lib/cmd/gate/records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+lib/cmd/gate/records.mbt:228:extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
+COUNT=5
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build .
+lib/cmd/gate/records.mbt:187:    failure_record_path(@env.now()),
+lib/cmd/gate/main.mbt:249:  let args = @env.args()
+COUNT=2
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build .
+COUNT=0
+```
+
+`inject.mbt` 不含 `extern`、`@env.`、文件/网络访问；`extern` 与 `@env.`
+数量、位置均与 T-37 相同。
+
+### 3.7 生成物与工作区
+
+```console
+$ git diff --stat 6b75170 -- lib/gate/data lib/data lib/cmd/gate/pkg.generated.mbti
+# 输出为空：生成表、数据包与 .mbti 均未变
+
+$ rm -rf lib/_gate
+$ git status --short
+ M lib/cmd/gate/main.mbt
+?? .qoder/
+?? docs/superpowers/plans/logs/T-38.log
+?? lib/cmd/gate/inject.mbt
+```
+
+`_gate/` 命中 `lib/.gitignore:3`，验证期间创建的记录文件已删除；提交只含
+`lib/cmd/gate`（`main.mbt` + `inject.mbt`）与本日志，提交后工作区仅剩未跟踪
+的 `.qoder/`。
+
+## 4. Rubric 判定（全局 R1-R9）
+
+| 项 | 判定 | 一行证据 |
+| --- | --- | --- |
+| R1 保真优先 | pass | 注入只替换内存中的 `Cell` 副本；`git diff` 对 `gate/data`、`data`、`.mbti` 为空（§3.7），366 个 oracle 期望值未改。 |
+| R2 公式层只吃计数层 | pass | 未改任何公式或库源码；门禁仍只调用公开入口。 |
+| R3 运行期零 I/O | pass | `inject.mbt` 无 I/O/FFI；库运行期零 I/O 未变，文件面仍只有 T-37 的 `_gate/` 记录（§3.6）。 |
+| R4 门禁唯一命令 | pass | 唯一命令与 0/1/2 语义未变；注入 EXIT=1、移除 EXIT=0、参数问题 EXIT=2（§3.1-§3.3）。 |
+| R5 字段契约唯一权威 | pass | 未新建字段表；记录 schema 与七字段不变，仅 `injected` 由 T-38 置真（§3.1）。 |
+| R6 `[EXT]` 31 个 callable | pass | 注入只作用于既有 366 个 `[ALIGN]` 格，未新增任何 `[EXT]` 期望值。 |
+| R7 冻结下限 366 | pass | `selfcheck` 自报 `cells=366 floor=366`，绿跑 366/366（§3.2）。 |
+| R8 `pt` 非验收项 | pass | 表与注入均不涉及 `pt`；`lang` 组仍为 11 支持语种 × 6。 |
+| R9 失败文本不参与对拍 | pass | `FAIL` 行只是诊断；注入格的记录写 `expected`/`actual` 值，未把增强文本纳入判等。 |
+
+## 5. 偏差与说明
+
+1. **`--inject=0` 作为「不注入」哨兵**：与缺省值同义，任何组都接受并自报
+   `inject=0`（T-36 已有口径）。真正 0-based 寻址不存在；负数在解析阶段即
+   以 malformed 拒绝（EXIT=2），等价满足「`n < 1` 非 0 → EXIT=2」。
+2. **`--group=all` 不放宽**：AD §6 明确 `--inject` 只在 `selfcheck` 生效，
+   即使 `all` 与 `selfcheck` 选格相同，`--group=all --inject=1` 仍 EXIT=2。
+3. **记录显示注入后的期望**：`expected` / `expected_bits` 来自被替换的
+   `Cell`，这是「注入偏差」的可诊断证据；`metric`、`sample_id`、`lang`、
+   `input_sha256` 均保持原格信息。
+4. **未新增测试**：验收要求 155/155；四条注入分支由门禁实跑覆盖，避免改变
+   既定测试计数。
+5. **自报行位置**：本任务按验收口径取第 2 行
+   `cells=366 passed=365 floor=366 group=selfcheck inject=1`。AD §3.6 的
+   console 示例用 `| tail -1`，但 T-37 已固定「自报第 2 行、`FAIL` 诊断随后」
+   （失败记录先落盘），因此注入运行时 `tail -1` 是 `FAIL` 行；两者不可能同时
+   成立，本任务不改 T-36/T-37 的两行头部契约与诊断顺序。
