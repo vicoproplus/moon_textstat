@@ -73,8 +73,6 @@ $ rm -rf _gate
 $ moon run cmd/gate --target native --group=selfcheck | head -1; echo "PIPESTATUS=${PIPESTATUS[*]}"
 moon run cmd/gate --target native
 PIPESTATUS=0 0
-$ echo ${PIPESTATUS[0]}
-0
 $ moon run cmd/gate --target native --bench
 bench runs=100 median_ms=9.926 stable=true warmup_ms=12.136
 EXIT=0

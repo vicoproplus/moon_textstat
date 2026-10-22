@@ -186,9 +186,10 @@ pub fn pronunciation_syllable_count(
 /// Supported codes: `en_US`, `en_GB`, `de_DE`, `es`, `fr`, `it_IT`, `nl_NL`,
 /// `pl_PL`, `ru_RU`, `hu_HU`; any other code returns `None`.  The returned
 /// array is a fresh copy of the package's store: mutating it (sorting it, for
-/// example) cannot corrupt the data seen by later callers. The copy costs one
-/// shallow copy of the line pointers per lookup, which is negligible next to
-/// the parsing the caller does with it.
+/// example) cannot corrupt the data seen by later callers. Handing out the
+/// internal array was rejected for exactly that reason. The copy is shallow
+/// (line pointers only), but it is paid per call, so a caller that needs the
+/// patterns repeatedly should fetch them once and keep them.
 pub fn hyphenation_patterns(dict_lang : String) -> Array[String]? {
   match pattern_tables.get(dict_lang) {
     Some(lines) => Some(lines.copy())
@@ -200,6 +201,12 @@ pub fn hyphenation_patterns(dict_lang : String) -> Array[String]? {
 /// Sorted easy-word list of one language root (`en` or `es`); `None`
 /// otherwise.  The returned array is a fresh copy of the package's store, for
 /// the same reason as `hyphenation_patterns`.
+///
+/// The copy is not free: it is paid on every call, and the `es` list holds
+/// about 20,000 strings. `is_easy_word` (`easy_words.mbt`) calls this once per
+/// word, so a `difficult_words` pass over Spanish text copies the whole list
+/// once per token. That cost is accepted rather than handing out the internal
+/// array: a caller's `sort()` would then corrupt the package for everyone.
 pub fn easy_words(lang_root : String) -> Array[String]? {
   match easy_word_lists.get(lang_root) {
     Some(words) => Some(words.copy())
