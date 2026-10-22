@@ -167,3 +167,63 @@ Error: Module `vicoproplus/moon_textstat` not found in registry
   `lib/data/**`、`lib/gate/**`、`lib/*.mbt`、`.mbti`、`tools/`、`vendor/`。
 - 临时模块 `F:/moonbit比赛/_t43_scratch` 已删除。
 - `lib/` 内的门禁命令只运行了 1 次（`--group=formula`），未占用其他 worker 的构建目录做长跑。
+
+## 8. 补丁：README 通过 `moon fmt`（回归修复）
+
+提交 `80eaf30` 之后，仓库根的 `moon fmt --check` 变成 EXIT=255。实测原因：
+README 的示例围栏是 ` ```moonbit `，MoonBit 的 markdown 格式化器会把它当作要格式化的
+代码块，要求三处改动 —— 围栏加 `nocheck`、补 `///|` 块分隔、把行尾对齐的 `//` 注释
+压成单个空格。报错原文（节选）：
+
+```
+diff --git a/lib/README.mbt.md b/lib/_build/wasm-gc/release/format/README.mbt.md
+-```moonbit
++```moonbit nocheck
++///|
+ fn main {
+   let stats = try! @moon_textstat.analyze("The cat sat on the mat.")
+-  println(stats.flesch_reading_ease)           // 116.14500000000001
++  println(stats.flesch_reading_ease) // 116.14500000000001
+ ...
+failed to execute `git --no-pager diff ...`
+Error: failed when formatting project
+```
+
+按格式化器的输出原样改写了示例围栏（`nocheck` 是必要的：示例依赖 `try!` 与
+`@moon_textstat`，单独格式化/检查它不是本模块的包）。示例的**语义与数值完全未变**，
+只有围栏标记、`///|` 与注释缩进变化。
+
+验证（`lib/` 下）：
+
+```
+$ moon fmt --check
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+
+$ moon check --target native
+Finished. moon: ran 1 task, now up to date
+CHECK_EXIT=0
+
+$ moon test --target native
+Total tests: 169, passed: 169, failed: 0.
+TEST_EXIT=0
+```
+
+示例仍然逐字可运行（临时模块按第 3 节重建，`cmd/readme/main.mbt` 与 README 围栏内容
+字节相同，脚本比对 `identical: True`）：
+
+```
+$ cd F:/moonbit比赛/_t43_scratch/demo && moon run cmd/readme --target native
+116.14500000000001
+-1.4499999999999993
+2.4000000000000004
+3.1291
+-4.300000000000001
+-4.299999999999997
+2
+0.2976
+EXIT=0
+```
+
+8 个值与第 5 节的冻结位模式仍然一一对应。临时模块已再次删除；
+A-7.1 仍为 `[LOCAL_DEAD_LINK]`。

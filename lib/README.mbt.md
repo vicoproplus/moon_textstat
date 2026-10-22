@@ -41,17 +41,18 @@ import {
 
 ## Example
 
-```moonbit
+```moonbit nocheck
+///|
 fn main {
   let stats = try! @moon_textstat.analyze("The cat sat on the mat.")
-  println(stats.flesch_reading_ease)           // 116.14500000000001
-  println(stats.flesch_kincaid_grade)          // -1.4499999999999993
-  println(stats.gunning_fog)                   // 2.4000000000000004
-  println(stats.smog_index)                    // 3.1291
-  println(stats.automated_readability_index)   // -4.300000000000001
-  println(stats.coleman_liau_index)            // -4.299999999999997
-  println(stats.linsear_write_formula)         // 2
-  println(stats.dale_chall_readability_score)  // 0.2976
+  println(stats.flesch_reading_ease) // 116.14500000000001
+  println(stats.flesch_kincaid_grade) // -1.4499999999999993
+  println(stats.gunning_fog) // 2.4000000000000004
+  println(stats.smog_index) // 3.1291
+  println(stats.automated_readability_index) // -4.300000000000001
+  println(stats.coleman_liau_index) // -4.299999999999997
+  println(stats.linsear_write_formula) // 2
+  println(stats.dale_chall_readability_score) // 0.2976
 }
 ```
 
