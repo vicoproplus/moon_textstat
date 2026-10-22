@@ -15,6 +15,11 @@
 /// **microseconds** (core runtime `env.c` multiplies by 1e6), while the A-9
 /// budget and the report are in milliseconds, so every elapsed value is
 /// divided by `MICROSECONDS_PER_MILLISECOND` exactly once.
+///
+/// The word list is compared **order-sensitively**, unlike the cell
+/// comparator (`compare.mbt`), which treats a list as a set: the bench text
+/// is fixed and this port is deterministic, so the order is part of the
+/// observed result and therefore part of the signature.
 
 ///|
 /// Number of timed `analyze(text)` calls in one `--bench` run (A-9.2: the
@@ -31,18 +36,32 @@ const BENCH_MEDIAN_BUDGET_MS : Double = 50.0
 const MICROSECONDS_PER_MILLISECOND : Double = 1000.0
 
 ///|
-/// The 19-field bit signature of one analysis result (A-9.2: repeated
-/// evaluations must agree bit for bit).
+/// The separator between two signature parts.
+///
+/// It is the ASCII unit separator (U+001F), which a tokenized word cannot
+/// contain, so two different part arrays can never collapse into the same
+/// joined signature.
+const SIGNATURE_SEPARATOR : String = "\u{1F}"
+
+///|
+/// The 19 parts of one analysis result, one part per field of `TextStats`
+/// (A-9.2: repeated evaluations must agree bit for bit).
 ///
 /// The parts follow the spec section 4.2 field order: the nine integer
-/// counters as decimal text, the word list as its length followed by the
-/// words joined with `|`, then the nine doubles as the decimal text of their
-/// IEEE-754 bit pattern (`Double::reinterpret_as_uint64`, the same identity
-/// rule as AD section 2.2). Two signatures are equal exactly when all 19
-/// fields are equal bit for bit; printed decimal scores are never compared,
-/// so `-0.0` versus `0.0` and distinct NaN payloads stay distinguishable.
-fn stats_signature(stats : @moon_textstat.TextStats) -> String {
-  let parts : Array[String] = [
+/// counters as decimal text, the word list as one part (its length followed
+/// by the words joined with `|`), then the nine doubles as the decimal text
+/// of their IEEE-754 bit pattern (`Double::reinterpret_as_uint64`, the same
+/// identity rule as AD section 2.2). Two signatures are equal exactly when
+/// all 19 fields are equal bit for bit; printed decimal scores are never
+/// compared, so `-0.0` versus `0.0` and distinct NaN payloads stay
+/// distinguishable.
+///
+/// The part count is the **A-9.2 coverage invariant**: `TextStats` has
+/// exactly 19 fields, so a signature with a different number of parts would
+/// mean that a field is not covered. `bench_wbtest.mbt` pins that count and
+/// pins that every single field changes the signature.
+fn signature_parts(stats : @moon_textstat.TextStats) -> Array[String] {
+  [
     stats.char_count.to_string(),
     stats.letter_count.to_string(),
     stats.lexicon_count.to_string(),
@@ -51,7 +70,8 @@ fn stats_signature(stats : @moon_textstat.TextStats) -> String {
     stats.polysyllabcount.to_string(),
     stats.monosyllabcount.to_string(),
     stats.difficult_words.to_string(),
-    stats.difficult_words_list.length().to_string(),
+    stats.difficult_words_list.length().to_string() +
+    "|" +
     stats.difficult_words_list.join("|"),
     stats.long_word_count.to_string(),
     stats.reading_time.reinterpret_as_uint64().to_string(),
@@ -64,7 +84,6 @@ fn stats_signature(stats : @moon_textstat.TextStats) -> String {
     stats.linsear_write_formula.reinterpret_as_uint64().to_string(),
     stats.dale_chall_readability_score.reinterpret_as_uint64().to_string(),
   ]
-  parts.join(",")
 }
 
 ///|
@@ -84,18 +103,68 @@ fn bench_analyze(text : String) -> @moon_textstat.TextStats? {
 /// The value is rounded to the nearest thousandth (half away from zero) and
 /// printed as `<whole>.<three digits>`, independent of locale. The `--bench`
 /// report uses this for both `median_ms` and `warmup_ms`.
+///
+/// The thousandths are counted in `Int64`, not `Int`: a 32-bit counter
+/// saturates at 2,147,483,647 thousandths, i.e. a duration of about 24.8
+/// days, and the saturated value would print a completely wrong number.
 fn format_ms(value : Double) -> String {
-  let thousandths = (value * 1000.0).round().to_int()
-  let whole = thousandths / 1000
-  let fraction = thousandths % 1000
-  let fraction_text = if fraction < 10 {
+  let thousandths = (value * 1000.0).round().to_int64()
+  let whole = thousandths / 1000L
+  let fraction = thousandths % 1000L
+  let fraction_text = if fraction < 10L {
     "00" + fraction.to_string()
-  } else if fraction < 100 {
+  } else if fraction < 100L {
     "0" + fraction.to_string()
   } else {
     fraction.to_string()
   }
   whole.to_string() + "." + fraction_text
+}
+
+///|
+/// The median of the collected timing samples (A-9.1).
+///
+/// The input is copied before sorting, so the caller's array keeps its own
+/// order. With an even number of samples the median is the mean of the two
+/// middle values; with an odd number it is the middle value. An empty sample
+/// set is an environment problem (EXIT=2), not a silent zero.
+fn median_of(samples : Array[Double]) -> Double {
+  if samples.length() == 0 {
+    gate_fail("bench collected no timing samples")
+  }
+  let sorted = samples.copy()
+  sorted.sort()
+  let middle = sorted.length() / 2
+  if sorted.length() % 2 == 0 {
+    (sorted[middle - 1] + sorted[middle]) / 2.0
+  } else {
+    sorted[middle]
+  }
+}
+
+///|
+/// The A-9.2 stability verdict: all 100 results must agree bit for bit.
+///
+/// `evaluations` counts the runs that produced a result, `comparisons` the
+/// runs that were compared against the reference signature, `mismatches` the
+/// comparisons that found a difference, and `has_reference` tells whether a
+/// reference signature was established at all.
+///
+/// The first successful evaluation becomes the reference and is never
+/// compared with itself, so a fully consistent run performs exactly
+/// `BENCH_RUNS - 1` comparisons. Requiring that exact count is the
+/// **anti-vacuity guard**: a comparison that never happened must never be
+/// reported as stable, and a run that raised must not be counted as one.
+fn bench_stable(
+  evaluations : Int32,
+  comparisons : Int32,
+  mismatches : Int32,
+  has_reference : Bool,
+) -> Bool {
+  evaluations == BENCH_RUNS &&
+  comparisons == BENCH_RUNS - 1 &&
+  mismatches == 0 &&
+  has_reference
 }
 
 ///|
@@ -105,18 +174,14 @@ fn format_ms(value : Double) -> String {
 /// `analyze` call (dictionary and hyphenation tables initialize there, and its
 /// own duration is reported separately as `warmup_ms`), then make
 /// `BENCH_RUNS` timed calls. Each timed call brackets only the `analyze`
-/// invocation with the monotonic clock; building the 19-field signature is
+/// invocation with the monotonic clock; building the 19-part signature is
 /// deliberately outside the timed region and cannot inflate the sample.
 ///
-/// The median is the usual middle value: the 100 samples are sorted and the
-/// median is the average of the 50th and 51st values (1-based), i.e. indices
-/// 49 and 50. Stability holds when all 100 signatures are identical and no
-/// call raised.
-///
-/// The `compared` counter is the anti-vacuity guard of A-9.2: it is
-/// incremented once per successfully analyzed run, and the run is reported
-/// unstable unless it reaches `BENCH_RUNS`. Without it a comparison that
-/// never reached the reference signature would still print `stable=true`.
+/// The median is the usual middle value, computed by `median_of`: the 100
+/// samples are sorted and the median is the average of the 50th and 51st
+/// values (1-based), i.e. indices 49 and 50. Stability holds when all 100
+/// signatures are identical and no call raised, as decided by
+/// `bench_stable`.
 ///
 /// Exit code: 0 when `median_ms <= 50.0` and `stable`, otherwise 1. The
 /// report line carries `runs=100 median_ms=<3 decimals> stable=<bool>
@@ -128,8 +193,10 @@ fn run_bench() -> Unit {
   let warmup_ms = @bench.monotonic_clock_end(warmup_start) /
     MICROSECONDS_PER_MILLISECOND
   let samples : Array[Double] = []
-  let mut compared = 0
-  let mut stable = true
+  let mut evaluations = 0
+  let mut comparisons = 0
+  let mut mismatches = 0
+  let mut has_reference = false
   let mut reference : String? = None
   for _ in 0..<BENCH_RUNS {
     let start = @bench.monotonic_clock_start()
@@ -139,26 +206,26 @@ fn run_bench() -> Unit {
     samples.push(elapsed_ms)
     match stats {
       Some(value) => {
-        let signature = stats_signature(value)
-        compared = compared + 1
+        evaluations = evaluations + 1
+        let signature = signature_parts(value).join(SIGNATURE_SEPARATOR)
         match reference {
-          Some(first) => if first != signature { stable = false }
-          None => reference = Some(signature)
+          Some(first) => {
+            comparisons = comparisons + 1
+            if first != signature {
+              mismatches = mismatches + 1
+            }
+          }
+          None => {
+            has_reference = true
+            reference = Some(signature)
+          }
         }
       }
-      None => stable = false
+      None => ()
     }
   }
-  if compared != BENCH_RUNS {
-    stable = false
-  }
-  samples.sort()
-  let middle = BENCH_RUNS / 2
-  let median_ms = if BENCH_RUNS % 2 == 0 {
-    (samples[middle - 1] + samples[middle]) / 2.0
-  } else {
-    samples[middle]
-  }
+  let stable = bench_stable(evaluations, comparisons, mismatches, has_reference)
+  let median_ms = median_of(samples)
   println(
     "bench runs=" +
     BENCH_RUNS.to_string() +

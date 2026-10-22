@@ -36,33 +36,32 @@ T-40 的未提交实现：`lib/cmd/gate/bench.mbt` 新文件、`main.mbt` / `moo
 
 ## 2. 改动：唯一的代码加固
 
-`lib/cmd/gate/bench.mbt` 增加 `compared` 计数器：
+`lib/cmd/gate/bench.mbt` 增加四个计数器（`evaluations` / `comparisons` /
+`mismatches` / `has_reference`）与一个纯函数 `bench_stable`：
 
 ```mbt
-  let mut compared = 0
-  ...
-      Some(value) => {
-        let signature = stats_signature(value)
-        compared = compared + 1
-        match reference {
-          Some(first) => if first != signature { stable = false }
-          None => reference = Some(signature)
-        }
-      }
-      None => stable = false
-    }
-  }
-  if compared != BENCH_RUNS {
-    stable = false
-  }
+fn bench_stable(
+  evaluations : Int32,
+  comparisons : Int32,
+  mismatches : Int32,
+  has_reference : Bool,
+) -> Bool {
+  evaluations == BENCH_RUNS &&
+  comparisons == BENCH_RUNS - 1 &&
+  mismatches == 0 &&
+  has_reference
+}
 ```
 
 理由：原实现里 `stable` 的两个来源是「签名不同」与「某次抛错」。若将来出现
 「签名比较从未被执行」的空过路径（例如把签名构造挪到 `Some` 分支之外、
 或让 `reference` 永远为 `None` 而循环体不比对），原实现会打印
-`stable=true`——一个**没有比较过任何一次**的稳定结论。加固后「100 次里
-成功求值并参与比较的次数必须等于 100」成为显式判据，失败路径（抛错）
-同时被 `compared` 与 `None => stable = false` 两条覆盖。
+`stable=true`——一个**没有比较过任何一次**的稳定结论。
+
+注意 `comparisons == BENCH_RUNS - 1` 而不是 `BENCH_RUNS`：第一次成功的
+求值成为**参考签名**，它自身不与任何东西比较，因此一次完全一致的运行恰好
+做 99 次比较。要求这个精确计数，反过来把「比较没有发生」也变成可判定的
+失败（详见 §10 评审修复轮）。
 
 其余代码未动：`main.mbt` 只保留分派钩子（`config.bench` → `run_bench()`）
 与参数冲突检查；`samples.mbt` 只新增 bench 专用文本构造；`moon.pkg` 只新增
@@ -158,55 +157,73 @@ elapsed_raw=8085.9 sum=542894464
 ### 3.4 A-9.2 稳定性判据的变异证明（仓库外副本）
 
 副本：`F:/moonbit比赛/_t40_scratch/mut/lib`（`cp -r` 仓库 `lib/`，删掉
-`_build`）。每次只改一处，跑同一条 `--bench` 命令：
+`_build`）。每次只改一处，跑同一条 `--bench` 命令。
+
+**首轮（§11 记录的旧代码）的结果**：
 
 | 变异 | 期望 | 实测 |
 | --- | --- | --- |
-| ① 第 51 次求值用 `text + " "`（仅多一个空格，19 字段中 `char_count` 等可能变化） | 检出差异 | `stable=true`、EXIT=0 —— **该变异不可检出**，因为尾随空格不改变本 19 字段的任何值（`char_count` 用 `ignore_spaces=true`；词表与计数器均不变）。这是样本本身的性质，不是判据缺陷。 |
-| ② 第 51 次求值用 `text + "X"` | 检出差异 | `bench runs=100 median_ms=9.573 stable=false warmup_ms=14.267`，EXIT=1 |
-| ③ 第 51 次 `analyze` 抛错（返回 `None`） | 判为不稳定 | `bench runs=100 median_ms=10.063 stable=false warmup_ms=10.476`，EXIT=1 |
-| ④ 第 51 次签名被扰动 | 判为不稳定 | `bench runs=100 median_ms=9.199 stable=false warmup_ms=9.117`，EXIT=1 |
-| ⑤ 第 51 次**不参与比较**（`compared` 少加一次） | 判为不稳定（反空过） | `bench runs=100 median_ms=10.101 stable=false warmup_ms=8.946`，EXIT=1 |
+| ① 第 51 次求值用 `text + " "` | 检出差异 | `stable=true`、EXIT=0 —— **该变异不可检出**，因为尾随空格不改变本 19 字段的任何值（`char_count` 用 `ignore_spaces=true`；词表与计数器均不变）。这是样本本身的性质，不是判据缺陷。 |
+| ② 第 51 次求值用 `text + "X"` | 检出差异 | `stable=false`、EXIT=1 |
+| ③ 第 51 次 `analyze` 抛错（返回 `None`） | 判为不稳定 | `stable=false`、EXIT=1 |
+| ④ 第 51 次签名被扰动 | 判为不稳定 | `stable=false`、EXIT=1 |
+| ⑤ 第 51 次**不参与比较**（`compared` 少加一次） | 判为不稳定（反空过） | `stable=false`、EXIT=1 |
+
+**评审修复轮后（当前代码）的重跑结果**（完整原始输出见 §10.6）：
+
+| 变异 | 期望 | 实测 |
+| --- | --- | --- |
+| ① 第 51 次求值用 `text + " "` | 不改变 19 字段 | `bench runs=100 median_ms=9.665 stable=true warmup_ms=8.484`，EXIT=0（与首轮一致：不可检出且应当不可检出） |
+| ② 第 51 次求值用 `text + "X"` | 检出差异 | `bench runs=100 median_ms=9.288 stable=false warmup_ms=8.887`，EXIT=1 |
+| ③ 第 51 次 `analyze` 抛错（返回 `None`） | 判为不稳定 | `bench runs=100 median_ms=8.843 stable=false warmup_ms=8.878`，EXIT=1 |
+| ④ 第 51 次签名被扰动 | 判为不稳定 | `bench runs=100 median_ms=9.098 stable=false warmup_ms=14.625`，EXIT=1 |
+| ⑤ 第 51 次比较**不计数**（`comparisons` 不自增） | 判为不稳定（反空过） | `bench runs=100 median_ms=8.974 stable=false warmup_ms=8.559`，EXIT=1 |
+| ⑤b 第 51 次**完全不参与比较**（跳过 reference 比对） | 判为不稳定（反空过） | `bench runs=100 median_ms=8.848 stable=false warmup_ms=8.842`，EXIT=1 |
 
 变异 ① 说明：判据比较的是**本 19 个字段的位模式**，不是文本本身；
 A-9.2 的要求是「100 次结果的位模式逐次相同」，因此尾随空格不改变结论是
-正确行为。变异 ②③④⑤ 证明判据对「字段值变化」「求值失败」「签名被扰动」
-「比较次数不足」四类偏离均会失败退出。
+正确行为。变异 ②③④⑤⑤b 证明判据对「字段值变化」「求值失败」「签名被扰动」
+「比较次数不足」「某次未与参考比较」五类偏离均会失败退出。
 
 ### 3.5 19 字段覆盖核对
 
-`lib/cmd/gate/bench.mbt` 的 `stats_signature`（44-68）逐行取用：
+`lib/cmd/gate/bench.mbt` 的 `signature_parts`（63-87）逐行取用：
 
 | 字段 | 行 | 编码 |
 | --- | --- | --- |
-| `char_count` | 46 | 十进制 |
-| `letter_count` | 47 | 十进制 |
-| `lexicon_count` | 48 | 十进制 |
-| `sentence_count` | 49 | 十进制 |
-| `syllable_count` | 50 | 十进制 |
-| `polysyllabcount` | 51 | 十进制 |
-| `monosyllabcount` | 52 | 十进制 |
-| `difficult_words` | 53 | 十进制 |
-| `difficult_words_list` | 54、55 | 长度 + `|` 连接词表 |
-| `long_word_count` | 56 | 十进制 |
-| `reading_time` | 57 | `reinterpret_as_uint64()` 位模式 |
-| `flesch_reading_ease` | 58 | 位模式 |
-| `flesch_kincaid_grade` | 59 | 位模式 |
-| `gunning_fog` | 60 | 位模式 |
-| `smog_index` | 61 | 位模式 |
-| `automated_readability_index` | 62 | 位模式 |
-| `coleman_liau_index` | 63 | 位模式 |
-| `linsear_write_formula` | 64 | 位模式 |
-| `dale_chall_readability_score` | 65 | 位模式 |
+| `char_count` | 65 | 十进制 |
+| `letter_count` | 66 | 十进制 |
+| `lexicon_count` | 67 | 十进制 |
+| `sentence_count` | 68 | 十进制 |
+| `syllable_count` | 69 | 十进制 |
+| `polysyllabcount` | 70 | 十进制 |
+| `monosyllabcount` | 71 | 十进制 |
+| `difficult_words` | 72 | 十进制 |
+| `difficult_words_list` | 73-75 | 长度 + `|` 连接词表（一个 part） |
+| `long_word_count` | 76 | 十进制 |
+| `reading_time` | 77 | `reinterpret_as_uint64()` 位模式 |
+| `flesch_reading_ease` | 78 | 位模式 |
+| `flesch_kincaid_grade` | 79 | 位模式 |
+| `gunning_fog` | 80 | 位模式 |
+| `smog_index` | 81 | 位模式 |
+| `automated_readability_index` | 82 | 位模式 |
+| `coleman_liau_index` | 83 | 位模式 |
+| `linsear_write_formula` | 84 | 位模式 |
+| `dale_chall_readability_score` | 85 | 位模式 |
 
 `TextStats`（`lib/types.mbt:16-36`）共 19 个字段，上述 19 项一一对应，无遗漏
-、无重复（脚本核对：`missing from stats_signature: []`）。9 个 double 全部按
-IEEE-754 位模式比较（AD §2.2 的同一身份规则），因此 `-0.0` 与 `0.0`、
-不同 NaN 载荷仍可区分。
+、无重复。这条核对现在**在仓库内**有守卫：`bench_wbtest.mbt` 的
+「the bench signature has exactly one part per TextStats field」断言
+`signature_parts(...).length() == 19`，并逐字段断言每个字段的改变都会改变
+签名（见 §10.3）。
+
+9 个 double 全部按 IEEE-754 位模式比较（AD §2.2 的同一身份规则），因此
+`-0.0` 与 `0.0`、不同 NaN 载荷仍可区分（`bench_wbtest.mbt` 有专门的
+`-0.0` / `0.0` 断言）。
 
 100 次求值的是**同一段文本**：`bench_text()` 在 `run_bench()` 开头只调用
-一次（`bench.mbt:125`），循环体内 `bench_analyze(text)` 复用同一 `text`
-（`bench.mbt:136`），无任何循环内的文本重建。
+一次（`bench.mbt:190`），循环体内 `bench_analyze(text)` 复用同一 `text`
+（`bench.mbt:202`），无任何循环内的文本重建。
 
 ## 4. 回归
 
@@ -351,17 +368,279 @@ $ git status --short
 
 ## 9. 偏差与说明
 
-1. **唯一代码改动是 `compared` 计数器**：原实现的签名比较本身正确（19/19
-   字段），但缺少「比较确实发生了 100 次」的判据，存在理论上的空过路径。
-   加固后由变异 ⑤ 证明该路径被拦截。
+1. **首轮唯一的代码改动是 `compared` 计数器**（评审修复轮已按评审意见改为
+   四个计数器 + `bench_stable`，见 §10）：原实现的签名比较本身正确（19/19
+   字段），但缺少「比较确实发生了」的判据，存在理论上的空过路径。
 2. **变异 ① 不可检出**：多一个尾随空格不改变本 19 字段的任何值，因此
    签名相同、`stable=true` 是正确结论，而不是判据漏检。A-9.2 的断言对象
    是「结果的位模式」，不是「文本」。
-3. **未新增自动化测试**：`cmd/gate` 是可执行包，稳定性判据的效果是进程
-   退出码，进程内单测无法观察 `exit_with_code(1)` 之后的状态；新增公开
-   谓词会扩大可执行包外部面并把 155 的测试基线改掉。故按 T-39 既有口径，
-   该行为由仓库外副本的变异实跑覆盖并记录在 §3.4。
+3. **首轮未新增自动化测试**（评审修复轮已补 `bench_wbtest.mbt`，7 个测试，
+   总数 155 → 162；详见 §10.2）。
 4. **计时为 debug 构建的默认配置**：`moon run` 默认 debug；release 下
    中位数 6.731 ms。两者都远低于 50 ms 预算。
 5. **bench 报告行不参与 `cells=... passed=...` 自报**：AD §6 把 `--bench`
    列为独立采样标志且不参与对拍；stdout 仍固定两行（规范串 + bench 报告）。
+
+## 10. 评审修复轮 1（2026-10-22）
+
+评审结论：「A-9.1/A-9.2 的功能实质正确，缺的是仓库内验证」。本轮按评审
+意见做三件事：把新逻辑抽成可测的纯函数并补白盒测试、把比较计数守卫改严、
+把 `format_ms` 的千分位计数换成 `Int64`。
+
+### 10.1 评审意见的处置
+
+| 评审意见 | 处置 | 证据 |
+| --- | --- | --- |
+| Important 1：新逻辑没有自动化测试 | **已修**：抽出 `signature_parts` / `median_of` / `bench_stable` 三个纯函数，新增 `lib/cmd/gate/bench_wbtest.mbt`（7 个测试） | §10.2、§10.3 |
+| Important 2：19 字段覆盖没有仓库内守卫 | **已修**：`signature_parts` 返回 `Array[String]`，测试断言其长度恰为 19，并逐字段断言改变任一字段都会改变签名；测试的文档注释明写这是 A-9.2 的覆盖不变式 | §10.3 |
+| Minor：`compared` 数的是求值次数而非比较次数 | **已修**：拆成 `evaluations` / `comparisons` / `mismatches` / `has_reference` 四个计数器，`bench_stable` 要求 `comparisons == BENCH_RUNS - 1`（第一次成功求值成为参考签名，自身不与任何东西比较）且 `has_reference` 为真 | §10.4 |
+| Minor：`format_ms` 用 `Double::to_int()` 会溢出 | **已修**：千分位改为 `Int64`（`to_int64()`，除法用 `1000L`） | §10.5 |
+| 已停放项（`--bench` 与 `--group`/`--inject` 互斥、bench 退出码与报告行格式未登记、`core/bench` 拉入 core 依赖、词表按顺序比较） | **未动**，按评审要求 parked | §10.7 |
+
+### 10.2 新增测试与新的测试总数
+
+`lib/cmd/gate/bench_wbtest.mbt`（新增，7 个测试）：
+
+1. `the bench signature has exactly one part per TextStats field`
+2. `changing any single field changes the bench signature`
+3. `the bench signature sees the word list order`
+4. `the bench signature separates minus zero from zero`
+5. `format_ms prints three decimals`
+6. `median_of takes the mean of the two middle values`
+7. `bench_stable rejects an incomplete or mismatching run`
+
+测试总数 **155 → 162**（= 155 + 7），全部通过：
+
+```console
+$ cd lib && moon test --target native
+Total tests: 162, passed: 162, failed: 0.
+TEST_EXIT=0
+```
+
+输出无任何 warning / error 行（`moon test --target native 2>&1 | grep -iE
+"warn|error"` 无输出）。
+
+### 10.3 覆盖测试的写法与不变式
+
+`signature_parts` 现在返回 `Array[String]`（每字段一个 part），签名由调用方
+`join(SIGNATURE_SEPARATOR)` 得到。分隔符取 ASCII 单元分隔符 U+001F：它不会
+出现在分词后的词里，因此两个不同的 part 数组不可能塌缩成同一条签名。
+
+19 字段的覆盖不变式由两条断言守住：
+
+```mbt
+test "the bench signature has exactly one part per TextStats field" {
+  let stats = bench_sample_stats()
+  let parts = signature_parts(stats)
+  assert_eq(19, parts.length())
+}
+```
+
+```mbt
+test "changing any single field changes the bench signature" {
+  ...
+  assert_eq(19, variants.length())
+  for variant in variants {
+    let signature = signature_parts(variant).join(SIGNATURE_SEPARATOR)
+    assert_true(baseline_signature != signature)
+  }
+}
+```
+
+`variants` 逐字段构造 19 个变体（每个变体只改一个字段），因此
+`variants.length() == 19` 这条断言同时证明了「19 个字段都被覆盖」。
+测试的文档注释明写：这条断言是 **A-9.2 的覆盖不变式**——若日后给
+`TextStats` 加第 20 个字段，签名会静默地不再覆盖它，而这条断言会把它变成
+一次测试失败。`lib/types_test.mbt` 的既有断言钉住字段集本身，两者合起来钉住
+「字段 → 签名 part」的映射。
+
+### 10.4 比较计数守卫
+
+旧守卫（首轮）只数求值次数：`compared == BENCH_RUNS`。但第一次成功的求值
+成为**参考签名**，它自身不与任何东西比较，所以「比较真的发生了多少次」
+并不是 `compared`。若将来有人删掉 reference 的 `match`，旧守卫仍会打印
+`stable=true`。
+
+新守卫（`bench.mbt:158-168`）：
+
+```mbt
+fn bench_stable(
+  evaluations : Int32,
+  comparisons : Int32,
+  mismatches : Int32,
+  has_reference : Bool,
+) -> Bool {
+  evaluations == BENCH_RUNS &&
+  comparisons == BENCH_RUNS - 1 &&
+  mismatches == 0 &&
+  has_reference
+}
+```
+
+`comparisons == BENCH_RUNS - 1`（= 99）精确刻画「一次完全一致的运行恰好做
+99 次比较」；`has_reference` 保证参考签名确实建立过。
+
+### 10.5 `format_ms` 的 Int64 计数
+
+旧实现 `(value * 1000.0).round().to_int()` 用 32 位 `Int`：探针实测
+`(1.0e7 * 1000.0).round().to_int()` = `2147483647`（**饱和**），而
+`to_int64()` = `10000000000`。也就是说一个 24.8 天的时长会被印成一个完全
+错误的数。新实现用 `Int64`（`bench.mbt:110-122`），并有断言
+`format_ms(1.0e7) == "10000000.000"`。
+
+### 10.6 验收原始输出
+
+> **执行环境说明**：本轮执行期间，同一 checkout 里另一个 worker 正在写
+> `lib/cmd/gate/data_checks.mbt` 与 `lib/cmd/gate/main.mbt`（T-41 的
+> `--group=data` 实现），其工作树版本**编译不过**（`moon check` 报 15 个
+> 错误），因此本轮的验收命令在**仓库外的干净副本**里跑：
+> `git archive HEAD lib` 解包到 `F:/moonbit比赛/_t40_scratch/evid/lib`
+> （即 HEAD 的 `lib/`，含已提交的 `bench.mbt`），再把本轮的
+> `bench.mbt` 与新增的 `bench_wbtest.mbt` 覆盖进去。副本与仓库的
+> T-40 文件逐字节一致（`diff` 无输出）。T-41 的文件与本任务无关，
+> 本任务不暂存、不提交、不修改它们。
+
+**测试 / 检查 / 格式**
+
+```console
+$ cd lib && moon test --target native; echo "EXIT=$?"
+Total tests: 162, passed: 162, failed: 0.
+EXIT=0
+
+$ moon check --target native; echo "EXIT=$?"
+Finished. moon: ran 12 tasks, now up to date
+EXIT=0
+
+$ moon fmt --check; echo "EXIT=$?"
+Finished. moon: ran 87 tasks, now up to date
+EXIT=0
+```
+
+**bench 正路径（重构后无回归）**
+
+```console
+$ moon run cmd/gate --target native --bench; echo "EXIT=$?"
+moon run cmd/gate --target native
+bench runs=100 median_ms=8.810 stable=true warmup_ms=10.562
+EXIT=0
+```
+
+**非 bench 门禁（证明重构没有影响单元格路径）**
+
+```console
+$ moon run cmd/gate --target native --group=selfcheck; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=all; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+```
+
+**静态白名单（未变）**
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build .
+.\cmd\gate\exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+.\cmd\gate\records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+.\cmd\gate\records.mbt:211:extern "c" fn gate_fwrite(
+.\cmd\gate\records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+.\cmd\gate\records.mbt:228:extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
+count=5
+
+$ grep -rnE '@env\.' --include='*.mbt' --exclude-dir=_build .
+.\cmd\gate\main.mbt:267:  let args = @env.args()
+.\cmd\gate\records.mbt:187:    failure_record_path(@env.now()),
+count=2
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build .
+（5 条 extern + 2 条 @env.，共 7 行，全部在 cmd/gate）
+count=7
+```
+
+**「能抓住旧空过 bug」的测试**：在仓库外副本上把守卫改回旧形态
+（`comparisons == BENCH_RUNS`）并让比较**不计数**，端到端复现旧的空过结论；
+再单独把守卫改坏，跑测试看断言失败。
+
+旧守卫（无比较计数要求）+ 比较不计数（**这就是旧代码的空过**）：
+
+```console
+$ moon run cmd/gate --target native --bench; echo "EXIT=$?"
+moon run cmd/gate --target native
+bench runs=100 median_ms=8.858 stable=true warmup_ms=8.591
+EXIT=0  <-- old guard: vacuous stable=true
+```
+
+新守卫 + 比较不计数（**被拦截**）：
+
+```console
+$ moon run cmd/gate --target native --bench; echo "EXIT=$?"
+moon run cmd/gate --target native
+bench runs=100 median_ms=8.827 stable=false warmup_ms=8.417
+EXIT=1
+```
+
+把守卫本身改坏（`comparisons == BENCH_RUNS`）后，新测试失败：
+
+```console
+$ moon test --target native; echo "EXIT=$?"
+[vicoproplus/moon_textstat] test cmd/gate/bench_wbtest.mbt:132 ("bench_stable rejects an incomplete or mismatching run") failed: cmd/gate/bench_wbtest.mbt:134:3-134:46@vicoproplus/moon_textstat FAILED: `false` is not true
+Total tests: 162, passed: 161, failed: 1.
+EXIT=2
+```
+
+副本随后被还原（`stable=true`、EXIT=0），再删除。
+
+**6 组变异重跑**（当前代码，副本逐次从干净副本重建）：
+
+```console
+# ① 第 51 次求值用 text + " "
+bench runs=100 median_ms=9.665 stable=true warmup_ms=8.484
+EXIT=0
+
+# ② 第 51 次求值用 text + "X"
+bench runs=100 median_ms=9.288 stable=false warmup_ms=8.887
+EXIT=1
+
+# ③ 第 51 次 analyze 抛错
+bench runs=100 median_ms=8.843 stable=false warmup_ms=8.878
+EXIT=1
+
+# ④ 第 51 次签名被扰动
+bench runs=100 median_ms=9.098 stable=false warmup_ms=14.625
+EXIT=1
+
+# ⑤ 第 51 次比较不计数
+bench runs=100 median_ms=8.974 stable=false warmup_ms=8.559
+EXIT=1
+
+# ⑤b 第 51 次完全不参与比较
+bench runs=100 median_ms=8.848 stable=false warmup_ms=8.842
+EXIT=1
+```
+
+### 10.7 已停放项（未动）
+
+1. `--bench` 与 `--group=` / `--inject=` 互斥（EXIT=2）严于 AD §6 的字面
+   读法：按评审意见 parked，作为 AD 登记问题，不在本任务范围内。
+2. bench 的退出码（1 = 超预算）与报告行格式是 AD §3.2/§6 未登记的读法：
+   parked，修订 AD 不在本任务范围内。
+3. `moonbitlang/core/bench` 把 core/test+debug+json 拉进门禁二进制：
+   评审定为信息项（单一 extern 裁决禁止本地时钟），未动。
+4. 词表按顺序比较（`compare.mbt` 按集合比较）：按评审意见只补了一行注释
+   说明这是**有意**的选择（bench 文本固定、本移植确定性），未改行为。
+
+### 10.8 本轮改动面
+
+```console
+$ git show --stat HEAD
+（见下方提交）
+```
+
+本轮只动 `lib/cmd/gate/bench.mbt`（重构 + 守卫 + Int64）、新增
+`lib/cmd/gate/bench_wbtest.mbt`、追加本日志。`lib/data/**`、
+`lib/gate/data/**`、`pkg.generated.mbti`、366 单元格表均未触碰。
+
+临时目录 `F:/moonbit比赛/_t40_scratch` 已删除。
