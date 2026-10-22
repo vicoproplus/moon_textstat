@@ -16,26 +16,27 @@
 | 各组真实成员 | `lib/gate/data/cell.mbt:54-63` `cells_for_group` + `lib/gate/data/l3_data.mbt`（生成表：count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12；`data`/`selfcheck`/`all` 是门禁级选择器，不是表组） |
 | `[ALIGN]` 19 个 callable | spec §1.3.3 的 19 行（`docs/superpowers/specs/202610201517-moon-textstat-移植-核心库-spec.md:209-227`） |
 | `[EXT]` 31 个 callable | spec §1.3.3 的 13 行（`…-spec.md:228-240`），AD §5 白名单；不实现、不构造期望值 |
-| 映射规则 | 本任务硬性要求：**断言对象只涉及 `[EXT]` callable 的源侧测试文件一律标「不迁移 + 理由」（引 AD §5）**；19 个 `[ALIGN]` callable 的源侧测试必须全部落在门禁侧 |
+| 映射规则 | 本任务硬性要求：**断言对象是 `[ALIGN]` callable 的源侧测试文件必须落在门禁侧**；断言对象是 `[EXT]` callable 且该行为不被任何 `[ALIGN]` 形态消费 → 一律「不迁移 + 理由」（引 AD §5）；断言对象虽是 `[EXT]` 命名，但该 callable 正是 `[ALIGN]` 形态的**内部步骤**或其开关 → 判「**门禁侧（间接）**」（逐条落点见 §0.1） |
 
-**判定规则（本表使用）**：看源侧测试文件的**断言对象**（assert 右侧调用的 callable），而不是它所在的模块目录。
+**判定规则（本表使用）**：看源侧测试文件的**断言对象**（assert 右侧调用的 callable）**以及该行为是否被 `[ALIGN]` 形态消费**，而不是它所在的模块目录。
 
 - 断言对象是 `[ALIGN]` callable（或其 `[ALIGN]` 形态开关）→ 落在对应门禁组。
-- 断言对象只可能是 `[EXT]` callable → **不迁移**，理由引 AD §5（`[EXT]` 31 个 callable 不实现、不构造期望值，AD §5；PRD-A 非目标）。
+- 断言对象是 `[EXT]` callable，且该行为不被任何 `[ALIGN]` 形态消费（清单外公式、阿拉伯语 4 个、短词、派生平均量 6、舍入状态、缓存装饰器等）→ **不迁移**，理由引 AD §5（`[EXT]` 31 个 callable 不实现、不构造期望值，AD §5；PRD-A 非目标）。
+- 断言对象是 `[EXT]` 命名，但该 callable 是 `[ALIGN]` 形态的**内部步骤**（`remove_punctuation`、`is_difficult_word`）或只开关其中一个参数（`set_rm_apostrophe`）→ **门禁侧（间接）**：该行为在目标侧被实现，其数值后果由门禁单元格锁定，其语义细节由包内白盒测试锁定。
 
-### 与 spec §4.7.6 的差异（3 个文件，显式登记）
+### §0.1 三行「门禁侧（间接）」的落点与理由
 
-spec §4.7.6（`…-spec.md:622`、`624`、`625`）把 `test_remove_punctuation`、`test_is_difficult_word`、`test_set_rm_apostrophe` 三个文件也判为门禁侧。本表按上述「断言对象」规则判为**不迁移**，因为三者的断言对象分别是 `remove_punctuation`、`is_difficult_word`、`remove_punctuation`——三者都是 `[EXT]`，不是 `[ALIGN]`。
+这三个文件的断言对象分别是 `remove_punctuation`、`is_difficult_word`、`remove_punctuation`——都是 `[EXT]` 命名，但**都是 `[ALIGN]` 形态的内部步骤或其开关**（`letter_count` / `long_word_count` / `lexicon_count` 家族消费 `remove_punctuation`；`difficult_words` / `difficult_words_list` / `gunning_fog` 消费 `is_difficult_word`）。因此它们的断言没有落在门禁之外，而是**经由 `[ALIGN]` 形态间接落在门禁侧**，另加包内白盒测试锁定语义细节。
 
-这三个文件覆盖的行为**没有丢失**，只是不由门禁组承担，而是由目标侧单元级白盒测试承担：
+| 源侧文件 | 门禁侧落点（形态 → 单元格数） | 语义细节的断言落点 |
+|---|---|---|
+| `test_remove_punctuation.py` | `rm_apostrophe=true`：`letter_count`（12 = `count` 8 + `degenerate` 4）、`long_word_count`（12）；`rm_apostrophe=false`：`lexicon_count`（12）、`lexicon_count[removepunct=False]`（12）、`lexicon_count[split_contractions=True]`（12）、`lexicon_count[split_hyphens=True]`（12）、`difficult_words`（25）、`difficult_words_list`（12） | `lib/list_words_wbtest.mbt`：`"list_words keeps contraction apostrophes and deletes the others"`（`"aren't"`→`["aren't"]`、`"rock'n'roll"`→`["rocknroll"]`、`"aren't"` + `rm_apostrophe=true`→`["arent"]`） |
+| `test_is_difficult_word.py` | `difficult_words`（25 = `count` 8 + `degenerate` 4 + `lang` 11 + `errors` 2）、`difficult_words_list`（12）、`gunning_fog`（25） | `lib/difficult_words_wbtest.mbt`：`"is_difficult_word applies the upstream decision order"`（上游决策序：不是单词 → 易读词表 → 音节阈值，逐条断言）；`lib/difficult_words_test.mbt`：`"threshold, uniqueness and case semantics match upstream"`、`"language probe totals match the oracle"` |
+| `test_set_rm_apostrophe.py` | `rm_apostrophe=true`：`long_word_count`（12）、`letter_count`（12）；`rm_apostrophe=false`：`lexicon_count` 家族（48）、`difficult_words_list`（12） | `lib/list_words_wbtest.mbt`：`"list_words keeps contraction apostrophes and deletes the others"`（开关两态：`"aren't"` 与 `"arent"`） |
 
-| 源侧文件 | 目标侧对应单元测试 |
-|---|---|
-| `test_remove_punctuation.py` | `lib/list_words_wbtest.mbt`（`rm_apostrophe` 真假两分支的删字符断言） |
-| `test_is_difficult_word.py` | `lib/difficult_words_wbtest.mbt`（`is_difficult_word` 的上游决策序逐条断言） |
-| `test_set_rm_apostrophe.py` | `lib/list_words_wbtest.mbt`（`rm_apostrophe` 开关语义） |
+**为什么是「间接」而不是一行单元格形状的行**：这三个 callable 自身没有冻结期望值——AD §5 明确把它们列为 `[EXT]`，目标侧不提供公开入口，因此不存在「`remove_punctuation` 单元格」这样的行可指。它们的断言落在**消费它们的 `[ALIGN]` 形态**上：行为在门禁侧被执行（数值后果逐位比对），语义细节在包内白盒测试上被执行；两者合起来覆盖了源侧断言的行为内容。
 
-若评审要求与 spec §4.7.6 逐字一致，只需把这三行改为门禁组（`variant` / `count` / `variant`），其余 54 行不变，总数与 19 个 `[ALIGN]` 覆盖面均不受影响。
+**诚实登记的一处形态差异（不是未覆盖的缺口）**：上游 `test_remove_punctuation.py` 与 `test_set_rm_apostrophe.py` 断言的是**整串**相等（`resources.PUNCT_TEXT` → `PUNCT_TEXT_RESULT_W_APOSTR` / `PUNCT_TEXT_RESULT_WO_APOSTR`）。目标侧不提供 `remove_punctuation(text, rm_apostrophe) -> String` 这个公开入口（AD §5：变换函数属内部步骤），所以没有对应的整串断言；目标侧断言的是同一套字符分类规则在**词元层**的结果（撇号保留/删除、标点删除、空白保留到切分步骤），而空白与换行的整串形态不作为契约暴露。此外，冻结语料的 12 个样本与 13 个语种探针句**不含任何撇号**（实测撇号总数 0），所以撇号分类这一细节由上述白盒测试锁定，而非由任何门禁单元格锁定。补上整串断言必须先实现一个 `[EXT]` callable，AD §5 不允许，因此本项按「行为已覆盖、形态为间接」记账，不作为待补缺口。
 
 ---
 
@@ -105,7 +106,7 @@ spec §4.7.6（`…-spec.md:622`、`624`、`625`）把 `test_remove_punctuation`
 
 | # | 源文件 | 测试函数 | 用例数 | 覆盖的 callable | 去向 |
 |---|---|---|---|---|---|
-| 44 | `test_remove_punctuation.py` | 1 | 7 | `remove_punctuation` | **不迁移**：`[EXT]` 变换函数（AD §5：属内部步骤，不是 PRD 需求；目标侧由 `lib/list_words_wbtest.mbt` 白盒覆盖，见 §0 差异登记） |
+| 44 | `test_remove_punctuation.py` | 1 | 7 | `remove_punctuation`（`[EXT]` 命名，但是 `[ALIGN]` 形态的内部步骤） | **门禁侧（间接）**：`remove_punctuation` 是 `letter_count` / `long_word_count` / `lexicon_count` 家族 / `difficult_words` 家族的内部步骤（`lib/list_words.mbt:54` 调 `remove_punctuation(current, rm_apostrophe)`；`lib/long_word_count.mbt:46` 调 `list_words(text, rm_apostrophe=true)`；`lib/letter_count.mbt:28` 直接用 `is_python_word_char`），其数值后果由门禁单元格锁定——`lexicon_count`（12）、`lexicon_count[removepunct=False]`（12）、`lexicon_count[split_contractions=True]`（12）、`lexicon_count[split_hyphens=True]`（12）、`letter_count`（12）、`long_word_count`（12）、`difficult_words`（25）、`difficult_words_list`（12）；字符分类细节由 `lib/list_words_wbtest.mbt:65`（`"list_words keeps contraction apostrophes and deletes the others"`）锁定。整串形态差异见 §0.1 |
 
 ### 1.5 `textstat/tests/backend/utils/`（7 个）
 
@@ -123,14 +124,14 @@ spec §4.7.6（`…-spec.md:622`、`624`、`625`）把 `test_remove_punctuation`
 
 | # | 源文件 | 测试函数 | 用例数 | 覆盖的 callable | 去向 |
 |---|---|---|---|---|---|
-| 52 | `test_is_difficult_word.py` | 1 | 15 | `is_difficult_word` | **不迁移**：`[EXT]` 单词语义校验（AD §5：PRD 未要求；难词判定本身是 `difficult_words` / `difficult_words_list` 的内部步骤，其对外行为已由门禁 `count` 组覆盖；目标侧由 `lib/difficult_words_wbtest.mbt` 白盒覆盖） |
+| 52 | `test_is_difficult_word.py` | 1 | 15 | `is_difficult_word`（`[EXT]` 命名，但是 `[ALIGN]` 形态的内部步骤） | **门禁侧（间接）**：`is_difficult_word` 是 `difficult_words` / `difficult_words_list` / `gunning_fog` 的内部步骤（`lib/difficult_words.mbt:65` 的 `list_difficult_words` 逐 token 调 `is_difficult_word`；`lib/difficult_words.mbt:139` 的 `count_difficult_words` 消费它；Gunning Fog 用同一计数器），其数值后果由门禁单元格锁定——`difficult_words`（25 = `count` 8 + `degenerate` 4 + `lang` 11 + `errors` 2）、`difficult_words_list`（12）、`gunning_fog`（25）；判定顺序由 `lib/difficult_words_wbtest.mbt:10`（`"is_difficult_word applies the upstream decision order"`）与 `lib/difficult_words_test.mbt:109`（`"threshold, uniqueness and case semantics match upstream"`）、`lib/difficult_words_test.mbt:65`（`"language probe totals match the oracle"`）锁定 |
 
 ### 1.7 `textstat/tests/textstat/`（5 个）
 
 | # | 源文件 | 测试函数 | 用例数 | 覆盖的 callable | 去向 |
 |---|---|---|---|---|---|
 | 53 | `test_set_lang.py` | 1 | 9 | `set_lang`（设置器）→ 断言对象 `syllable_count`（`[ALIGN]`） | **门禁 `lang`**（9 个语种码 × `syllable_count`；spec §4.5 已把语种从全局状态改为形参，故断言对象是 `[ALIGN]` callable） |
-| 54 | `test_set_rm_apostrophe.py` | 1 | 2 | `set_rm_apostrophe`（设置器）→ 断言对象 `remove_punctuation`（`[EXT]`） | **不迁移**：`[EXT]` 全局状态设置器（AD §5：全局状态被 PRD-A 非目标排除）+ 断言对象 `remove_punctuation` 是 `[EXT]`；目标侧由 `lib/list_words_wbtest.mbt` 覆盖 `rm_apostrophe` 开关 |
+| 54 | `test_set_rm_apostrophe.py` | 1 | 2 | `set_rm_apostrophe`（设置器）→ 断言对象 `remove_punctuation`（`[EXT]` 命名，但是 `[ALIGN]` 形态的内部步骤） | **门禁侧（间接）**：该设置器只开关 `remove_punctuation` 的一个布尔参数，spec §4.5 已把语种/状态从全局状态改为形参与开关，故其行为等同于 `rm_apostrophe` 这一参数（`lib/list_words.mbt:44` 的 `rm_apostrophe~` 形参、`lib/list_words.mbt:98` 的两分支实现）。`rm_apostrophe=true` 路径由 `long_word_count`（12，`lib/long_word_count.mbt:46` 显式传 `rm_apostrophe=true`）与 `letter_count`（12，`lib/letter_count.mbt:25-32`）的单元格锁定；`rm_apostrophe=false` 路径由 `lexicon_count` 家族（`lexicon_count` 12 + `[removepunct=False]` 12 + `[split_contractions=True]` 12 + `[split_hyphens=True]` 12）与 `difficult_words_list`（12）的单元格锁定；开关两态由 `lib/list_words_wbtest.mbt:65`（`"aren't"`→`["aren't"]` 与 `rm_apostrophe=true`→`["arent"]`）与 `lib/list_words_wbtest.mbt:96`（`"split_contractions splits only apostrophes before a contraction ending"`）锁定。整串形态差异见 §0.1 |
 | 55 | `test_legacy_round.py` | 1 | 9 | `_legacy_round` / `set_rounding` / `set_rounding_points` | **不迁移**：`[EXT]` 全局舍入状态（AD §5：全局状态被 PRD-A 非目标排除；目标侧不舍入，恒等路径无对应物） |
 | 56 | `test_text_standard.py` | 2 | 14 | `text_standard` | **不迁移**：`[EXT]` 清单外公式（AD §5，PRD-A C3 非目标） |
 | 57 | `test_dale_chall_readability_score_v2.py` | 1 | 4 | `dale_chall_readability_score_v2`（断言含 `lexicon_count` / `difficult_words`，但被断言目标是 v2 公式） | **不迁移**：`[EXT]` v2 公式（AD §5，PRD-A C3 非目标） |
@@ -150,38 +151,38 @@ spec §4.7.6（`…-spec.md:622`、`624`、`625`）把 `test_remove_punctuation`
 | `textstat/tests/backend/counts` | 14 | 14 | 9 | 5 |
 | `textstat/tests/backend/metrics` | 26 | 26 | 9 | 17 |
 | `textstat/tests/backend/selections` | 3 | 3 | 3 | 0 |
-| `textstat/tests/backend/transformations` | 1 | 1 | 0 | 1 |
+| `textstat/tests/backend/transformations` | 1 | 1 | 1 | 0 |
 | `textstat/tests/backend/utils` | 7 | 7 | 5 | 2 |
-| `textstat/tests/backend/validations` | 1 | 1 | 0 | 1 |
-| `textstat/tests/textstat` | 5 | 5 | 1 | 4 |
-| **合计** | **14/26/3/1/7/1/5 = 57** | **57** | **27** | **30** |
+| `textstat/tests/backend/validations` | 1 | 1 | 1 | 0 |
+| `textstat/tests/textstat` | 5 | 5 | 2 | 3 |
+| **合计** | **14/26/3/1/7/1/5 = 57** | **57** | **30** | **27** |
 
-门禁 27 + 不迁移 30 = **57**，与文件总数闭合。
+门禁 30 + 不迁移 27 = **57**，与文件总数闭合。（三行由「不迁移」改判为「门禁侧（间接）」后，门禁侧由 27 增至 30，不迁移由 30 降至 27；见 §0.1。）
 
 ### 2.3 测试函数与用例数
 
 | 项 | 门禁侧 | 不迁移 | 合计 |
 |---|---|---|---|
-| 文件数 | 27 | 30 | 57 |
-| 测试函数数 | 30 | 31 | 61 |
-| 参数化用例数 | 261 | 193 | 454 |
+| 文件数 | 30 | 27 | 57 |
+| 测试函数数 | 33 | 28 | 61 |
+| 参数化用例数 | 285 | 169 | 454 |
 
 （`test_get_lang_cfg.py` 的 33 个用例含 `LANG_CONFIGS` 的 9 语种 × 27 键推导式，共 28 例；4 个阿拉伯语/faseeh 文件的 parametrize 列表为空，故按 0 例计。计数由 AST 解析 `@pytest.mark.parametrize` 的实参列表长度得到，与 `pytest` 实际收集的用例数一致。）
 
-### 2.4 门禁组落点统计（27 个门禁侧文件）
+### 2.4 门禁组落点统计（30 个门禁侧文件）
 
 | 门禁组 | 源侧文件数 | 承担该组语义的主要源侧文件 |
 |---|---|---|
-| `count` | 13 | `test_count_chars`、`test_count_letters`、`test_count_words`、`test_count_sentences`、`test_count_syllables`、`test_count_difficult_words`、`test_count_long_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_list_difficult_words`、`test_set_difficult_words`、`test_reading_time`、`test_get_lang_easy_words` |
-| `variant` | 5 | `test_count_words`、`test_count_chars`、`test_list_words`、`test_set_difficult_words`、`test_linsear_write_formula` |
-| `formula` | 8 | `test_flesch_reading_ease`、`test_flesch_kincaid_grade`、`test_gunning_fog`、`test_smog_index`、`test_automated_readability_index`、`test_coleman_liau_index`、`test_linsear_write_formula`、`test_dale_chall_readability_score` |
-| `lang` | 11 | `test_count_syllables`、`test_count_difficult_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_flesch_reading_ease`、`test_gunning_fog`、`test_set_lang`、`test_get_lang_root`、`test_get_lang_cfg`、`test_get_cmudict`、`test_get_pyphen` |
-| `errors` | 6 | `test_count_syllables`、`test_count_difficult_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_flesch_reading_ease`、`test_gunning_fog`（这 6 个正是 `l3_data.mbt` 的 `errors` 组覆盖的 6 个形态：`syllable_count`/`polysyllabcount`/`monosyllabcount`/`difficult_words`/`flesch_reading_ease`/`gunning_fog`，语种 `ar`/`xx_YY`） |
-| `degenerate` | — | 退化样本（`empty_string`/`punctuation_only`/`very_short_under_5_words`/`whitespace_only`）在源侧没有独立测试文件；其语义由上表 19 个 `[ALIGN]` callable 的源侧文件共同提供（上游 `resources.EMPTY_STR` 等样本即退化输入） |
-| `data` | 3 | `test_get_cmudict`、`test_get_pyphen`、`test_get_lang_easy_words`（`data` 组为 T-41 的数据身份子集，`main.mbt:196-198` 在 T-41 完成前拒绝该组） |
+| `count` | 16 | `test_count_chars`、`test_count_difficult_words`、`test_count_letters`、`test_count_long_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_count_sentences`、`test_count_syllables`、`test_count_words`、`test_get_lang_easy_words`、`test_is_difficult_word`、`test_list_difficult_words`、`test_reading_time`、`test_remove_punctuation`、`test_set_difficult_words`、`test_set_rm_apostrophe` |
+| `variant` | 7 | `test_count_chars`、`test_count_words`、`test_linsear_write_formula`、`test_list_words`、`test_remove_punctuation`、`test_set_difficult_words`、`test_set_rm_apostrophe` |
+| `formula` | 8 | `test_automated_readability_index`、`test_coleman_liau_index`、`test_dale_chall_readability_score`、`test_flesch_kincaid_grade`、`test_flesch_reading_ease`、`test_gunning_fog`、`test_linsear_write_formula`、`test_smog_index` |
+| `lang` | 12 | `test_count_difficult_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_count_syllables`、`test_flesch_reading_ease`、`test_gunning_fog`、`test_get_cmudict`、`test_get_lang_cfg`、`test_get_lang_root`、`test_get_pyphen`、`test_is_difficult_word`、`test_set_lang` |
+| `degenerate` | 3 | `test_is_difficult_word`、`test_remove_punctuation`、`test_set_rm_apostrophe`（退化样本 `empty_string`/`punctuation_only`/`very_short_under_5_words`/`whitespace_only` 在源侧没有独立测试文件；这三个文件的上游断言含空串/纯标点输入，其语义由这四类退化样本的单元格承担） |
+| `errors` | 7 | `test_count_difficult_words`、`test_count_monosyllable_words`、`test_count_polysyllable_words`、`test_count_syllables`、`test_flesch_reading_ease`、`test_gunning_fog`、`test_is_difficult_word`（这 7 个正是 `l3_data.mbt` 的 `errors` 组覆盖的 6 个形态：`syllable_count`/`polysyllabcount`/`monosyllabcount`/`difficult_words`/`flesch_reading_ease`/`gunning_fog`，语种 `ar`/`xx_YY`；`test_is_difficult_word` 对应 `difficult_words` 形态） |
+| `data` | 3 | `test_get_cmudict`、`test_get_lang_easy_words`、`test_get_pyphen`（`data` 组为 T-41 的数据身份子集，`main.mbt:196-198` 在 T-41 完成前拒绝该组） |
 | `selfcheck` / `all` | — | 门禁级选择器，非表组（`cell.mbt:50-53`） |
 
-（同一文件可落在多个组，故各组文件数之和大于 27；计数口径为「该文件被指派到该组」。）
+（同一文件可落在多个组，故各组文件数之和（56）大于 30；计数口径为「该文件被指派到该组」。）
 
 ---
 
@@ -217,21 +218,22 @@ spec §4.7.6（`…-spec.md:622`、`624`、`625`）把 `test_remove_punctuation`
 
 ## 4. 不迁移侧的 31 个 `[EXT]` callable 覆盖核对
 
-AD §5 的 31 个 `[EXT]` callable 与本表「不迁移」行的对应（无遗漏）：
+AD §5 的 31 个 `[EXT]` callable 与本表去向的对应（无遗漏；标「门禁侧（间接）」的 3 个 callable 见 §0.1）：
 
-| `[EXT]` 组（spec §1.3.3） | callable | 对应源侧文件（本表判为不迁移） |
+| `[EXT]` 组（spec §1.3.3） | callable | 对应源侧文件与本表去向 |
 |---|---|---|
 | 派生平均量 6 | `avg_character_per_word`、`avg_letter_per_word`、`avg_sentence_length`、`avg_sentence_per_word`、`avg_syllables_per_word`、`words_per_sentence` | `test_chars_per_word.py`、`test_letters_per_word.py`、`test_sentences_per_word.py`、`test_syllables_per_word.py`、`test_words_per_sentence.py`（`avg_sentence_length` 上游已整体弃用，无专用文件） |
-| 单词语义 2 | `is_difficult_word`、`is_easy_word` | `test_is_difficult_word.py`（`is_easy_word` 无独立文件） |
-| 变换 1 | `remove_punctuation` | `test_remove_punctuation.py`、`test_set_rm_apostrophe.py` |
+| 单词语义 2 | `is_difficult_word`、`is_easy_word` | `test_is_difficult_word.py`（**门禁侧（间接）**：`is_difficult_word` 是 `difficult_words` / `difficult_words_list` / `gunning_fog` 的内部步骤；`is_easy_word` 上游无独立文件） |
+| 变换 1 | `remove_punctuation` | `test_remove_punctuation.py`、`test_set_rm_apostrophe.py`（均**门禁侧（间接）**：`remove_punctuation` 是 `letter_count` / `long_word_count` / `lexicon_count` 家族 / `difficult_words` 家族的内部步骤） |
 | 短词 1 | `miniword_count` | `test_count_miniwords.py` |
 | 阿拉伯语 4 | `count_arabic_long_words`、`count_arabic_syllables`、`count_complex_arabic_words`、`count_faseeh` | 4 个对应文件（各 0 用例） |
 | 清单外公式 12 | `crawford`、`fernandez_huerta`、`gulpease_index`、`gutierrez_polini`、`lix`、`mcalpine_eflaw`、`osman`、`rix`、`spache_readability`、`szigriszt_pazos`、`text_standard`、`wiener_sachtextformel` | 11 个对应文件（`mcalpine_eflaw` 上游无测试文件） |
-| 全局状态 4 | `set_lang`、`set_rm_apostrophe`、`set_rounding`、`set_rounding_points` | `test_set_lang.py`（断言对象是 `[ALIGN]` 的 `syllable_count`，故**落门禁侧**）、`test_set_rm_apostrophe.py`、`test_legacy_round.py` |
+| 全局状态 4 | `set_lang`、`set_rm_apostrophe`、`set_rounding`、`set_rounding_points` | `test_set_lang.py`（断言对象是 `[ALIGN]` 的 `syllable_count`，故**落门禁侧**）、`test_set_rm_apostrophe.py`（**门禁侧（间接）**：只开关 `rm_apostrophe` 一个参数）、`test_legacy_round.py`（**不迁移**：`set_rounding` / `set_rounding_points` 的舍入状态被 PRD-A 非目标排除，目标侧不舍入，恒等路径无对应物） |
 | v2 公式 1 | `dale_chall_readability_score_v2` | `textstat/tests/backend/metrics/test_dale_chall_readability_score_v2.py`、`textstat/tests/textstat/test_dale_chall_readability_score_v2.py` |
 
 另有 1 个**非 callable** 的不迁移项：`test_get_typed_cache.py`（`typed_cache` 装饰器，上游缓存实现细节，目标侧无等价物）。
 以及 1 个因「`text_standard` 专用」而不迁移的辅助项：`test_get_grade_suffix.py`。
+其余 27 个「不迁移」行全部引用 AD §5 的 `[EXT]` 理由（清单外公式 11 个文件、阿拉伯语 4 个、短词 1 个、派生平均量 5 个文件、舍入状态 1 个文件、v2 公式 2 个文件、辅助 2 个文件）。
 
 ---
 
@@ -331,11 +333,11 @@ rubric 文件：`.superpowers/sdd/202610201517-moon-textstat-移植-核心库-pl
 | R3 运行期零 I/O | na | 未改动源码。 |
 | R4 门禁唯一命令 | pass | 引用的门禁组集合与成员全部取自 `lib/cmd/gate/main.mbt`（`is_known_group`，九个组）与 `lib/gate/data/cell.mbt`/`l3_data.mbt`（各组真实单元格），未引入第二套门禁口径。 |
 | R5 字段契约唯一权威 | na | 未新增字段表；映射只引用既有字段名。 |
-| R6 `[EXT]` 31 个不实现 | pass | 30 个「不迁移」行全部引用 AD §5 的 `[EXT]` 理由；31 个 `[EXT]` callable 与源侧文件的对应见 §4，无遗漏；未对任何 `[EXT]` callable 构造期望值。 |
+| R6 `[EXT]` 31 个不实现 | pass | 27 个「不迁移」行全部引用 AD §5 的 `[EXT]` 理由；31 个 `[EXT]` callable 与源侧文件的对应见 §4，无遗漏；未对任何 `[EXT]` callable 构造期望值——3 个「门禁侧（间接）」的 callable 也没有自己的单元格，只由消费它们的 `[ALIGN]` 形态间接锁定。 |
 | R7 冻结下限 366 单元格 | na | 未改动单元格表；引用的组规模（count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12）与 `lib/gate/data/l3_test.mbt:28-33` 一致。 |
 | R8 `pt` 不是验收项 | na | 57 个源侧文件中无 `pt` 相关测试（源侧无该用例），未把 `pt` 列入任何行。 |
 | R9 失败文本不参与对拍 | na | 未涉及失败文本。 |
-| R10 验收（A-12.1） | pass | 57 行表格每行都标了「门禁组」或「不迁移 + 理由」，无空白行（§1、§2.1）；19 个 `[ALIGN]` callable 的源侧测试文件全部落在门禁侧（§3）。差异登记见 §0。 |
+| R10 验收（A-12.1） | pass | 57 行表格每行都标了「门禁组」或「不迁移 + 理由」（含 3 行「门禁侧（间接）」，落点与理由见 §0.1），无空白行（§1、§2.1）；19 个 `[ALIGN]` callable 的源侧测试文件全部落在门禁侧（§3）。 |
 | R11 上限（≤20 条命令 / ≤5 轮次 / 45 分钟） | pass | 审计命令 12 条（find ×2、AST 统计 ×4、源码读取 ×6），1 个轮次完成。 |
 | R12 日志 | pass | 本文件 `docs/superpowers/plans/logs/T-51-mapping.md`。 |
 
@@ -345,9 +347,10 @@ rubric 文件：`.superpowers/sdd/202610201517-moon-textstat-移植-核心库-pl
 
 ## 7. 结论
 
-**Verdict: PASS**（含 1 条已显式登记的差异）。
+**Verdict: PASS**（含 1 条已显式登记的形态差异）。
 
-- 57 行映射表，零空白行；目录拆分 14/26/3/1/7/1/5 与实测一致，门禁 27 + 不迁移 30 = 57。
+- 57 行映射表，零空白行；目录拆分 14/26/3/1/7/1/5 与实测一致，门禁 30 + 不迁移 27 = 57。
 - 19 个 `[ALIGN]` callable **全部**有专用的上游测试文件，且这些文件**全部**落在门禁侧（`count` / `variant` / `formula` / `lang` / `errors` / `data`）。
-- 31 个 `[EXT]` callable 一律「不迁移 + 理由（AD §5）」，无静默丢弃。
-- 已登记 3 个文件与 spec §4.7.6 的差异（`test_remove_punctuation`、`test_is_difficult_word`、`test_set_rm_apostrophe`），并给出目标侧白盒测试的对应落点；若评审要求与 spec 逐字一致，改判即可，不影响其余 54 行与 19 个 `[ALIGN]` 的覆盖面。
+- 另 3 个源侧文件（`test_remove_punctuation.py`、`test_is_difficult_word.py`、`test_set_rm_apostrophe.py`）判为**门禁侧（间接）**：其断言对象虽是 `[EXT]` 命名，但都是 `[ALIGN]` 形态的内部步骤或其开关，数值后果由门禁单元格锁定、语义细节由包内白盒测试锁定（逐条落点见 §0.1）。
+- 剩余 27 个「不迁移」行全部引用 AD §5 的 `[EXT]` 理由，无静默丢弃。
+- 已登记 1 处形态差异（不是未覆盖的缺口）：上游 `test_remove_punctuation.py` / `test_set_rm_apostrophe.py` 断言的是**整串**相等，目标侧不提供 `remove_punctuation(text, rm_apostrophe) -> String` 这一 `[EXT]` 公开入口（AD §5 不允许实现），故同一套字符分类规则在目标侧以词元层结果断言；冻结语料不含撇号，撇号分类由 `lib/list_words_wbtest.mbt:65` 锁定。补上整串断言必须先实现一个 `[EXT]` callable，AD §5 不允许。
