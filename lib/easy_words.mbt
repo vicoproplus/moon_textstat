@@ -15,7 +15,8 @@
 /// `@data.easy_words` already returns the loader's result: every line was
 /// stripped (the Spanish file's literal `"que "`-style trailing spaces are
 /// gone), lowercased and de-duplicated, so the array holds only non-empty
-/// lowercase words. The array is the data package's read-only store.
+/// lowercase words. Each call returns a fresh copy of the data package's
+/// store, so callers may sort or otherwise reorder it freely.
 ///
 /// `en` always exists, as one of the two embedded lists. A missing English
 /// list therefore means the data package was built incorrectly; the internal

@@ -12,9 +12,13 @@ const GATE_RECORD_TARGET : String = "native"
 ///|
 /// One mismatched cell together with the value it returned.
 ///
-/// `injected` marks a cell whose expectation was deliberately perturbed by
-/// `--inject=<n>` (AD section 6); T-37 always writes `false`, and T-38 is the
-/// only producer that may set it to `true`.
+/// `injected` marks a failure record that belongs to the cell `--inject=<n>`
+/// targeted **and** whose mismatch exists only because that expectation was
+/// perturbed (AD section 6). It does not mean "the injection targeted this
+/// cell": a targeted cell that fails its own expectation too is recorded from
+/// the un-injected cell with `false`, because it is a genuine finding. T-37
+/// always writes `false`, and T-38 is the only producer that may set it to
+/// `true`.
 struct Failure {
   cell : @gate_data.Cell
   actual : Actual

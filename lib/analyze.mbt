@@ -36,9 +36,10 @@
 /// (`syllable_count("")` is 0 for every language), and the other entries then
 /// return their zero shapes, exactly as the single-metric contracts describe.
 ///
-/// The function is pure: no I/O. `AnalyzeOptions` is the documented default
-/// bundle; this entry exposes only `lang`, while the variant switches remain
-/// reachable through the corresponding single-metric entry.
+/// The function is pure: no I/O. This entry exposes only `lang`; the variant
+/// switches (difficult-word syllable threshold and de-duplication, long-word
+/// threshold, reading-time pace, Linsear strictness) remain reachable through
+/// the corresponding single-metric entry, which is their contract surface.
 pub fn analyze(
   text : String,
   lang~ : String = "en_US",

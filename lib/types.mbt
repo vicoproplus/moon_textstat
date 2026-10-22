@@ -34,34 +34,3 @@ pub(all) struct TextStats {
   linsear_write_formula : Double
   dale_chall_readability_score : Double
 }
-
-///|
-/// Optional knobs of one analysis call.
-///
-/// The defaults cover the most common call shape (spec §4.2 constraint 3):
-/// `en_US`, a difficult-word syllable threshold of 2 with de-duplication, a
-/// long-word threshold of 6, 14.69 ms per character for reading time, and
-/// Linsear Write with `strict_upper=true` / `strict_lower=false`.
-pub(all) struct AnalyzeOptions {
-  lang : String
-  difficult_syllable_threshold : Int32
-  difficult_unique : Bool
-  long_word_threshold : Int32
-  ms_per_char : Double
-  linsear_strict_upper : Bool
-  linsear_strict_lower : Bool
-}
-
-///|
-/// The documented default option set (spec §4.2 constraint 3).
-pub fn AnalyzeOptions::default() -> AnalyzeOptions {
-  {
-    lang: "en_US",
-    difficult_syllable_threshold: 2,
-    difficult_unique: true,
-    long_word_threshold: 6,
-    ms_per_char: 14.69,
-    linsear_strict_upper: true,
-    linsear_strict_lower: false,
-  }
-}

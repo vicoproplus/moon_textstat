@@ -49,17 +49,6 @@ pub suberror TextstatError {
 }
 
 // Types and methods
-pub(all) struct AnalyzeOptions {
-  lang : String
-  difficult_syllable_threshold : Int
-  difficult_unique : Bool
-  long_word_threshold : Int
-  ms_per_char : Double
-  linsear_strict_upper : Bool
-  linsear_strict_lower : Bool
-}
-pub fn AnalyzeOptions::default() -> Self
-
 pub(all) struct TextStats {
   char_count : Int
   letter_count : Int

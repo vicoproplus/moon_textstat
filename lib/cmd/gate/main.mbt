@@ -34,8 +34,17 @@ fn[T] gate_fail(message : String) -> T {
 /// is malformed and makes the gate exit with 2. Zero is the "no injection"
 /// sentinel shared with an absent flag; the 1-based range check happens after
 /// the cells are selected, because it depends on their count.
+///
+/// Leading zeros are rejected: only the exact text `"0"` may start with a
+/// zero. `--inject=000001` and `--inject=0000001` are therefore both usage
+/// errors (EXIT=2) instead of being silently accepted as 1, so the printed
+/// `inject=<n>` field of the self-report line always matches the text the
+/// caller wrote.
 fn parse_inject(value : String) -> Int32? {
   if value.length() == 0 || value.length() > 6 {
+    return None
+  }
+  if value.length() > 1 && value[0] == '0' {
     return None
   }
   let mut result = 0
@@ -165,6 +174,45 @@ fn report_line(
 }
 
 ///|
+/// **Registered-deviation register.** Every place where this gate's observable
+/// behaviour departs from a literal reading of the AD is listed here, once,
+/// with the AD section it deviates from. A new deviation belongs in this
+/// register; nothing else in the file may quietly disagree with the AD.
+///
+/// 1. **Non-cell groups report the selected cell count against the frozen
+///    floor** (AD section 6 reads "`cells >= floor`, else EXIT=2"). The six
+///    L3 subgroups (`count`, `variant`, `formula`, `lang`, `degenerate`,
+///    `errors`) print e.g. `cells=88 passed=88 floor=366 group=count
+///    inject=0` and exit 0, because `cells` is the count of the *selected*
+///    cells, which a subgroup legitimately holds fewer of than the floor. The
+///    guarantee the floor protects — "never pass on an empty or truncated seed
+///    stack" (AD section 3.3, A-6.3) — is still enforced, on
+///    `@gate_data.total_cells()`, by `enforce_floor` on every group, and
+///    `floor=366` stays visible on the report line.
+///
+/// 2. **`--bench` exit map** (AD section 3.2 defines 1 as "at least one cell
+///    mismatch" and `records.mbt` states "EXIT=1 promises the records are on
+///    disk"). `--bench` exits 0 when the median of the 100 timed `analyze`
+///    calls is at most 50 ms **and** the run is stable, and 1 on a median
+///    overrun or instability, with **no failure record and no `_gate/`
+///    directory** at all. AD section 3.2's records promise does not apply to a
+///    sampling mode: it selects no cell and compares no expectation, so there
+///    is no mismatch to record and the promise's precondition is absent. 2
+///    remains a usage error. See `bench.mbt`.
+///
+/// 3. **`--group=data` reports its 30 data checks against the floor**
+///    (AD section 6, as above). Same reasoning and the same floor enforcement
+///    as item 1; the detailed rationale is on `run_data_group`.
+///
+/// 4. **`linsear_write_formula` calls the counting layer** (global constraint 2,
+///    "公式层只吃计数层": a formula layer may only consume counts). It calls
+///    `list_words` and `remove_punctuation` inside the formula body because the
+///    upstream Python it must reproduce — `textstat/textstat/backend/metrics/
+///    _linsear_write_formula.py:12-83` — does the same, and no aggregate count
+///    carries the per-word information the contract needs. See the registered
+///    exception paragraph on `linsear_write_formula`.
+
+///|
 /// Enforce the frozen floor on the loaded L3 table.
 ///
 /// Called after the self-report line has been printed and **before** any
@@ -201,21 +249,25 @@ fn enforce_floor(loaded : Int32) -> Unit {
 /// in both directions. A failing check is a data mismatch, so the run exits
 /// with 1 and writes one failure record per failed check.
 ///
-/// **Registered deviation from AD section 6.** AD section 6 reads literally
-/// as "`cells >= floor`, else EXIT=2", and a `--group=data` run reports
-/// `cells=30 floor=366`. The literal reading cannot apply to this group:
-/// `cells` here is the number of data checks performed (bounded by the
-/// pinned tables, 30), not the number of L3 alignment cells, so a comparison
-/// of the two counts is a category error. What the floor protects — "never
-/// pass on an empty or truncated seed stack" (AD section 3.3, A-6.3) — is
-/// still enforced, on `@gate_data.total_cells()`, by `enforce_floor` below,
-/// exactly as in every other group. The self-report line keeps `floor=366`
-/// so the guarantee stays visible. This needs an AD section 6 sub-clause
-/// stating the exception; editing the AD is out of scope for T-41 (registered
-/// as a deviation in `T-41.log` section 8.4, item 8).
+/// **Registered deviation from AD section 6** (item 3 of the register above).
+/// AD section 6 reads literally as "`cells >= floor`, else EXIT=2", and a
+/// `--group=data` run reports `cells=30 floor=366`. The literal reading cannot
+/// apply to this group: `cells` here is the number of data checks performed
+/// (bounded by the pinned tables, 30), not the number of L3 alignment cells,
+/// so a comparison of the two counts is a category error. What the floor
+/// protects — "never pass on an empty or truncated seed stack" (AD section
+/// 3.3, A-6.3) — is still enforced, on `@gate_data.total_cells()`, by
+/// `enforce_floor` below, exactly as in every other group. The self-report
+/// line keeps `floor=366` so the guarantee stays visible.
 ///
 /// The two-line stdout contract of AD section 6 holds: the canonical
 /// invocation (printed by `main`) and then the self-report.
+///
+/// The output order is the same as on the cell path: report line → floor →
+/// records → exit code. The `DATA_CHECK_COUNT` self-check (the data group must
+/// actually perform all 30 pinned checks, so a vacuous selection can never
+/// pass) runs after the floor, immediately before the records, so a table
+/// below the floor leaves no `.jsonl` behind here either.
 ///
 /// `--inject=<n>` is not accepted here: the perturbation switch is defined
 /// for `--group=selfcheck` only (AD section 6), and no data check may be
@@ -227,6 +279,7 @@ fn run_data_group(config : GateConfig) -> Unit {
   let (records, passed) = run_data_checks()
   let cells = passed + records.length()
   println(report_line(cells, passed, config.group, config.inject))
+  enforce_floor(@gate_data.total_cells())
   if cells != DATA_CHECK_COUNT {
     gate_fail(
       "the data group performed " +
@@ -235,7 +288,6 @@ fn run_data_group(config : GateConfig) -> Unit {
       DATA_CHECK_COUNT.to_string(),
     )
   }
-  enforce_floor(@gate_data.total_cells())
   if records.length() > 0 {
     write_failure_records(records)
     exit_with_code(1)
@@ -265,9 +317,19 @@ fn run_data_group(config : GateConfig) -> Unit {
 /// A nonzero `--inject=<n>` is a 1-based index into the selected cells and is
 /// only accepted for `--group=selfcheck` (AD section 6). The indexed cell's
 /// expectation is replaced in memory before evaluation; the injected
-/// expectation is designed to differ from the actual value, so the cell fails
-/// and its record carries `"injected":true`. Nothing is written to the
-/// generated table or to `gate/data`.
+/// expectation is designed to differ from the actual value, so the cell fails.
+/// Nothing is written to the generated table or to `gate/data`.
+///
+/// **What `"injected":true` means.** It means *the failure record belongs to
+/// the cell the injection targeted*; it does **not** assert that the injection
+/// caused the mismatch. The flag is decided after evaluation: the targeted
+/// cell's observed value is also compared against its **un-injected**
+/// expectation, and the record carries `true` only when that comparison holds
+/// (the mismatch exists solely because the expectation was perturbed). When
+/// the cell would have failed on its own expectation too, the record is a
+/// genuine finding, so it is written from the original cell with
+/// `"injected":false`. The extra comparison is one `cell_matches` call on one
+/// cell, so the honest form is also the cheap one.
 ///
 /// Stdout carries exactly the two contract lines of AD section 6: the
 /// canonical invocation, then `cells=... passed=...`. Per-cell diagnostics are
@@ -305,7 +367,7 @@ fn run_gate(config : GateConfig) -> Unit {
   if cells.length() == 0 {
     gate_fail("group " + config.group + " selected no cells")
   }
-  let mut inject_index : Int32? = None
+  let mut inject_target : (Int32, @gate_data.Cell)? = None
   if config.inject != 0 {
     if config.group != "selfcheck" {
       gate_fail("--inject=<n> is only valid with --group=selfcheck")
@@ -320,8 +382,9 @@ fn run_gate(config : GateConfig) -> Unit {
         " selected cells",
       )
     }
-    cells[index] = injected_cell(cells[index])
-    inject_index = Some(index)
+    let original = cells[index]
+    cells[index] = injected_cell(original)
+    inject_target = Some((index, original))
   }
   let loaded = @gate_data.total_cells()
   let mut passed = 0
@@ -332,11 +395,23 @@ fn run_gate(config : GateConfig) -> Unit {
     if cell_matches(cell.expected, actual) {
       passed = passed + 1
     } else {
-      let injected = match inject_index {
-        Some(target) => target == index
-        None => false
+      match inject_target {
+        Some((target, original)) =>
+          if target == index {
+            if cell_matches(original.expected, actual) {
+              // The un-injected expectation would have held: the mismatch is
+              // the injection's own doing, so the record is an artifact.
+              failures.push({ cell, actual, injected: true, })
+            } else {
+              // The cell fails its own expectation too. Keep the original
+              // cell so the record is a genuine finding, not an injected one.
+              failures.push({ cell: original, actual, injected: false, })
+            }
+          } else {
+            failures.push({ cell, actual, injected: false, })
+          }
+        None => failures.push({ cell, actual, injected: false, })
       }
-      failures.push({ cell, actual, injected, })
     }
     index = index + 1
   }

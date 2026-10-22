@@ -185,17 +185,26 @@ pub fn pronunciation_syllable_count(
 ///
 /// Supported codes: `en_US`, `en_GB`, `de_DE`, `es`, `fr`, `it_IT`, `nl_NL`,
 /// `pl_PL`, `ru_RU`, `hu_HU`; any other code returns `None`.  The returned
-/// array is the package's read-only store: callers must not mutate it.
+/// array is a fresh copy of the package's store: mutating it (sorting it, for
+/// example) cannot corrupt the data seen by later callers. The copy costs one
+/// shallow copy of the line pointers per lookup, which is negligible next to
+/// the parsing the caller does with it.
 pub fn hyphenation_patterns(dict_lang : String) -> Array[String]? {
-  pattern_tables.get(dict_lang)
+  match pattern_tables.get(dict_lang) {
+    Some(lines) => Some(lines.copy())
+    None => None
+  }
 }
 
 ///|
 /// Sorted easy-word list of one language root (`en` or `es`); `None`
-/// otherwise.  The returned array is the package's read-only store: callers
-/// must not mutate it.
+/// otherwise.  The returned array is a fresh copy of the package's store, for
+/// the same reason as `hyphenation_patterns`.
 pub fn easy_words(lang_root : String) -> Array[String]? {
-  easy_word_lists.get(lang_root)
+  match easy_word_lists.get(lang_root) {
+    Some(words) => Some(words.copy())
+    None => None
+  }
 }
 
 ///|

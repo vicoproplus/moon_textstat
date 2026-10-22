@@ -86,6 +86,20 @@
 /// so the two agree for ASCII input (spec §4.3.2's approximation). The function
 /// is pure: no I/O. The defaults are `en_US`, `strict_lower=false` and
 /// `strict_upper=true` (spec §4.2 constraint 3).
+///
+/// **Registered exception to global constraint 2 ("公式层只吃计数层").** This
+/// formula calls the counting-layer helpers `list_words` and
+/// `remove_punctuation` inside its own body (lines below: the two
+/// `list_words` calls and the `remove_punctuation` call in the truncation
+/// loop) instead of consuming precomputed counts. That is upstream-mandated
+/// and not a design choice of this port: `textstat/textstat/backend/metrics/
+/// _linsear_write_formula.py:12-83` does exactly this, and the formula's
+/// contract needs *which* words were seen — the syllable classification of
+/// each of the first 100 words plus the consumed-token count that becomes the
+/// sentence denominator — which no aggregate count exposes. Reproducing the
+/// upstream numbers (spec §4.4 constraint 3) therefore requires re-tokenizing
+/// here. Registered in the deviation register of `cmd/gate/main.mbt`; every
+/// other formula layer consumes counts only.
 pub fn linsear_write_formula(
   text : String,
   lang~ : String = "en_US",
