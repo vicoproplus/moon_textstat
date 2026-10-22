@@ -1,0 +1,151 @@
+moon_textstat — NOTICE
+======================
+
+Module:  vicoproplus/moon_textstat 0.1.0
+License: MIT (see LICENSE in this directory)
+
+This module embeds, at compile time, data derived from three upstream
+sources. Nothing is read from disk or the network at run time. The
+statements below are grounded in files kept in the source repository; the
+paths are relative to the repository root, which is one level above this
+module directory.
+
+--------------------------------------------------------------------------------
+1. textstat — MIT
+--------------------------------------------------------------------------------
+
+The library is a port of textstat 0.7.13 and reuses its two easy-word lists
+(`textstat/resources/en/easy_words.txt`, `textstat/resources/es/easy_words.txt`).
+
+Upstream license, as stated in the vendored copy at `textstat/LICENSE`:
+
+    MIT License
+
+    Copyright (c) 2016 Shivam Bansal (shivam5992@gmail.com)
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+Version record: `textstat/setup.py:7` (`version="0.7.13"`) and
+`textstat/textstat/__init__.py:5` (`__version__ = (0, 7, 13)`).
+
+--------------------------------------------------------------------------------
+2. CMUdict — CMU copyright, BSD-2-Clause-style terms
+--------------------------------------------------------------------------------
+
+The English syllable table is derived from the Carnegie Mellon Pronouncing
+Dictionary, cmudict.0.7a, as vendored at `vendor/upstream/cmudict/cmudict`
+(README: `vendor/upstream/cmudict/README`).
+
+Copyright notice (`vendor/upstream/cmudict/README:6`):
+
+    Copyright (C) 1993-2008 Carnegie Mellon University. All rights reserved.
+
+Redistribution terms (`vendor/upstream/cmudict/README:45-56`):
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+       The contents of this file are deemed to be source code.
+
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in
+       the documentation and/or other materials provided with the
+       distribution.
+
+The disclaimer and funding acknowledgement that complete these terms are at
+`vendor/upstream/cmudict/README:58-75` and are not reproduced here; the
+vendored README is the authoritative text and is itself part of the source
+distribution.
+
+This module ships the derived syllable counts in source form (embedded string
+literals), so condition 1 applies: the copyright notice, conditions and
+disclaimer above accompany the redistributed data.
+
+--------------------------------------------------------------------------------
+3. Pyphen hyphenation dictionaries — MPL 1.1 per file, except de_DE
+--------------------------------------------------------------------------------
+
+Ten hyphenation pattern files are embedded, taken byte-for-byte from Pyphen
+0.17.2 (`pyphen/dictionaries/`), vendored at `vendor/upstream/pyphen/`:
+
+    hyph_en_US.dic  hyph_en_GB.dic  hyph_de_DE.dic  hyph_es.dic
+    hyph_fr.dic     hyph_it_IT.dic  hyph_nl_NL.dic  hyph_pl_PL.dic
+    hyph_ru_RU.dic  hyph_hu_HU.dic
+
+Pyphen's package-level license statement (recorded verbatim, with the path of
+the file it was read from, at `docs/facts/syllable-strategy-evidence.md:273-295`):
+
+    Pyphen is released under the GPL 2.0+/LGPL 2.1+/MPL 1.1 tri-license.
+
+    Many dictionaries are included in pyphen, they come from the LibreOffice git
+    repository and are distributed under GPL, LGPL and/or MPL. See the
+    dictionaries and the libreoffice's repository for more details.
+
+Per-file basis:
+
+* `hyph_hu_HU.dic` carries its own tri-license block in the file header
+  (`vendor/upstream/pyphen/hyph_hu_HU.dic:16-51`, "Version: MPL
+  1.1/GPL 2.0/LGPL 2.1"). This module redistributes it under the **Mozilla
+  Public License 1.1**, elected from that block.
+
+* The eight files without a license header (`hyph_en_US.dic`,
+  `hyph_en_GB.dic`, `hyph_es.dic`, `hyph_fr.dic`, `hyph_it_IT.dic`,
+  `hyph_nl_NL.dic`, `hyph_pl_PL.dic`, `hyph_ru_RU.dic`) are redistributed
+  under the **Mozilla Public License 1.1**, elected from the package-level
+  "GPL, LGPL and/or MPL" statement quoted above. Their content is otherwise
+  unmodified; the only transformation applied is decoding the declared
+  source encoding and re-encoding as UTF-8, so each embedded pattern file
+  remains a single file under MPL 1.1's file-level terms.
+
+* `hyph_de_DE.dic` does **not** name the MPL. Its own header
+  (`vendor/upstream/pyphen/hyph_de_DE.dic:12-20`) states that the file is an
+  OpenOffice.org adaptation licensed under the **GNU Lesser General Public
+  License 2 or later**, and that the underlying TeX tables (`dehyphn.tex`)
+  are under the LaTeX Project Public License. This module therefore
+  redistributes `hyph_de_DE.dic` under the **LGPL 2.0 or later**, not under
+  MPL 1.1. See the open item in `docs/superpowers/plans/logs/T-45.log`.
+
+MPL 1.1 requires that the source code of the covered files be available.
+Source is available: the Pyphen project at <https://github.com/Kozea/Pyphen>
+(release 0.17.2, the version these bytes were taken from), and the pattern
+files' own origins — the LibreOffice dictionaries repository for the
+package-level set, `huhyphn` (Nagy Bence) for `hyph_hu_HU.dic`, and
+`dehyphn.tex` via CTAN for `hyph_de_DE.dic`. The exact bytes shipped here are
+identified by size and SHA-256 in
+`docs/superpowers/plans/logs/T-04.log` §2 and in
+`docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md`
+§1.2 ("已实测并固化的数据身份", line 58), so a recipient can verify the
+correspondence between these files and the upstream release.
+
+The MPL 1.1 text itself is not reproduced here; it is available at
+<http://www.mozilla.org/MPL/> (the address named in the license blocks above).
+
+--------------------------------------------------------------------------------
+4. Data identity
+--------------------------------------------------------------------------------
+
+The embedded tables are generated from the L1 bytes by a generator that lives
+outside this module (see `lib/data/*.mbt` headers). The L1 files, their byte
+sizes and SHA-256 digests are frozen in
+`docs/superpowers/plans/logs/T-04.log` §2 and
+`docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md`
+§1.2. `tools/verify_l1.py` re-checks those identities.
