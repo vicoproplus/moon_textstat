@@ -128,3 +128,82 @@ R12 失败文本有意增强、不参与对拍                                  
    证据：未改动失败文本。
 
 Coverage：judged 12 / 12（pass 3 / na 9）。
+
+## 6. 回归修复：`moon fmt --check`（评审发现，本任务引入）
+
+评审指出 `831bd4b` 引入 `moon fmt --check` 回归：全仓唯一的 fmt diff 是
+`lib/moon.mod`。复现并修复如下。
+
+### 6.1 复现（修复前）
+
+```console
+$ cd lib && moon fmt --check
+diff --git "a/...\lib\moon.mod" "b/...\lib\_build\wasm-gc\release\format\moon.mod"
+@@ -19,7 +19,14 @@
+ license = "MIT"
+
+-keywords = [ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]
++keywords = [
++  "readability",
++  "textstat",
++  "flesch",
++  "syllable",
++  "hyphenation",
++  "moonbit",
++]
+Error: failed when formatting project
+# EXIT=255
+```
+
+原因：格式化器要求数组**逐项换行**（每项一行 + 尾随逗号 + 收尾 `]` 顶格），
+不接受单行多元素形态。这是我手写的 `keywords` 布局与格式化器不一致所致，
+与 `moon.mod` 的键集合无关。
+
+### 6.2 修复
+
+```console
+$ cd lib && moon fmt
+Finished. moon: ran 89 tasks, now up to date
+# EXIT=0
+```
+
+`moon fmt` 只重排了 `keywords` 的字面布局（`git status` 中唯一变更仍为
+`lib/moon.mod`；其余 88 个任务为 no-op）。`lib/moon.mod` 修复后
+SHA-256：`bcd96ce41d655b51ebfecadfce9e10fe1635cf493b8d6c331617d47af2738369`
+（修复前 `12ebed9b…`，差异仅为空白/换行）。
+
+### 6.3 修复后验证
+
+```console
+$ cd lib && moon fmt --check
+Finished. moon: ran 89 tasks, now up to date
+# EXIT=0
+
+$ cd lib && moon check --target native
+Finished. moon: no work to do
+# EXIT=0
+
+$ cd lib && moon test --target native
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 179, failed: 0.
+# EXIT=0
+
+$ cd lib && grep -c '^files' moon.mod
+0
+```
+
+八项元数据**值**逐项复核（脚本解析后打印，与 §1 表逐字相同）：
+
+```text
+name             = "vicoproplus/moon_textstat"
+version          = "0.1.0"
+readme           = "README.mbt.md"
+repository       = "https://gitcode.com/vicoproplus/moon_textstat"
+license          = "MIT"
+keywords         = 6 项 ["readability","textstat","flesch","syllable","hyphenation","moonbit"]
+description      = "Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O)."
+preferred_target = "native"
+```
+
+**语义零变化**：8 项键值逐字不变，只有 `keywords` 的排版从单行改为多行；
+无键增删、无值改写。`files` 键仍为 0 行（DR-R2 保持）。

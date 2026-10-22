@@ -19,7 +19,14 @@ repository = "https://gitcode.com/vicoproplus/moon_textstat"
 
 license = "MIT"
 
-keywords = [ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]
+keywords = [
+  "readability",
+  "textstat",
+  "flesch",
+  "syllable",
+  "hyphenation",
+  "moonbit",
+]
 
 preferred_target = "native"
 
