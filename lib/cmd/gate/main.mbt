@@ -162,12 +162,13 @@ fn report_line(
 /// and its record carries `"injected":true`. Nothing is written to the
 /// generated table or to `gate/data`.
 ///
-/// Failure diagnostics are buffered and printed after the self-report, so the
-/// first two output lines stay fixed by AD section 6: the canonical
-/// invocation, then `cells=... passed=...`. The self-report is printed before
-/// the failure records are written, so even a record-write failure (which
-/// exits with 2) leaves the canonical second line. A zero-cell selection of a
-/// known group is an environment failure (EXIT=2), not a vacuous pass.
+/// Stdout carries exactly the two contract lines of AD section 6: the
+/// canonical invocation, then `cells=... passed=...`. Per-cell diagnostics are
+/// never printed; they exist only in the failure-record JSONL, one line per
+/// failing cell. The self-report is printed before the failure records are
+/// written, so even a record-write failure (which exits with 2) leaves the
+/// canonical second line. A zero-cell selection of a known group is an
+/// environment failure (EXIT=2), not a vacuous pass.
 fn run_gate(config : GateConfig) -> Unit {
   if config.bench {
     gate_fail("--bench is not implemented until T-40")
@@ -221,9 +222,6 @@ fn run_gate(config : GateConfig) -> Unit {
       records.push(failure_record(failure))
     }
     write_failure_records(records)
-  }
-  for failure in failures {
-    println(failure_line(failure.cell, failure.actual))
   }
   if loaded < FROZEN_FLOOR {
     println(
