@@ -15,12 +15,12 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://gitcode.com/vicoproplus/moon_textstat"
 
 license = "MIT"
 
-keywords = [ ]
+keywords = [ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]
 
 preferred_target = "native"
 
-description = ""
+description = "Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O)."
