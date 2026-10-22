@@ -96,3 +96,35 @@ A-7.2 的 `[LOCAL_DEAD_LINK]` 状态**不变**：本任务只证明元数据齐�
   `NOTICE` 不在本任务的文件面内 → 登记为 T-44 之外的条件性缺口，不擅自补写。
 - 未改 `version`：`0.1.0` 与 design WB10/既有发布产物名一致；首个正式发布版本号
   由发布流程（T-53/T-54）裁决。
+
+## 5. Rubric 判定（rubric-task-44-brief.md，R1–R12）
+
+R1 验收（`grep -c '^files'` = 0；`moon check --target native` EXIT=0；元数据 8/8）  PASS
+   证据：`grep -c '^files' lib/moon.mod` → 0（DR-R2，无 files 键）；`moon check
+   --target native` EXIT=0；脚本读回八键全部非空（§1 表右列，8/8）。
+   A-7.2 的 `[LOCAL_DEAD_LINK]` 状态不变（未在注册表发布，见 §3 末段）。
+R2 上限（1 轮；20 分钟）                                                      PASS
+   证据：本轮 4 条命令（grep、check、test、package），1 轮次，用时约 3 分钟。
+R3 日志 docs/superpowers/plans/logs/T-44.log                                     PASS
+   证据：本文件即该路径，随提交入库。
+R4 保真优先（改动须不改变任一 oracle 单元格）                                    NA
+   证据：只改 moon.mod 的发布元数据；`moon test --target native` 179/179 EXIT=0，
+   oracle 单元格 366 个零变化（门禁 cells=366 输出）。
+R5 公式层只吃计数层                                                             NA
+   证据：未改动公式层。
+R6 运行期零 I/O                                                                  NA
+   证据：未增删库内代码；本任务无新增 FFI/文件读取面。
+R7 门禁唯一命令（moon run cmd/gate --target native）                              NA
+   证据：本任务未运行门禁；验收不含门禁退出码。
+R8 字段契约唯一权威（PRD-A 10.3）                                                NA
+   证据：未新增/改动字段表。
+R9 [EXT] 31 个 callable 不实现                                                    NA
+   证据：未涉及 callable 面。
+R10 冻结下限 366 单元格                                                          NA
+   证据：未改动期望值；`moon test` 输出 cells=366 与本任务无关。
+R11 pt 不是验收项                                                               NA
+   证据：未涉及 pt 语种路径。
+R12 失败文本有意增强、不参与对拍                                                  NA
+   证据：未改动失败文本。
+
+Coverage：judged 12 / 12（pass 3 / na 9）。
