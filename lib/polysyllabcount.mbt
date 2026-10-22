@@ -18,15 +18,31 @@
 /// upstream's comprehension is empty and `count_syllables` is never called.
 /// Verified against the vendored upstream (0.7.13): under `ar`,
 /// `polysyllabcount` returns 0 for `""`, `"   "` and `" .? "`, while any text
-/// with a word raises there and surfaces `UnsupportedLanguage(requested)`
-/// here. This differs from `syllable_count`, whose entry resolves the language
-/// before its loop.
+/// with a word raises there and now surfaces the product-facing
+/// `MetricFailure` naming this metric, the code and the missing dictionary
+/// (spec §4.5.4, A-5.4). This differs from `syllable_count`, whose entry
+/// resolves the language before its loop.
 ///
 /// The result is 32-bit (`Int`), the counting type of
 /// `TextStats.polysyllabcount` (PRD-A 10.3). The function is pure: no I/O.
 pub fn polysyllabcount(
   text : String,
   lang~ : String = "en_US",
+) -> Int32 raise TextstatError {
+  with_metric_failure("polysyllabcount", () => {
+    count_polysyllable_words(text, lang)
+  })
+}
+
+///|
+/// Low-level body of `polysyllabcount`, raising `UnsupportedLanguage` from
+/// `syllables_for_word`.
+///
+/// Package-private so that `smog_index` can reuse the exact count while
+/// reporting its own metric name in the product-facing failure text.
+fn count_polysyllable_words(
+  text : String,
+  lang : String,
 ) -> Int32 raise TextstatError {
   let mut count = 0
   for word in list_words(text) {

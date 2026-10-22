@@ -210,3 +210,24 @@ test "punctuation_only is -1.0 and token-free text is 0.0" {
     assert_eq(0.0, @moon_textstat.linsear_write_formula(token_free))
   }
 }
+
+///|
+/// Failure channel: a non-empty `words_list` reaches `syllables_for_word`, so
+/// `ar`/`xx_YY` raise the product-facing `MetricFailure` naming this metric, the
+/// caller's raw code and the missing dictionary (spec §4.5.4, A-5.4), while the
+/// token-free inputs above stay 0.0 for every language.
+test "unsupported languages raise MetricFailure with the metric name" {
+  for lang in ["ar", "xx_YY"] {
+    let raised : String? = try {
+      let _ = @moon_textstat.linsear_write_formula("Hi there!", lang~)
+      None
+    } catch {
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
+    }
+    let message = raised.unwrap()
+    assert_true(message.contains("linsear_write_formula"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
+  }
+}

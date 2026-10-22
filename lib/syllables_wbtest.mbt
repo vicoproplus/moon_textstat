@@ -59,6 +59,7 @@ test "unsupported languages raise UnsupportedLanguage before any counting" {
       None
     } catch {
       UnsupportedLanguage(code) => Some(code)
+      _ => None
     }
     assert_eq(Some(lang), raised)
   }

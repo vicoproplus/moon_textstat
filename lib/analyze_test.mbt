@@ -247,16 +247,21 @@ test "analyze returns the results_es fields for the Spanish sample" {
 
 ///|
 /// An unsupported language fails at the first syllable-based metric
-/// (`syllable_count`) and the raw code reaches the caller; no English value is
-/// substituted (spec §4.5.4).
-test "analyze raises UnsupportedLanguage for unsupported languages" {
+/// (`syllable_count`) and the inner `MetricFailure` propagates unchanged, so
+/// its text still carries the three required items — metric name, language code
+/// and reason (spec §4.5.4, A-5.4); no English value is substituted.
+test "analyze propagates the first MetricFailure for unsupported languages" {
   for lang in ["ar", "xx_YY"] {
     let raised : String? = try {
       let _ = @moon_textstat.analyze("The cat sat on the mat.", lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("syllable_count"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }

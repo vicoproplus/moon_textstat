@@ -117,9 +117,10 @@ test "A-5.1: degenerate text gives 3.1291 except the empty string" {
 /// Verified against the vendored upstream (0.7.13): under `ar`, the empty
 /// string returns 0.0, whitespace-only and punctuation-only text return
 /// 3.1291, and any text with a word — including `hello`, which has no easy-word
-/// shortcut on this path — raises `KeyError: None`. This port propagates
-/// `UnsupportedLanguage` with the caller's raw spelling and never falls back to
-/// English.
+/// shortcut on this path — raises `KeyError: None`. This port raises the
+/// product-facing `MetricFailure` naming this metric, the caller's raw spelling
+/// and the missing dictionary and never falls back to English (spec §4.5.4,
+/// A-5.4).
 test "unsupported languages keep zero-word text and raise for words" {
   for lang in ["ar", "xx_YY"] {
     assert_eq(0.0, @moon_textstat.smog_index("", lang~))
@@ -130,9 +131,13 @@ test "unsupported languages keep zero-word text and raise for words" {
         let _ = @moon_textstat.smog_index(text, lang~)
         None
       } catch {
-        @moon_textstat.UnsupportedLanguage(code) => Some(code)
+        @moon_textstat.MetricFailure(message) => Some(message)
+        _ => None
       }
-      assert_eq(Some(lang), raised)
+      let message = raised.unwrap()
+      assert_true(message.contains("smog_index"))
+      assert_true(message.contains(lang))
+      assert_true(message.contains("no hyphenation dictionary"))
     }
   }
 }

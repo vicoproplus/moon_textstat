@@ -18,8 +18,10 @@
 ///
 /// Failure follows the per-word predicate, exactly like `difficult_words`:
 /// zero-word or easy-only text never resolves a dictionary and returns `[]`
-/// even for an unsupported `lang`; a non-easy candidate raises
-/// `UnsupportedLanguage(raw code)` where upstream raises `KeyError: None`.
+/// even for an unsupported `lang`; a non-easy candidate raises the
+/// product-facing `MetricFailure` naming this metric, the raw code and the
+/// missing dictionary (spec §4.5.4, A-5.4) where upstream raises
+/// `KeyError: None`.
 ///
 /// The function is pure: no I/O.
 pub fn difficult_words_list(
@@ -28,10 +30,12 @@ pub fn difficult_words_list(
   syllable_threshold~ : Int32 = 2,
   unique~ : Bool = true,
 ) -> Array[String] raise TextstatError {
-  let difficult = list_difficult_words(text, syllable_threshold, lang)
-  if unique {
-    unique_spellings(difficult)
-  } else {
-    difficult
-  }
+  with_metric_failure("difficult_words_list", () => {
+    let difficult = list_difficult_words(text, syllable_threshold, lang)
+    if unique {
+      unique_spellings(difficult)
+    } else {
+      difficult
+    }
+  })
 }

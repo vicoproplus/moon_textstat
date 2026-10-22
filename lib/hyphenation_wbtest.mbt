@@ -180,6 +180,7 @@ test "unresolved dictionary codes fail instead of yielding no positions" {
     None
   } catch {
     UnsupportedLanguage(code) => Some(code)
+    _ => None
   }
   assert_eq(Some("xx_YY"), raised)
 }
@@ -196,6 +197,7 @@ test "unsupported language codes raise UnsupportedLanguage" {
       None
     } catch {
       UnsupportedLanguage(code) => Some(code)
+      _ => None
     }
     assert_eq(Some(lang), raised)
   }

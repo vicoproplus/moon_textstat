@@ -43,9 +43,10 @@
 /// dictionary: they return 0.0 even for an unsupported `lang` (spec §4.3.3).
 ///
 /// **Failure channel.** A non-easy word reaches the syllable layer inside the
-/// difficult counter, so a hard non-empty text under `ar`/`xx_YY` propagates
-/// `UnsupportedLanguage(requested)` before the zero guard (upstream raises
-/// `KeyError: None`). Text made only of easy words — e.g.
+/// difficult counter, so a hard non-empty text under `ar`/`xx_YY` raises the
+/// product-facing `MetricFailure` naming this metric, the code and the missing
+/// dictionary before the zero guard (upstream raises `KeyError: None`; spec
+/// §4.5.4, A-5.4). Text made only of easy words — e.g.
 /// `"the cat sat on the mat"` — stays on the easy-list branch, which falls back
 /// to the English list, and scores 0.2976 for every language. This port copies
 /// that behavior and never substitutes a dictionary.
@@ -55,22 +56,24 @@ pub fn dale_chall_readability_score(
   text : String,
   lang~ : String = "en_US",
 ) -> Double raise TextstatError {
-  let word_count = lexicon_count(text)
-  let hard_count = count_difficult_words(
-    text,
-    lang,
-    syllable_threshold=0,
-    unique=false,
-  )
-  if word_count == 0 {
-    return 0.0
-  }
-  let per_difficult_words = (100 * hard_count).to_double() /
-    word_count.to_double()
-  let mut score = 0.1579 * per_difficult_words +
-    0.0496 * words_per_sentence(text)
-  if per_difficult_words > 5.0 {
-    score = score + 3.6365
-  }
-  score
+  with_metric_failure("dale_chall_readability_score", () => {
+    let word_count = lexicon_count(text)
+    let hard_count = count_difficult_words(
+      text,
+      lang,
+      syllable_threshold=0,
+      unique=false,
+    )
+    if word_count == 0 {
+      return 0.0
+    }
+    let per_difficult_words = (100 * hard_count).to_double() /
+      word_count.to_double()
+    let mut score = 0.1579 * per_difficult_words +
+      0.0496 * words_per_sentence(text)
+    if per_difficult_words > 5.0 {
+      score = score + 3.6365
+    }
+    score
+  })
 }

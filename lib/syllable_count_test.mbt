@@ -60,7 +60,8 @@ test "syllable_count matches the 11 frozen oracle samples" {
 /// both layers — `readability` is a primary-table hit, `extraordinary` a
 /// supplement hit under the en_GB alias — and every non-English language takes
 /// the hyphenation fallback. `ar` and `xx_YY` are the oracle's two failure rows
-/// (upstream `KeyError: None`, this port's typed `UnsupportedLanguage`).
+/// (upstream `KeyError: None`, this port's product-facing `MetricFailure` whose
+/// text names the metric, the code and the missing dictionary).
 test "language probe totals match the oracle" {
   let probe = "The extraordinary readability of international documentation."
   let rows : Array[(String, Int32)] = [
@@ -86,9 +87,13 @@ test "language probe totals match the oracle" {
       let _ = @moon_textstat.syllable_count(probe, lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("syllable_count"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }
 
@@ -113,8 +118,12 @@ test "unsupported languages fail and the empty string stays zero" {
       let _ = @moon_textstat.syllable_count(text, lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("syllable_count"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }

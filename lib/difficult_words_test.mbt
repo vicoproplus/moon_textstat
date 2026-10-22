@@ -60,8 +60,8 @@ test "difficult_words matches the 11 frozen oracle samples" {
 /// `es_ES` drops `international` because the Spanish easy list contains it, and
 /// `ru_RU` yields 0 because the Russian hyphenation dictionary reports one
 /// syllable per word, below the public threshold 2. `ar` and `xx_YY` are the
-/// two failure rows (upstream `KeyError: None`, this port's typed
-/// `UnsupportedLanguage`).
+/// two failure rows (upstream `KeyError: None`, this port's product-facing
+/// `MetricFailure` naming the metric, the code and the missing dictionary).
 test "language probe totals match the oracle" {
   let probe = "The extraordinary readability of international documentation."
   let rows : Array[(String, Int32)] = [
@@ -87,9 +87,13 @@ test "language probe totals match the oracle" {
       let _ = @moon_textstat.difficult_words(probe, lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("difficult_words"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }
 
@@ -135,7 +139,8 @@ test "threshold, uniqueness and case semantics match upstream" {
 /// Verified against the vendored upstream (0.7.13) with `set_lang("ar")`:
 /// `""`, `"   "`, `" .? "`, `"the cat sat"` and `"hello world"` all return 0,
 /// while `"xyzzy"` and the probe sentence raise `KeyError: None`. This port
-/// propagates `UnsupportedLanguage` with the caller's raw spelling and has no
+/// raises the product-facing `MetricFailure` naming this metric, the caller's
+/// raw spelling and the missing dictionary (spec §4.5.4, A-5.4) and has no
 /// fallback to a supported dictionary.
 test "unsupported languages fail only when a hard word reaches syllables" {
   for lang in ["ar", "xx_YY"] {
@@ -155,8 +160,12 @@ test "unsupported languages fail only when a hard word reaches syllables" {
       let _ = @moon_textstat.difficult_words(text, lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("difficult_words"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }

@@ -70,9 +70,10 @@
 /// result is exactly -1.0 (spec §4.3.3).
 ///
 /// **Failure channel.** `syllables_for_word` resolves the languages per word,
-/// so any text whose `words_list` is non-empty propagates
-/// `UnsupportedLanguage(requested)` for `ar`/`xx_YY` before the sentence
-/// denominator is computed. Zero-word texts — the empty string, whitespace-only
+/// so any text whose `words_list` is non-empty raises the product-facing
+/// `MetricFailure` naming this metric, the language code and the missing
+/// dictionary for `ar`/`xx_YY` before the sentence denominator is computed
+/// (spec §4.5.4, A-5.4). Zero-word texts — the empty string, whitespace-only
 /// and punctuation-only input — never resolve a dictionary and keep 0.0 / 0.0 /
 /// -1.0 for every language, including unsupported codes. Verified against the
 /// vendored upstream (0.7.13): `linsear_write_formula("", "ar")` is 0.0,
@@ -90,6 +91,21 @@ pub fn linsear_write_formula(
   lang~ : String = "en_US",
   strict_lower~ : Bool = false,
   strict_upper~ : Bool = true,
+) -> Double raise TextstatError {
+  with_metric_failure("linsear_write_formula", () => {
+    linsear_write_formula_low(text, lang, strict_lower~, strict_upper~)
+  })
+}
+
+///|
+/// Low-level body of `linsear_write_formula`, raising `UnsupportedLanguage`
+/// from `syllables_for_word`; the public wrapper above converts it into the
+/// product-facing `MetricFailure`.
+fn linsear_write_formula_low(
+  text : String,
+  lang : String,
+  strict_lower~ : Bool,
+  strict_upper~ : Bool,
 ) -> Double raise TextstatError {
   let text_list = list_words(text, rm_punctuation=false)
   let words_list : Array[String] = []

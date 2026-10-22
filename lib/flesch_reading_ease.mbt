@@ -28,7 +28,9 @@
 /// string still returns 0.0 for every language, because `syllable_count("")`
 /// returns 0 before resolving a dictionary (verified: upstream
 /// `flesch_reading_ease("", "ar")` is 0.0, `("hello", "ar")` raises). The
-/// failure is propagated unchanged; no fallback to English is attempted.
+/// failure is raised as `MetricFailure` naming this metric, the language code
+/// and the missing hyphenation dictionary (spec §4.5.4, A-5.4); no fallback to
+/// English is attempted.
 ///
 /// **Language constants.** `lang_config` keys on the raw root (`en`, `de`,
 /// `es`, `fr`, `it`, `nl`, `pl`, `ru`, `hu`) and silently falls back to the
@@ -39,11 +41,13 @@ pub fn flesch_reading_ease(
   text : String,
   lang~ : String = "en_US",
 ) -> Double raise TextstatError {
-  let sl = words_per_sentence(text)
-  let spw = syllables_per_word(text, lang)
-  if sl == 0.0 || spw == 0.0 {
-    return 0.0
-  }
-  let cfg = lang_config(lang)
-  cfg.fre_base - cfg.fre_sentence_length * sl - cfg.fre_syll_per_word * spw
+  with_metric_failure("flesch_reading_ease", () => {
+    let sl = words_per_sentence(text)
+    let spw = syllables_per_word(text, lang)
+    if sl == 0.0 || spw == 0.0 {
+      return 0.0
+    }
+    let cfg = lang_config(lang)
+    cfg.fre_base - cfg.fre_sentence_length * sl - cfg.fre_syll_per_word * spw
+  })
 }

@@ -124,6 +124,7 @@ test "unsupported languages raise only from the syllable layer" {
       None
     } catch {
       UnsupportedLanguage(code) => Some(code)
+      _ => None
     }
     assert_eq(Some(lang), raised)
   }

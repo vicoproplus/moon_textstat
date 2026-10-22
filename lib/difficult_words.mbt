@@ -174,8 +174,9 @@ fn count_difficult_words(
 /// resolved. Verified against the vendored upstream (0.7.13) under `ar`:
 /// `""`, `"   "`, `" .? "`, `"the"`, `"cat sat"` and `"hello world"` all
 /// return 0, while `"xyzzy"` and the language-probe sentence raise
-/// `KeyError: None`. This port raises `UnsupportedLanguage(requested)` with
-/// the caller's raw spelling and never substitutes a supported dictionary.
+/// `KeyError: None`. This port raises the product-facing `MetricFailure`
+/// naming this metric, the caller's raw spelling and the missing dictionary
+/// (spec §4.5.4, A-5.4) and never substitutes a supported dictionary.
 ///
 /// The count is 32-bit (`Int`), the type of `TextStats.difficult_words`
 /// (PRD-A 10.3). The function is pure: no I/O.
@@ -185,5 +186,7 @@ pub fn difficult_words(
   syllable_threshold~ : Int32 = 2,
   unique~ : Bool = true,
 ) -> Int32 raise TextstatError {
-  count_difficult_words(text, lang, syllable_threshold~, unique~)
+  with_metric_failure("difficult_words", () => {
+    count_difficult_words(text, lang, syllable_threshold~, unique~)
+  })
 }

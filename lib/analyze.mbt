@@ -27,12 +27,14 @@
 /// and no second tokenization path exists (spec §2.1 constraint 2).
 ///
 /// **Failure channel.** `syllable_count` is the first syllable-based metric in
-/// field order, so an unsupported language on non-empty text raises
-/// `UnsupportedLanguage(lang)` there and the call stops before any English
-/// substitution (spec §4.5.4). The empty string keeps that entry's documented
-/// early return (`syllable_count("")` is 0 for every language), and the other
-/// entries then return their zero shapes, exactly as the single-metric
-/// contracts describe.
+/// field order, so an unsupported language on non-empty text raises there and
+/// the call stops before any English substitution (spec §4.5.4). The error is
+/// the inner metric's `MetricFailure`, whose text still carries the three
+/// required items — metric name, language code and failure reason (A-5.4) —
+/// and it propagates unchanged rather than being rewrapped under `analyze`.
+/// The empty string keeps that entry's documented early return
+/// (`syllable_count("")` is 0 for every language), and the other entries then
+/// return their zero shapes, exactly as the single-metric contracts describe.
 ///
 /// The function is pure: no I/O. `AnalyzeOptions` is the documented default
 /// bundle; this entry exposes only `lang`, while the variant switches remain

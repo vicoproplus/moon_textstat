@@ -79,9 +79,9 @@ test "only words with exactly one syllable are counted" {
 /// string, whitespace-only and punctuation-only text therefore yield 0 even
 /// for an unsupported language; verified against the vendored upstream
 /// (0.7.13) with `set_lang("ar")` and `set_lang("xx_YY")`. Any text with a word
-/// fails there, and this port propagates the typed
-/// `UnsupportedLanguage(requested)` with the caller's raw spelling, with no
-/// fallback to a supported dictionary.
+/// fails there, and this port raises the product-facing `MetricFailure` naming
+/// this metric, the caller's raw spelling and the missing dictionary, with no
+/// fallback to a supported dictionary (spec §4.5.4, A-5.4).
 test "zero-word text stays zero and words fail for unsupported languages" {
   assert_eq(0, @moon_textstat.monosyllabcount("", lang="ar"))
   assert_eq(0, @moon_textstat.monosyllabcount("", lang="xx_YY"))
@@ -96,8 +96,12 @@ test "zero-word text stays zero and words fail for unsupported languages" {
       let _ = @moon_textstat.monosyllabcount(text, lang~)
       None
     } catch {
-      @moon_textstat.UnsupportedLanguage(code) => Some(code)
+      @moon_textstat.MetricFailure(message) => Some(message)
+      _ => None
     }
-    assert_eq(Some(lang), raised)
+    let message = raised.unwrap()
+    assert_true(message.contains("monosyllabcount"))
+    assert_true(message.contains(lang))
+    assert_true(message.contains("no hyphenation dictionary"))
   }
 }

@@ -187,7 +187,8 @@ test "wordless texts return exactly 0.0" {
 /// A hard non-empty text — one containing a non-easy word — reaches the
 /// syllable layer inside the difficult counter and raises before the guard.
 /// Upstream raises `KeyError: None` for `xyzzy` and the probe sentence; this
-/// port propagates `UnsupportedLanguage` with the caller's raw code.
+/// port raises the product-facing `MetricFailure` naming this metric, the
+/// caller's raw code and the missing dictionary (spec §4.5.4, A-5.4).
 ///
 /// Easy-only text does not fail: `is_easy_word` falls back to the English list,
 /// so `"the cat sat on the mat"` returns 0.2976 under `ar`/`xx_YY` upstream and
@@ -216,9 +217,13 @@ test "unsupported languages return zero for wordless text and raise otherwise" {
         let _ = @moon_textstat.dale_chall_readability_score(text, lang~)
         None
       } catch {
-        @moon_textstat.UnsupportedLanguage(code) => Some(code)
+        @moon_textstat.MetricFailure(message) => Some(message)
+        _ => None
       }
-      assert_eq(Some(lang), raised)
+      let message = raised.unwrap()
+      assert_true(message.contains("dale_chall_readability_score"))
+      assert_true(message.contains(lang))
+      assert_true(message.contains("no hyphenation dictionary"))
     }
   }
 }

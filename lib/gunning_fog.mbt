@@ -41,9 +41,10 @@
 /// even for an unsupported `lang`.
 ///
 /// **Failure channel.** A non-easy word reaches the syllable layer inside the
-/// difficult counter, so a hard non-empty text under `ar`/`xx_YY` propagates
-/// `UnsupportedLanguage(requested)` before the zero guard can hide it
-/// (upstream raises `KeyError: None`). Text made only of easy words — e.g.
+/// difficult counter, so a hard non-empty text under `ar`/`xx_YY` raises the
+/// product-facing `MetricFailure` naming this metric, the code and the missing
+/// dictionary before the zero guard can hide it (upstream raises
+/// `KeyError: None`; spec §4.5.4, A-5.4). Text made only of easy words — e.g.
 /// `hello` — stays on the easy-list branch and does not fail; upstream returns
 /// 0.4 there and this port matches.
 ///
@@ -52,17 +53,19 @@ pub fn gunning_fog(
   text : String,
   lang~ : String = "en_US",
 ) -> Double raise TextstatError {
-  let syllable_threshold = lang_config(lang).syllable_threshold
-  let diff_words = count_difficult_words(
-    text,
-    lang,
-    syllable_threshold~,
-    unique=false,
-  )
-  let tot_words = lexicon_count(text)
-  if tot_words == 0 {
-    return 0.0
-  }
-  let per_diff_words = (100 * diff_words).to_double() / tot_words.to_double()
-  0.4 * (words_per_sentence(text) + per_diff_words)
+  with_metric_failure("gunning_fog", () => {
+    let syllable_threshold = lang_config(lang).syllable_threshold
+    let diff_words = count_difficult_words(
+      text,
+      lang,
+      syllable_threshold~,
+      unique=false,
+    )
+    let tot_words = lexicon_count(text)
+    if tot_words == 0 {
+      return 0.0
+    }
+    let per_diff_words = (100 * diff_words).to_double() / tot_words.to_double()
+    0.4 * (words_per_sentence(text) + per_diff_words)
+  })
 }

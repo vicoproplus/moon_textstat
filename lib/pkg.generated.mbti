@@ -45,6 +45,7 @@ pub fn syllable_count(String, lang? : String) -> Int raise TextstatError
 // Errors
 pub suberror TextstatError {
   UnsupportedLanguage(String)
+  MetricFailure(String)
 }
 
 // Types and methods

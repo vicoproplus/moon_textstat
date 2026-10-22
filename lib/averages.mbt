@@ -66,8 +66,10 @@ fn words_per_sentence(text : String) -> Double {
 ///
 /// Literally `count_syllables(text, lang) / count_words(text)`, with a
 /// `ZeroDivisionError` guard returning 0.0. The language is the caller's raw
-/// code, forwarded unchanged to `syllable_count`; the helper never resolves a
-/// dictionary or constant row itself.
+/// code, forwarded unchanged to `syllable_count_low`; the helper never resolves
+/// a dictionary or constant row itself, and it keeps the low-level
+/// `UnsupportedLanguage` so that the public formula entry converts it into the
+/// product-facing `MetricFailure` under its own metric name (spec §4.5.4).
 ///
 /// **Evaluation order matters.** Upstream evaluates the numerator first, so an
 /// unsupported language raises from the syllable call even though the
@@ -89,7 +91,7 @@ fn syllables_per_word(
   text : String,
   lang : String,
 ) -> Double raise TextstatError {
-  let syllables = syllable_count(text, lang~)
+  let syllables = syllable_count_low(text, lang)
   let words = lexicon_count(text)
   if words == 0 {
     0.0

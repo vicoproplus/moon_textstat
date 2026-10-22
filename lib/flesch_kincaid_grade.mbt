@@ -41,17 +41,21 @@
 /// still returns 0.0 for every language, because `syllable_count("")` returns 0
 /// before resolving a dictionary (verified against the vendored upstream:
 /// `flesch_kincaid_grade("", "ar")` is 0.0, `("Hi there!", "ar")` raises). The
-/// failure is propagated unchanged; no fallback to English is attempted.
+/// failure is raised as `MetricFailure` naming this metric, the language code
+/// and the missing hyphenation dictionary (spec §4.5.4, A-5.4); no fallback to
+/// English is attempted.
 ///
 /// The default is `en_US`.
 pub fn flesch_kincaid_grade(
   text : String,
   lang~ : String = "en_US",
 ) -> Double raise TextstatError {
-  let sl = words_per_sentence(text)
-  let spw = syllables_per_word(text, lang)
-  if sl == 0.0 || spw == 0.0 {
-    return 0.0
-  }
-  0.39 * sl + 11.8 * spw - 15.59
+  with_metric_failure("flesch_kincaid_grade", () => {
+    let sl = words_per_sentence(text)
+    let spw = syllables_per_word(text, lang)
+    if sl == 0.0 || spw == 0.0 {
+      return 0.0
+    }
+    0.39 * sl + 11.8 * spw - 15.59
+  })
 }

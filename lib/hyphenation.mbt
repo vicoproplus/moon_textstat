@@ -3,11 +3,51 @@
 ///
 /// `UnsupportedLanguage(requested)` reports that no embedded hyphenation
 /// dictionary can serve `requested`, the caller's raw spelling before case and
-/// separator normalization. Later layers (spec §4.5.4) add the product-facing
-/// message on top of this typed failure; the payload deliberately stays the
-/// original code so that message can quote it.
+/// separator normalization. It is the **low-level** variant: only the
+/// package-private hyphenation and syllable functions raise it, so white-box
+/// tests can still observe the resolved code directly.
+///
+/// `MetricFailure(message)` is the **product-facing** variant raised at every
+/// public boundary that can fail. Its text deliberately carries the three
+/// items of spec §4.5.4 / A-5.4 — metric name, language code and failure
+/// reason — which upstream's bare `KeyError: None` does not. That enrichment is
+/// a product contract, not an alignment item: the gate compares the failure
+/// *semantics* (raised vs. a value), never this text (A-5.2 vs. A-5.4).
 pub suberror TextstatError {
   UnsupportedLanguage(String)
+  MetricFailure(String)
+}
+
+///|
+/// Product-facing failure text: `<metric> failed for language '<lang>': no
+/// hyphenation dictionary for '<lang>'` (spec §4.5.4, A-5.4).
+///
+/// The language code is quoted twice on purpose: once as the metric input the
+/// caller supplied and once as the dictionary short name that could not be
+/// resolved. Both are the raw caller spelling, because that is what
+/// `UnsupportedLanguage` carries. The reason sentence is fixed and non-empty.
+fn metric_failure_message(metric : String, lang : String) -> String {
+  "\{metric} failed for language '\{lang}': no hyphenation dictionary for '\{lang}'"
+}
+
+///|
+/// Run one public metric body, converting the low-level `UnsupportedLanguage`
+/// into the product-facing `MetricFailure` at the public boundary
+/// (spec §4.5.4, A-5.4; design D-14/FE3).
+///
+/// The conversion happens exactly once, at the outermost public entry, and
+/// every other error is re-raised unchanged. Internal bodies therefore keep
+/// speaking the low-level variant, which is what white-box tests catch, while
+/// callers of the public API observe the enriched text.
+fn[T] with_metric_failure(
+  metric : String,
+  body : () -> T raise TextstatError,
+) -> T raise TextstatError {
+  body() catch {
+    UnsupportedLanguage(lang) =>
+      raise MetricFailure(metric_failure_message(metric, lang))
+    e => raise e
+  }
 }
 
 ///|

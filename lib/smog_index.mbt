@@ -36,9 +36,10 @@
 /// words, hence no polysyllables, the ratio is 0.0, `0.0 ** 0.5` is 0.0 and the
 /// result is exactly `3.1291`. Only the empty string returns 0.0.
 ///
-/// **Failure channel.** `polysyllabcount` resolves the language per word, so a
-/// text with at least one word under `ar`/`xx_YY` raises
-/// `UnsupportedLanguage(requested)` from the count before the guard can run;
+/// **Failure channel.** The polysyllable counter resolves the language per
+/// word, so a text with at least one word under `ar`/`xx_YY` raises the
+/// product-facing `MetricFailure` naming this metric, the code and the missing
+/// dictionary from the count before the guard can run (spec §4.5.4, A-5.4);
 /// zero-word text never resolves a dictionary and keeps the values above even
 /// for an unsupported code. Verified against the vendored upstream (0.7.13):
 /// `smog_index("", "ar")` is 0.0, `smog_index(" ", "ar")` is 3.1291,
@@ -53,12 +54,14 @@ pub fn smog_index(
   text : String,
   lang~ : String = "en_US",
 ) -> Double raise TextstatError {
-  let sentences = sentence_count(text)
-  let poly_syllab = polysyllabcount(text, lang~)
-  if sentences == 0 {
-    return 0.0
-  }
-  1.043 *
-  @math.pow(30.0 * (poly_syllab.to_double() / sentences.to_double()), 0.5) +
-  3.1291
+  with_metric_failure("smog_index", () => {
+    let sentences = sentence_count(text)
+    let poly_syllab = count_polysyllable_words(text, lang)
+    if sentences == 0 {
+      return 0.0
+    }
+    1.043 *
+    @math.pow(30.0 * (poly_syllab.to_double() / sentences.to_double()), 0.5) +
+    3.1291
+  })
 }

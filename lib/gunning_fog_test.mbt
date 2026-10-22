@@ -100,7 +100,8 @@ test "A-3.3: the E-28 fixture reproduces the non-unique Fog value" {
 /// A hard non-empty text — one containing a non-easy word — reaches the
 /// syllable layer inside the difficult counter and raises before the guard.
 /// Upstream raises `KeyError: None` for the probe sentence and for `xyzzy`;
-/// this port propagates `UnsupportedLanguage` with the caller's raw code.
+/// this port raises `MetricFailure` naming the metric, the caller's raw code
+/// and the missing dictionary (spec §4.5.4, A-5.4).
 test "unsupported languages return zero for zero-word text and raise otherwise" {
   for lang in ["ar", "xx_YY"] {
     assert_eq(0.0, @moon_textstat.gunning_fog("", lang~))
@@ -114,9 +115,13 @@ test "unsupported languages return zero for zero-word text and raise otherwise" 
         let _ = @moon_textstat.gunning_fog(text, lang~)
         None
       } catch {
-        @moon_textstat.UnsupportedLanguage(code) => Some(code)
+        @moon_textstat.MetricFailure(message) => Some(message)
+        _ => None
       }
-      assert_eq(Some(lang), raised)
+      let message = raised.unwrap()
+      assert_true(message.contains("gunning_fog"))
+      assert_true(message.contains(lang))
+      assert_true(message.contains("no hyphenation dictionary"))
     }
   }
 }

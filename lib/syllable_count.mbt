@@ -24,12 +24,29 @@
 ///
 /// The language is a formal parameter, not upstream's deprecated no-effect
 /// argument, and there is no silent fallback (spec §4.5.1): an unsupported
-/// code propagates the typed failure unchanged (the product-facing text is a
-/// later layer's concern). The count is 32-bit (`Int`), the counting type of
+/// code fails with the product-facing `MetricFailure`, whose text names this
+/// metric, the language code and the missing hyphenation dictionary
+/// (spec §4.5.4, A-5.4). The low-level `syllable_count_low` keeps the raw
+/// `UnsupportedLanguage` for internal callers such as `syllables_per_word`.
+/// The count is 32-bit (`Int`), the counting type of
 /// `TextStats.syllable_count` (PRD-A 10.3). The function is pure: no I/O.
 pub fn syllable_count(
   text : String,
   lang~ : String = "en_US",
+) -> Int32 raise TextstatError {
+  with_metric_failure("syllable_count", () => syllable_count_low(text, lang))
+}
+
+///|
+/// Low-level body of `syllable_count`, raising `UnsupportedLanguage(requested)`
+/// from `resolve_dict`.
+///
+/// Package-private so that `syllables_per_word` (and through it Flesch Reading
+/// Ease and Flesch-Kincaid Grade) can report their own metric name in the
+/// product-facing failure text instead of inheriting `syllable_count`'s.
+fn syllable_count_low(
+  text : String,
+  lang : String,
 ) -> Int32 raise TextstatError {
   if text.length() == 0 {
     return 0

@@ -108,8 +108,8 @@ test "language probes match the oracle" {
 /// Every non-empty text raises for `ar`/`xx_YY`, including the probe sentence
 /// and whitespace-only text: the syllable call happens in the numerator before
 /// the zero guard, so the guard does not suppress the language failure
-/// (upstream raises `KeyError: None`; this port raises `UnsupportedLanguage`
-/// with the caller's raw code).
+/// (upstream raises `KeyError: None`; this port raises `MetricFailure` naming
+/// the metric, the caller's raw code and the missing dictionary).
 test "unsupported languages raise and the empty string stays zero" {
   for lang in ["ar", "xx_YY"] {
     assert_eq(0.0, @moon_textstat.flesch_reading_ease("", lang~))
@@ -122,9 +122,13 @@ test "unsupported languages raise and the empty string stays zero" {
         let _ = @moon_textstat.flesch_reading_ease(text, lang~)
         None
       } catch {
-        @moon_textstat.UnsupportedLanguage(code) => Some(code)
+        @moon_textstat.MetricFailure(message) => Some(message)
+        _ => None
       }
-      assert_eq(Some(lang), raised)
+      let message = raised.unwrap()
+      assert_true(message.contains("flesch_reading_ease"))
+      assert_true(message.contains(lang))
+      assert_true(message.contains("no hyphenation dictionary"))
     }
   }
 }
