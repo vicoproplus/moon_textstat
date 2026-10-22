@@ -1,0 +1,15 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/cmd/gate"
+
+// Values
+
+// Errors
+
+// Types and methods
+type Actual
+
+type GateConfig
+
+// Type aliases
+
+// Traits

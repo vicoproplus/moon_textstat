@@ -1,0 +1,7 @@
+pkgtype(kind: "executable")
+
+import {
+  "moonbitlang/core/env",
+  "vicoproplus/moon_textstat",
+  "vicoproplus/moon_textstat/gate/data" @gate_data,
+}
