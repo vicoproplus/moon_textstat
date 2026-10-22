@@ -169,18 +169,25 @@ fn run_gate(config : GateConfig) -> Unit {
   }
   let loaded = @gate_data.total_cells()
   let mut passed = 0
-  let failures : Array[String] = []
+  let failures : Array[Failure] = []
   for cell in cells {
     let actual = evaluate_cell(cell)
     if cell_matches(cell.expected, actual) {
       passed = passed + 1
     } else {
-      failures.push(failure_line(cell, actual))
+      failures.push({ cell, actual, injected: false, })
     }
+  }
+  if failures.length() > 0 {
+    let records : Array[String] = []
+    for failure in failures {
+      records.push(failure_record(failure))
+    }
+    write_failure_records(records)
   }
   println(report_line(cells.length(), passed, config.group, config.inject))
   for failure in failures {
-    println(failure)
+    println(failure_line(failure.cell, failure.actual))
   }
   if loaded < FROZEN_FLOOR {
     println(

@@ -1,0 +1,290 @@
+# T-37 — 失败记录七字段与位模式
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`f8a4d24 docs(plans): authorize the gate-only failure-record file shim`
+（门禁骨架 = `5c93b75`）。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：spec §4.6；AD §2.5、§3.2、§3.3、§6；用户裁决
+`docs/superpowers/plans/logs/T-36-exit-shim-decision.md` 补充二。
+
+> 结论：PASS。绿跑 366/366 EXIT=0 且不创建 `_gate/`；人为偏差 EXIT=1，
+> 落盘 `_gate/failures-native-<ms>.jsonl`，一单元格一行，七字段 + `injected`
+> + 浮点两列 16 位十六进制位模式，记录不含输入原文。`moon check` /
+> `moon fmt --check` 零警告；`moon test --target native` 155/155（原 145 +
+> 新增 10）；静态白名单 `extern`=5、`@env.`=2，全部在 `lib/cmd/gate`。
+
+## 1. 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/cmd/gate/sha256.mbt` | 新增：纯 MoonBit SHA-256（FIPS 180-4，含填充与压缩） | 173 | `9f623a06d3f8da2d4a9a2da1900305cfb64322351f693f14b228c3e0cd650cd3` |
+| `lib/cmd/gate/records.mbt` | 新增：JSON 转义、位模式格式化、七字段记录、4 个 C 文件声明与落盘 | 259 | `c54b6d8a57e2112b282055ac653b0af40a38fda652177791db7d1a6bc0859978` |
+| `lib/cmd/gate/sha256_wbtest.mbt` | 新增：SHA-256 向量、记录 schema、A-3.2 十行位模式共 10 条测试 | 173 | `ea1db707d1f3e2af4e60b8ea022986f9880a32ce14556414a5f979bddfd0db10` |
+| `lib/cmd/gate/compare.mbt` | 改：抽出 `input_text`（求值与哈希共用同一文本） | 199 | `dd2b7473bedcc6fda12ea37dccf33c875b9f7d3fd5d9fdb598734b8bc2ff784b` |
+| `lib/cmd/gate/main.mbt` | 改：失败列表改存 `Failure`，先落盘记录再打印报告与诊断 | 216 | `c030b2b35e619e2a66927f1e29c3ad5aefc56129f365206070488d7c855b212f` |
+| `lib/cmd/gate/moon.pkg` | 改：新增 `moonbitlang/core/encoding/utf8`（UTF-8 字节与 C 字符串） | 8 | `def21e48367b0b38a2f3fa289db437e330d0135311d548a10f18deba1bf56992` |
+| `lib/cmd/gate/pkg.generated.mbti` | `moon info` 生成：新增私有类型名 `Failure` | 17 | `68a19829ea4daa8867fe6fadd31a97aebbbcfd1baa8dd14957ce8258190ca89d` |
+| `docs/superpowers/plans/logs/T-37.log` | 新增：本日志 | — | — |
+
+未修改任何库、`data/`、`gate/data/` 文件；未改动任何 oracle 单元格。
+
+## 2. 实现要点
+
+### 2.1 记录 schema
+
+一行一个 JSON 对象（`.jsonl`），字段顺序固定：
+
+`input_sha256`、`sample_id`、`metric`（= 单元格 `shape`）、`lang`、
+`expected`、`actual`、`target`（恒 `"native"`）、`injected`（T-37 恒
+`false`），随后按需追加 `expected_bits` / `actual_bits`。
+
+- **`input_sha256`**：对单元格实际求值所用文本（样本原文或语种探针句）的
+  UTF-8 字节做 SHA-256，64 位小写十六进制。`evaluate_cell` 与记录都走
+  同一个 `input_text`，摘要与求值字节不可能漂移。记录不含原文。
+- **`expected` / `actual` 取值口径**（AD §2.2：位模式才是契约，打印文本不是）：
+  - 整数：JSON 数字（`18`）。
+  - 浮点：**十进制近似文本**，以 JSON **字符串** 给出（如
+    `"116.14500000000001"`），由 `UInt64::reinterpret_as_double().to_string()`
+    生成。选择字符串而非数字的理由：`NaN`/`Infinity` 不是合法 JSON 数字，
+    字符串保证任何位模式都能被标准解析器读取；该文本不参与判等。
+  - 列表：JSON 字符串数组（`["sentences","terminator"]`），顺序即实际返回
+    顺序（判等仍是集合比较，A-5.2/AD-2）。
+  - 抛出/未抛出：`EError` 单元格的 `expected` 与“调用抛出”的 `actual` 都写
+    字面量 `"error"`，即“此侧的语义是失败”。`EError` 单元格返回了值即失败，
+    记录 `"expected":"error"` 与返回值的 JSON 表示（原始 oracle 错误文本
+    不入记录）。
+- **位模式字段出现规则**：某侧真的携带位模式才写该键。
+  `expected_bits` 对每个 `EDouble` 单元格必写；`actual_bits` 在实际值也是
+  浮点时写（实际抛出的浮点单元格没有位模式，只有 `expected_bits`）。
+  两者均为 `0x` + **恰好 16 位**小写十六进制（补零，如
+  `"0x0000000000000000"`）。
+- **字符串转义**：`"`、`\`、`\n`、`\r`、`\t` 与全部 C0 控制字符
+  （`\u00XX`）转义，其余按 UTF-8 原样写出。
+
+### 2.2 SHA-256（纯 MoonBit，零 FFI）
+
+`sha256.mbt` 按 FIPS 180-4 实现：`0x80` + 补零至 56 mod 64 + 64 位大端
+比特长度的填充，64 轮压缩，`UInt` 的加/乘按 2^32 取模（core 的
+`%u32.add`）。字节经 `land(0xFF)` 展宽，避免 `Byte` 有符号符号扩展。
+`@utf8.encode` 只用于把字符串变成 UTF-8 字节与生成 C 字符串，哈希本身
+不含任何原生调用。测试覆盖空串、`abc`、448 位双块消息（填充边界）与含
+非 ASCII 的西班牙语样本（证明编码层）。
+
+### 2.3 落盘
+
+- 仅在存在失败单元格时写：创建 `_gate/`（`_mkdir`，已存在时忽略返回值），
+  以追加模式打开 `_gate/failures-native-<timestamp>.jsonl`，一次写入全部
+  行并关闭。绿跑既不建目录也不建文件。
+- 四个 C 声明集中在 `records.mbt`（`fopen`/`fwrite`/`fclose`/`_mkdir`），
+  与 `exit.mbt` 的 `exit` 垫片合计 `extern` = 5，全部在 `lib/cmd/gate`。
+  T-36 裁决补充二允许此面；库、`data/`、`gate/data/` 仍为 0。
+- 时间戳来自 `records.mbt` 内唯一的 `@env.now()`（毫秒，十进制拼进文件名）。
+  全仓 `@env.` = 2（argv + now），均在 `lib/cmd/gate`。
+- 写失败（`fopen` 返回 0、`fwrite` 短写或 `fclose` 非 0）时打印
+  `gate: cannot ... failure record file: <path>` 并以 EXIT=2 结束：AD §3.2
+  的 EXIT=1 承诺“失败记录已落盘”，落盘不了就不能报 1。
+
+### 2.4 输出顺序
+
+`run_gate` 先求出全部单元格，失败时**先写记录**，再打印第二行自报
+`cells=... passed=... floor=366 group=... inject=...`，最后逐行打印
+`FAIL ...` 诊断——T-36 的两行头部契约不变。
+
+### 2.5 `injected`
+
+`Failure` 结构体带 `injected : Bool`，T-37 全部传 `false`；T-38 只需在
+构造该结构体处按 `--inject=<n>` 命中项置 `true`，无需改动 schema。
+
+## 3. 验收原始输出
+
+### 3.1 绿跑（`_gate` 已先删除）
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+$ ls -d _gate
+NO_GATE_DIR
+```
+
+### 3.2 全量测试与检查
+
+```console
+$ cd lib && moon test --target native
+Total tests: 155, passed: 155, failed: 0.
+EXIT=0
+
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+$ moon check                 # 默认目标（非 native 走 cfg 回退分支）
+Finished. moon: no work to do
+EXIT=0
+$ moon fmt --check
+Finished. moon: no work to do
+EXIT=0
+```
+
+155 = 既有 145 + 本任务 10（4 条 SHA-256、1 条位模式格式、1 条 JSON 转义、
+3 条记录 schema、1 条 A-3.2 十行位模式）。
+
+### 3.3 A-5.3 记录可 grep（临时副本，`F:\moonbit比赛\_t37_scratch`，已丢弃）
+
+副本 `lib/` 后仅改一处 L3 期望：`short_simple_sentence.char_count` 18 → 19。
+
+```console
+$ moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=short_simple_sentence shape=char_count lang=en_US expected=int:19 actual=int:18
+EXIT=1
+$ ls _gate
+failures-native-1792652020002.jsonl
+$ wc -l < _gate/failures-native-*.jsonl
+1
+$ grep -c '"metric":' _gate/failures-native-*.jsonl
+1
+$ grep -c 'The cat sat on the mat' _gate/failures-native-*.jsonl
+0
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"6d67a445d1e5c7d98997d412fd71e5eb9a450b2c5f6e206d8511fe1b9009ec90","sample_id":"short_simple_sentence","metric":"char_count","lang":"en_US","expected":19,"actual":18,"target":"native","injected":false}
+```
+
+七字段 + `injected` 全部在场，输入原文不出现；`input_sha256` 与
+`printf 'The cat sat on the mat.' | sha256sum` 一致。
+
+### 3.4 浮点单元格：两列 16 位位模式（同一临时副本，改 `flesch_reading_ease` 末位）
+
+```console
+$ moon run cmd/gate --target native --group=formula
+moon run cmd/gate --target native
+cells=64 passed=63 floor=366 group=formula inject=0
+FAIL sample_id=short_simple_sentence shape=flesch_reading_ease lang=en_US expected=bits:0x405d0947ae147ae3 actual=bits:0x405d0947ae147ae2
+EXIT=1
+$ cat _gate/failures-native-*.jsonl
+{"input_sha256":"6d67a445d1e5c7d98997d412fd71e5eb9a450b2c5f6e206d8511fe1b9009ec90","sample_id":"short_simple_sentence","metric":"flesch_reading_ease","lang":"en_US","expected":"116.14500000000002","actual":"116.14500000000001","target":"native","injected":false,"expected_bits":"0x405d0947ae147ae3","actual_bits":"0x405d0947ae147ae2"}
+
+$ python -c "import json,glob;r=json.loads(open(glob.glob('_gate/failures-native-*.jsonl')[0]).read());print(len(r['expected_bits'])-2,len(r['actual_bits'])-2,r['expected_bits'],r['actual_bits'])"
+16 16 0x405d0947ae147ae3 0x405d0947ae147ae2
+```
+
+### 3.5 多行落盘与“期望失败、实际返回值”（同一临时副本，12 个 `EError` 改 `EInt(0)`）
+
+```console
+$ moon run cmd/gate --target native --group=errors
+moon run cmd/gate --target native
+cells=12 passed=0 floor=366 group=errors inject=0
+FAIL sample_id=ar shape=syllable_count lang=ar expected=int:0 actual=error:raised
+FAIL sample_id=ar shape=flesch_reading_ease lang=ar expected=int:0 actual=error:raised
+...（共 12 行）
+EXIT=1
+$ wc -l < _gate/failures-native-*.jsonl
+12
+$ head -1 _gate/failures-native-*.jsonl
+{"input_sha256":"2860e80c12460899392e97b51fcce9064060fb7c2be8d681dfa661395ede65df","sample_id":"ar","metric":"syllable_count","lang":"ar","expected":0,"actual":"error","target":"native","injected":false}
+$ python -c "import json,glob;L=open(glob.glob('_gate/failures-native-*.jsonl')[0]).read().splitlines();r=[json.loads(l) for l in L];print(len(r),all(x['actual']=='error' for x in r))"
+12 True
+```
+
+12 行全部可被 `json.loads` 解析，`ar`/`xx_YY` 共用探针句的
+`input_sha256` = `2860e80c...65df`，与 Python 侧同句哈希一致。
+
+### 3.6 A-3.2 十行位模式
+
+`moon test` 新增用例把 AD §2.5 / spec A-3.2 的十个十进制作成 `Double`
+字面量，逐值断言 `reinterpret_as_uint64()` 等于 Python
+`struct.pack('>d', float(text))` 的位模式：
+
+```console
+$ cd lib && moon test --target native -p vicoproplus/moon_textstat/cmd/gate
+Total tests: 10, passed: 10, failed: 0.
+```
+
+十值（Python 侧参考）：`116.14500000000001 0x405d0947ae147ae2`、
+`-1.4499999999999993 0xbff7333333333330`、`1e-5 0x3ee4f8b588e368f1`、
+`1e16 0x4341c37937e08000`、`1e20 0x4415af1d78b58c40`、
+`1e21 0x444b1ae4d6e2ef50`、`123456789012345678.0 0x437b69b4ba630f35`、
+`3.0 0x4008000000000000`、`0.1 0x3fb999999999999a`、
+`1.5e-10 0x3de49da7e361ce4c`。打印文本可不同，位模式全部相等。
+
+### 3.7 静态禁止面（排除 `_build`/`target`/`.mooncakes`）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+./lib/cmd/gate/records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+./lib/cmd/gate/records.mbt:211:extern "c" fn gate_fwrite(
+./lib/cmd/gate/records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+./lib/cmd/gate/records.mbt:225:extern "c" fn gate_mkdir(path : Bytes) -> Int32 = "_mkdir"
+COUNT=5
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/main.mbt:213:  let args = @env.args()
+./lib/cmd/gate/records.mbt:187:    failure_record_path(@env.now()),
+COUNT=2
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+COUNT=0
+```
+
+`extern` 5 = 1 exit + 4 文件；两处 `@env.` 均在 `lib/cmd/gate`；库与数据包
+仍为 0。
+
+### 3.8 `.gitignore` 与工作区
+
+```console
+$ mkdir -p lib/_gate && touch lib/_gate/probe.jsonl
+$ git check-ignore -v lib/_gate/probe.jsonl
+lib/.gitignore:3:_gate/	lib/_gate/probe.jsonl
+$ rm -rf lib/_gate
+$ git status --short
+ M lib/cmd/gate/compare.mbt
+ M lib/cmd/gate/main.mbt
+ M lib/cmd/gate/moon.pkg
+ M lib/cmd/gate/pkg.generated.mbti
+?? .qoder/
+?? lib/cmd/gate/records.mbt
+?? lib/cmd/gate/sha256.mbt
+?? lib/cmd/gate/sha256_wbtest.mbt
+```
+
+提交后仅剩未跟踪的 `.qoder/`。
+
+## 4. Rubric 判定（R1-R12）
+
+| 项 | 判定 | 一行证据 |
+| --- | --- | --- |
+| R1 | pass | `grep -c '"metric":'`=1（§3.3）；A-3.2 十行位模式与实现侧相等（§3.6，`moon test` 用例）；`_gate/` 命中 `lib/.gitignore:3`（§3.8）。A-5.3 的 `injected=true` 半条属 T-38（本任务要求恒 `false`）。 |
+| R2 | pass | 1 轮完成，用时远低于 60 分钟；无回退轮次。 |
+| R3 | pass | 本文件 `docs/superpowers/plans/logs/T-37.log` 已落盘并纳入提交。 |
+| R4 | pass | 只改 `cmd/gate`；库、`data/`、`gate/data/` 与全部 366 个 oracle 期望值未动。 |
+| R5 | pass | 公式实现未改；门禁仍只调用公开入口，未自行分词。 |
+| R6 | pass | 库运行期零 I/O 未变；新增的文件面仅 4 个声明，全在 `lib/cmd/gate/records.mbt`，只写 `_gate/failures-*.jsonl`（裁决补充二）。 |
+| R7 | pass | 唯一命令不变；绿跑 EXIT=0、偏差 EXIT=1、写盘失败 EXIT=2。 |
+| R8 | pass | 未新建字段表；七字段按 PRD-A 10.3 / AD §2.5 实现。 |
+| R9 | pass | 未新增任何 `[EXT]` 形态；记录只来自既有 366 个 `[ALIGN]` 单元格。 |
+| R10 | pass | selfcheck 自报 `cells=366`、`floor=366`，绿跑 366/366。 |
+| R11 | pass | 未出现 `pt` 单元格；`errors` 组仍只有 `ar`/`xx_YY`。 |
+| R12 | pass | `EError` 只判“是否抛出”；记录写 `"error"` 而不搬 oracle 的 `KeyError: None` 文本，失败诊断文本仍不参与对拍。 |
+
+## 5. 偏差与说明
+
+1. **A-5.3 的 `injected=true` 与 `--inject=1`**：本任务按要求恒写
+   `"injected":false`，`--inject=1` 仍以 EXIT=2 拒绝；T-38 接管后该半条
+   验收才可回填。七字段与 `metric` 可检索性已就绪。
+2. **浮点 `expected`/`actual` 的十进制文本不是契约**：判等只看
+   `UInt64` 位模式（T-36 起即如此），记录里的十进制串仅供人读；若某次
+   打印形态变化，不影响任何对拍结论。
+3. **`actual_bits` 的出现条件**：实际值是浮点才写。浮点单元格实际抛出时
+   该键缺席（没有位模式可写），`expected_bits` 仍在——比写 `null` 更少歧义。
+4. **写盘失败 → EXIT=2**：AD §3.2 把 EXIT=1 定义为“失败记录已落盘”，
+   写不成就不能报 1。该路径会先打印一行 `gate: ...` 再退出，属环境失败
+   分支；正常绿/红路径的前两行契约不受影响。
+5. **格式化归一**：`moon fmt` 把 `extern` 形参/返回的 `Int` 规范为
+   `Int32`（C ABI 同宽）；落盘行为经三次临时副本实测无差异。
+6. **记录中可能出现输入中的词**：`difficult_words_list` 的 `actual` 是
+   返回值本身（词表数组），属 schema 要求的“实际值”；`input_sha256`
+   之外不写任何完整原文/整句。
+7. **未新增依赖**：只多了 core 自带的 `moonbitlang/core/encoding/utf8`，
+   无第三方包。

@@ -8,6 +8,8 @@ package "vicoproplus/moon_textstat/cmd/gate"
 // Types and methods
 type Actual
 
+type Failure
+
 type GateConfig
 
 // Type aliases

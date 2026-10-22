@@ -41,14 +41,13 @@ fn capture_list(
 }
 
 ///|
-/// Evaluate one frozen cell against the public entries of the root package.
+/// The input text of one frozen cell.
 ///
 /// Sample-side cells read their text by sample id; language-side cells
-/// (`lang`, `errors`) use the shared probe sentence. The language always comes
-/// from the cell: `en_US` for the eleven `results` sets, `es_ES` for
-/// `spanish_text.results_es`, and the probe code for language cells.
-fn evaluate_cell(cell : @gate_data.Cell) -> Actual {
-  let text = match cell.group {
+/// (`lang`, `errors`) use the shared probe sentence. An unknown id is a hard
+/// EXIT=2 environment failure, never an empty text that could false-pass.
+fn input_text(cell : @gate_data.Cell) -> String {
+  match cell.group {
     "lang" | "errors" => probe_text
     _ =>
       match sample_text(cell.sample_id) {
@@ -56,6 +55,18 @@ fn evaluate_cell(cell : @gate_data.Cell) -> Actual {
         None => gate_fail("unknown sample id: " + cell.sample_id)
       }
   }
+}
+
+///|
+/// Evaluate one frozen cell against the public entries of the root package.
+///
+/// The text always comes from `input_text`, which is also the text a failure
+/// record hashes (AD section 2.5), so the digest and the evaluated bytes can
+/// never drift apart. The language always comes from the cell: `en_US` for the
+/// eleven `results` sets, `es_ES` for `spanish_text.results_es`, and the probe
+/// code for language cells.
+fn evaluate_cell(cell : @gate_data.Cell) -> Actual {
+  let text = input_text(cell)
   let lang = cell.lang
   match cell.shape {
     "automated_readability_index" =>
