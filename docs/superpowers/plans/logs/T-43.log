@@ -1,0 +1,169 @@
+# T-43 — README 与示例
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-29、US-04；spec §4.7 A-7.1（`[LOCAL_DEAD_LINK]`）；design WB9。
+
+> 结论：PASS（运行面证据 = **路径依赖**，不冒充 A-7.1）。README 示例逐字编译运行，
+> stdout 8 行 = 8 个公式值，与 `lib/gate/data/l3_data.mbt` 中
+> `short_simple_sentence` 的 8 个 `formula` 单元格逐位一致；
+> `moon run cmd/gate --target native --group=formula` → `cells=64 passed=64 floor=366 group=formula inject=0`，EXIT=0。
+> **A-7.1 仍为 `[LOCAL_DEAD_LINK]`：注册表安装（`moon add`）未验证。**
+
+## 1. 交付物
+
+- `lib/README.mbt.md`：模块定位、19 字段分组（10 计数 + 8 公式 + 阅读时间）、
+  `moon add` 安装、一个 `analyze` 调用的示例（打印 8 个公式值）、`lang` 参数说明、
+  保真说明（textstat 0.7.13 / Python 3.12.10 / pyphen 0.17.2 / nltk 3.10.3；门禁命令
+  `moon run cmd/gate --target native`）、中文指标明确排除在本版本范围外。
+- 本日志。
+- 临时模块 `F:/moonbit比赛/_t43_scratch/demo`（仓库外，任务完成后已删除）。
+
+README 只含**一个短示例块**（8 行 `println`），不内嵌长代码块，避免与 API 漂移。
+
+## 2. README 示例块（逐字，即被编译运行的源码）
+
+```moonbit
+fn main {
+  let stats = try! @moon_textstat.analyze("The cat sat on the mat.")
+  println(stats.flesch_reading_ease)           // 116.14500000000001
+  println(stats.flesch_kincaid_grade)          // -1.4499999999999993
+  println(stats.gunning_fog)                   // 2.4000000000000004
+  println(stats.smog_index)                    // 3.1291
+  println(stats.automated_readability_index)   // -4.300000000000001
+  println(stats.coleman_liau_index)            // -4.299999999999997
+  println(stats.linsear_write_formula)         // 2
+  println(stats.dale_chall_readability_score)  // 0.2976
+}
+```
+
+`try!` 是必需的：`analyze` 的签名是
+`pub fn analyze(String, lang? : String) -> TextStats raise TextstatError`
+（`lib/pkg.generated.mbti:5`），而 `fn main` 不允许传播错误（编译错误 `[4122]`，
+实测）。`try!` 在不可能失败的英文输入上终止错误传播，是 README 里唯一的一处语法技巧。
+
+## 3. 临时模块（路径依赖）
+
+`moon.mod`（`F:/moonbit比赛/_t43_scratch/demo/moon.mod`）：
+
+```
+name = "t43/demo"
+
+version = "0.1.0"
+
+preferred_target = "native"
+
+import {
+  "vicoproplus/moon_textstat@0.1.0",
+}
+```
+
+`moon add` **没有**本地路径语法（`moon add --help` 只接受 `<MODULE>` 注册表名），
+而且实测 `moon add vicoproplus/moon_textstat` 报
+`Error: Module 'vicoproplus/moon_textstat' not found in registry` —— 这正是 A-7.1
+`[LOCAL_DEAD_LINK]` 的直接证据（包尚未发布）。因此按 brief 的备选方案：
+在 `moon.mod` 里声明版本化 import，再用工作区把本地目录挂成成员：
+
+`F:/moonbit比赛/_t43_scratch/moon.work`：
+
+```
+members = [
+  "demo",
+  "../moon_textstat/lib",
+]
+```
+
+（`moon.mod` 新格式已弃用 `path` 字段，本地依赖的推荐方式就是 `moon.work`。）
+
+`cmd/readme/moon.pkg`：
+
+```
+import {
+  "vicoproplus/moon_textstat",
+}
+
+pkgtype(kind: "executable")
+```
+
+`cmd/readme/main.mbt` = 第 2 节的示例块，逐字未改。
+
+## 4. 命令与 stdout
+
+```
+$ cd F:/moonbit比赛/_t43_scratch/demo
+$ moon run cmd/readme --target native
+116.14500000000001
+-1.4499999999999993
+2.4000000000000004
+3.1291
+-4.300000000000001
+-4.299999999999997
+2
+0.2976
+```
+
+退出码 0，无告警。第二次运行 stdout 完全相同（确定性）。
+
+```
+$ moon tree
+t43/demo@0.1.0 (local F:\moonbit比赛\_t43_scratch\demo) [workspace member]:
+└─ vicoproplus/moon_textstat -> vicoproplus/moon_textstat@0.1.0 (local F:\moonbit比赛\moon_textstat\lib) [workspace member]
+```
+
+`(local …\lib)` 是依赖解析走本地路径、而非注册表的直接证据。
+
+安装命令（README 面向已发布包，本次未验证）：
+
+```
+$ cd F:/moonbit比赛/_t43_scratch/demo
+$ moon add vicoproplus/moon_textstat
+Registry index updated successfully
+Symbols updated successfully
+Error: Module `vicoproplus/moon_textstat` not found in registry
+```
+
+## 5. 交叉校验
+
+- 样本：`"The cat sat on the mat."`，即门禁的 `short_simple_sentence`
+  （`lib/cmd/gate/samples.mbt:16`），**是 11 个冻结样本之一**。
+- 门禁命令（在 `lib/` 下，一次调用）：
+  `moon run cmd/gate --target native --group=formula`
+  → 首行 `moon run cmd/gate --target native`，次行
+  `cells=64 passed=64 floor=366 group=formula inject=0`，EXIT=0。
+- `lib/gate/data/l3_data.mbt` 中 `short_simple_sentence` 的 8 个 `group: "formula"`
+  单元格（IEEE-754 位模式 → 十进制）：
+
+| 字段 | 冻结位模式 | 解码值 | stdout |
+| --- | --- | --- | --- |
+| `flesch_reading_ease` | `0x405D0947AE147AE2` | 116.14500000000001 | 116.14500000000001 |
+| `flesch_kincaid_grade` | `0xBFF7333333333330` | -1.4499999999999993 | -1.4499999999999993 |
+| `gunning_fog` | `0x4003333333333334` | 2.4000000000000004 | 2.4000000000000004 |
+| `smog_index` | `0x4009086594AF4F0E` | 3.1291 | 3.1291 |
+| `automated_readability_index` | `0xC011333333333334` | -4.300000000000001 | -4.300000000000001 |
+| `coleman_liau_index` | `0xC011333333333330` | -4.299999999999997 | -4.299999999999997 |
+| `linsear_write_formula` | `0x4000000000000000` | 2.0 | 2 |
+| `dale_chall_readability_score` | `0x3FD30BE0DED288CE` | 0.2976 | 0.2976 |
+
+判定：**8/8 与冻结期望一致**，且是 oracle 可比的（样本在 11 个冻结样本内）。
+`linsear_write_formula` 打印为 `2` 而冻结值是 `2.0`，只是 `Double` 的十进制打印
+去掉了尾随 `.0`，位模式相同（`0x4000000000000000`）。
+
+## 6. `lang` 参数的实测补充（README 措辞依据）
+
+在临时模块里逐个试跑（`analyze(text, lang=…)`）：
+`en_US`/`en_GB`/`en`/`EN-us`/`de_DE`/`es`/`es_ES`/`fr`/`fr_FR`/`it`/`it_IT`/
+`nl`/`nl_NL`/`pl`/`pl_PL`/`ru`/`ru_RU`/`hu`/`hu_HU` → ok；
+`de`/`pt`/`ar`/`xx_YY` → 失败，公开层包装成
+`MetricFailure("syllable_count failed for language 'de': no hyphenation dictionary for 'de'")`
+（底层 `UnsupportedLanguage`，`lib/hyphenation.mbt:47-49`）。README 据此写
+「十个字典码 + 八个短别名；`de`/`pt` 不可用」，未把 `pt` 当作验收项（A-4.4 / R-33 b）。
+
+## 7. 边界与残留
+
+- 本节证据是**路径依赖**运行面证据；**不冒充** A-7.1。A-7.1 状态保持
+  `[LOCAL_DEAD_LINK]`（注册表安装未验证）。
+- 未修改 `lib/moon.mod`（`readme = "README.mbt.md"`、`license = "MIT"`、
+  `preferred_target = "native"`、空 `repository` 均原样），未触碰
+  `lib/data/**`、`lib/gate/**`、`lib/*.mbt`、`.mbti`、`tools/`、`vendor/`。
+- 临时模块 `F:/moonbit比赛/_t43_scratch` 已删除。
+- `lib/` 内的门禁命令只运行了 1 次（`--group=formula`），未占用其他 worker 的构建目录做长跑。
