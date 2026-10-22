@@ -1,0 +1,244 @@
+# T-39 — 366 下限与截短断言
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`4dd943a fix(gate): keep stdout to the two contract lines on mismatches`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-30；spec §4.6、§4.7 A-6.3；AD §3.3、§5、§6。
+
+> 结论：PASS（1 轮，无代码改动）。正路径 `--group=selfcheck` 与默认 `all`
+> 均 `cells=366 passed=366 floor=366 …`、EXIT=0，且不创建 `_gate/`。仓库外
+> 临时副本把 `gate/data` 的 `raw_cells` 删除一格（366 → 365）后：自报
+> `cells=365 passed=365 floor=366`，随后诊断
+> `gate: loaded 365 cells, below the frozen floor 366`，EXIT=2；用
+> `--group=count`（仅选 88 格）仍是同一诊断与 EXIT=2，证明下限比较的是
+> **全表装载数**而非所选分组；截短表上 `--inject=365` 产生 1 个失配
+> （`passed=364`，本应 EXIT=1）时仍以 EXIT=2 结束，证明下限判定独立于并
+> 优先于单元格比对。下限常量 `FROZEN_FLOOR` 在 `main.mbt` 单一来源，未发现
+> 需要加固的重复或顺序缺陷，故不改代码、不加测试、只提交本日志。
+> `moon check` / `moon fmt --check` 零输出；`moon test --target native`
+> 155/155；静态白名单 `extern`=5、`@env.`=2（全部在 `lib/cmd/gate`），
+> 其余 S1 模式 0。临时副本已删除，仓库无 `_gate/` 残留。
+
+## 1. 下限逻辑核查（只读）
+
+`lib/cmd/gate/main.mbt`：
+
+| 位置 | 内容 | 判定 |
+| --- | --- | --- |
+| 9 | `const FROZEN_FLOOR : Int32 = 366` | 全仓唯一定义；`report_line`（144）与诊断/退出（226-231）都引用它，无第二个常量。 |
+| 179 | `let cells = select_cells(config.group)` | 所选分组只影响 `cells`，不参与下限。 |
+| 198 | `cells[index] = injected_cell(cells[index])` | `--inject` 只替换所选数组的一个元素，**不改变长度**。 |
+| 201 | `let loaded = @gate_data.total_cells()` | 取全表装载数；注入在其前执行也无计数影响（见下）。 |
+| 226-233 | `if loaded < FROZEN_FLOOR { println("gate: loaded …"); exit_with_code(2) }` | 下限失败先于 `passed < cells.length()`（234-235）判定，EXIT=2 覆盖 EXIT=1/0。 |
+| 234-238 | `else if passed < cells.length()` → 1；否则 → 0 | 只有下限通过后才看单元格失配。 |
+
+`lib/gate/data/cell.mbt`：`all_cells()`（42-48）复制 `raw_cells`，
+`cells_for_group()`（54-62）过滤同一 `raw_cells`，`total_cells()`（66-68）
+返回 `raw_cells.length()`。三者同源，因此删除一格会同时缩短全表装载数和
+`all`/`selfcheck` 的选择数；而 `count` 等子组只缩短选择数，`loaded` 仍是
+全表数——这正是 AD §3.3/§6 要求的「与所选分组无关」。
+
+结论：**无需改动**。
+
+1. 下限常量没有重复：`grep FROZEN_FLOOR` 只命中 `main.mbt:9/144/226/231`；
+   `gate/data` 注释里的 366 是数据身份说明，`l3_test.mbt:21-23` 是数据表
+   自身的 366 身份测试，都不是门禁下限的第二真值源。
+2. `loaded` 虽在注入之后读取，但 `injected_cell` 只构造单格副本并替换一个
+   下标（`inject.mbt:45-54`），数组长度不变；截短副本中
+   `--inject=365` 仍自报 `floor=366` 并读到 `loaded 365`，实测无计数影响。
+3. 下限判定在求值循环之后、退出码映射之前，但它是**独立分支**且优先于
+   失配分支；截短表上的注入运行（`passed=364` 本应 EXIT=1）实测 EXIT=2。
+   这一顺序是 T-36 §5 的既有口径：截短表仍先打印完整自报行，便于看到
+   `cells=` 证据，再以 EXIT=2 结束。
+
+## 2. 验收原始输出
+
+### 2.1 正路径：selfcheck（A-6.3 / A-0.3）
+
+```console
+$ cd lib && rm -rf _gate && moon run cmd/gate --target native --group=selfcheck; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+```
+
+### 2.2 默认 all
+
+```console
+$ moon run cmd/gate --target native; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+$ ls -d _gate 2>/dev/null || echo NO_GATE_DIR
+NO_GATE_DIR
+```
+
+### 2.3 截短负路径（仓库外临时副本）
+
+副本创建（排除 `_build`，避免污染仓库）：
+
+```console
+$ rm -rf /f/moonbit比赛/_t39_scratch && mkdir -p /f/moonbit比赛/_t39_scratch
+$ cd /f/moonbit比赛/moon_textstat/lib && find . -mindepth 1 -maxdepth 1 ! -name _build \
+>   -exec cp -r {} /f/moonbit比赛/_t39_scratch/ \;
+$ cd /f/moonbit比赛/_t39_scratch && grep -c "sample_id:" gate/data/l3_data.mbt
+366
+```
+
+截短方式：删除 `gate/data/l3_data.mbt` 中 `raw_cells` 的最后一格
+（`xx_YY.monosyllabcount`，`group: "errors"`），其余字节不动：
+
+```console
+$ grep -c "sample_id:" gate/data/l3_data.mbt
+365
+```
+
+实跑（副本内，native，全新编译）：
+
+```console
+$ moon run cmd/gate --target native --group=selfcheck; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=365 passed=365 floor=366 group=selfcheck inject=0
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+```
+
+- 首行逐字为规范调用串（AD §3.1）。
+- 第二行自报 `cells=365`（< 366）且 `floor=366`；若没有下限检查，
+  365/365 会以 EXIT=0 假通过——下限分支正是唯一的拦截点。
+- 第三行诊断给出装载数 `loaded 365`（< 366），退出码 2。
+
+分组独立性（只选 88 格，装载数仍是全表 365）：
+
+```console
+$ moon run cmd/gate --target native --group=count; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+```
+
+下限优先于单元格失配（注入制造 1 个失配，本应 EXIT=1）：
+
+```console
+$ moon run cmd/gate --target native --group=selfcheck --inject=365; echo "EXIT=$?"
+moon run cmd/gate --target native
+cells=365 passed=364 floor=366 group=selfcheck inject=365
+gate: loaded 365 cells, below the frozen floor 366
+EXIT=2
+```
+
+该注入运行在副本内写出了 `_gate/failures-native-1792654520494.jsonl`
+（1 条），但退出码仍由下限判定为 2。
+
+副本丢弃：
+
+```console
+$ rm -rf /f/moonbit比赛/_t39_scratch
+$ ls -d /f/moonbit比赛/_t39_scratch 2>/dev/null || echo SCRATCH_DISCARDED
+SCRATCH_DISCARDED
+```
+
+`_t39_scratch` 的 `_build/`、`_gate/` 随整目录删除；仓库目录未生成 `_gate/`。
+
+## 3. 回归测试：跳过（理由）
+
+- `cmd/gate` 是 `pkgtype(kind: "executable")`，下限函数 `run_gate` 私有，
+  其效果是**进程退出码 2**；进程内单测无法观察 `exit_with_code(2)` 之后
+  的状态，只能再跑一个进程，等同于门禁实跑。
+- 若为可测性新增公开谓词（如 `below_floor`），会扩大可执行包的外部面，
+  并把既有 155 条测试计数改为 156，与任务「155/155」的验证口径冲突。
+- 既有 `lib/gate/data/l3_test.mbt:21-23` 已把 `total_cells() == 366` 与
+  `all_cells().length() == 366` 钉住；「截短 → EXIT=2」这一**二进制行为**
+  由 §2.3 的副本实跑覆盖并记录在本日志。
+- 依据任务第 4 步「若无法脱离二进制测试下限，跳过并说明」，本任务不加
+  提交测试。
+
+## 4. 检查、测试、格式
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: no work to do
+CHECK_EXIT=0
+$ moon test --target native
+Total tests: 155, passed: 155, failed: 0.
+TEST_EXIT=0
+$ moon fmt --check
+Finished. moon: no work to do
+FMT_EXIT=0
+```
+
+## 5. 静态白名单（排除 `_build`）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build .
+./cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+./cmd/gate/records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+./cmd/gate/records.mbt:211:extern "c" fn gate_fwrite(
+./cmd/gate/records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+./cmd/gate/records.mbt:228:extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
+COUNT_EXTERN=5
+
+$ grep -rnE 'extern[[:space:]]+"js"' --include='*.mbt' --exclude-dir=_build .
+COUNT_EXTERN_JS=0
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build .
+./cmd/gate/main.mbt:247:  let args = @env.args()
+./cmd/gate/records.mbt:187:    failure_record_path(@env.now()),
+COUNT_ENV=2
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build .
+COUNT_S1=0
+
+$ grep -rnE '@net\b|@process\b|create_process|run_process|\.spawn\(' --include='*.mbt' --exclude-dir=_build .
+COUNT_EXTRA=0
+```
+
+`extern`=5、`@env.`=2 全部位于 `lib/cmd/gate`（`exit.mbt` 1、`records.mbt` 4；
+`main.mbt` 1、`records.mbt` 1），与 T-37/T-38 一致；库运行期零 I/O 未变。
+
+## 6. 改动面与工作区
+
+本任务**无代码改动**：`cmd/gate/main.mbt` 未动，SHA-256 仍为
+`ef2e4b05bcac2aaecadf0a9512a490d98bbefdb9e498fff2f1e801b4229ee32d`；
+`pkg.generated.mbti` 未动。
+
+```console
+$ git status --short
+?? .qoder/
+$ git diff --stat 4dd943a -- lib/gate/data lib/data lib/cmd/gate/pkg.generated.mbti
+# 输出为空：生成表、数据包与 .mbti 均未变
+$ ls -d lib/_gate 2>/dev/null || echo NO_GATE_DIR
+NO_GATE_DIR
+```
+
+提交只含 `docs/superpowers/plans/logs/T-39.log`（docs-only）。
+
+## 7. Rubric 判定（R1-R12）
+
+| 项 | 判定 | 一行证据 |
+| --- | --- | --- |
+| R1 验收 A-6.3 | pass | 正路径 `cells=366 passed=366 floor=366`、EXIT=0（§2.1-§2.2）；截短副本 `cells=365` + `loaded 365` + EXIT=2（§2.3）。 |
+| R2 上限 1 轮 / 30 分钟 | pass | 一轮完成，无回退轮次，用时远低于 30 分钟。 |
+| R3 日志 | pass | 本文件 `docs/superpowers/plans/logs/T-39.log` 已落盘并提交。 |
+| R4 保真优先 | pass | 未改任何代码或数据；`git diff` 对 `gate/data`、`data`、`.mbti` 为空（§6）。 |
+| R5 公式层只吃计数层 | pass | 未触碰公式或库源码；门禁仍只调用公开入口。 |
+| R6 运行期零 I/O | pass | `extern`=5、`@env.`=2 全在 `cmd/gate`，S1 其余模式 0（§5）。 |
+| R7 门禁唯一命令与退出码 | pass | 唯一命令 `moon run cmd/gate --target native`；0/1/2 语义未变，截短时 2 优先于 1（§2.3）。 |
+| R8 字段契约唯一权威 | pass | 未新建字段表，未改失败记录 schema。 |
+| R9 `[EXT]` 31 个 callable | pass | 截短只删除既有 `[ALIGN]` 格；未构造任何 `[EXT]` 期望值。 |
+| R10 冻结下限 366 | pass | `FROZEN_FLOOR` 单一定义（main.mbt:9）；按下限比较 `total_cells()` 而非所选组，count 组实跑仍 EXIT=2（§1、§2.3）。 |
+| R11 `pt` 非验收项 | pass | 表与本次验证均不涉及 `pt`；下限推导不变。 |
+| R12 失败文本不参与对拍 | pass | 截短诊断是门禁环境文本，不是单元格失败文本；无 oracle 比对变化。 |
+
+## 8. 偏差与说明
+
+1. **无代码改动**：下限常量已是单源，`loaded` 虽在注入后读取但注入不改长度，
+   下限分支已独立于并优先于失配分支；不满足「需要小加固」的前提，故按
+   「否则不改代码」执行。
+2. **截短方式**：副本删除的是 `raw_cells` 最后一格，而非只把
+   `total_cells()` 改成 365；这样全表装载数与 `all`/`selfcheck` 选择数
+   同时变为 365，能证明 `cells=365` 会被下限拦截而不是 365/365 假通过。
+3. **未新增测试**：理由见 §3；155/155 保持不变。
+4. **临时副本**：`/f/moonbit比赛/_t39_scratch` 建在仓库外，`_build`/`_gate`
+   与截短源码随整目录删除；仓库 `_gate/` 为空。
