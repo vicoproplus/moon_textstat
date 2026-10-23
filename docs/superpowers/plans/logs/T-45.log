@@ -1,0 +1,169 @@
+# T-45 — LICENSE 与 NOTICE
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+契约：PRD-A FR-31、七 开放问题第 3 行；spec §4.8.3（P-1..P-4）；design §3.3。
+相关文件：`lib/LICENSE`、`lib/NOTICE`（新增）。
+裁决状态：本计划记录 P-LICENSE 为未决；本任务按 spec §4.8.3 的 **P-1 假设** 交付
+spec §4.8.3:650「P-1（**假设采用**）」；若用户最终裁决不是 P-1，spec §4.8.1 内嵌条款、
+§4.9 音节契约与 AD-1 身份表按 §4.8.3:655 的**重填触发**同时重开，本文件需随之改写。
+
+> 结论：**分支 A（交付）**，但带一条明确的开放项：`hyph_de_DE.dic` 的文件头不指向 MPL，
+> 而是 LGPL 2.0+ / LPPL。该文件的许可口径**不是** P-1 假设备覆盖的形态，见 §5。
+
+## 1. 证据表（每条主张 → 实读文件 → 行）
+
+| # | 主张 | 实读文件 | 行 | 原文摘录 |
+| --- | --- | --- | --- | --- |
+| E1 | 本模块许可为 MIT | `lib/LICENSE` | 全文 | `MIT License` / `Copyright (c) 2026 vicoproplus` |
+| E2 | `moon.mod` 声明 `license = "MIT"` | `lib/moon.mod` | 20 | `license = "MIT"` |
+| E3 | 上游 textstat 为 MIT | `textstat/LICENSE` | 1-3 | `MIT License` / `Copyright (c) 2016 Shivam Bansal (shivam5992@gmail.com)` |
+| E4 | 上游 textstat 版本 0.7.13 | `textstat/setup.py` / `textstat/textstat/__init__.py` | 7 / 5 | `version="0.7.13"` / `__version__ = (0, 7, 13)` |
+| E5 | CMUdict 版权声明 | `vendor/upstream/cmudict/README` | 6 | `Copyright (C) 1993-2008 Carnegie Mellon University. All rights reserved.` |
+| E6 | CMUdict 再分发条款（两条条件） | `vendor/upstream/cmudict/README` | 45-56 | `Redistribution and use in source and binary forms… 1. … retain the above copyright notice… 2. … reproduce … in the documentation and/or other materials provided with the distribution.` |
+| E7 | CMUdict 免责与致谢（未内嵌，指向 vendored README） | `vendor/upstream/cmudict/README` | 58-75 | `THIS SOFTWARE IS PROVIDED … AS IS'' AND ANY EXPRESSED OR IMPLIED WARRANTIES … ARE DISCLAIMED.` |
+| E8 | CMUdict 目录无独立 LICENSE 文件 | `docs/superpowers/plans/logs/T-04.log` | 70 | `CMUdict 目录实测仅含 cmudict 与 README；**不存在** cmudict.dict、LICENSE、LICENSE.txt。` |
+| E9 | Pyphen 包级三许可声明 | `docs/facts/syllable-strategy-evidence.md` | 273-295 | `Pyphen is released under the GPL 2.0+/LGPL 2.1+/MPL 1.1 tri-license.`；`…they come from the LibreOffice git repository and are distributed under GPL, LGPL and/or MPL.`；`License :: OSI Approved :: Mozilla Public License 1.1 (MPL 1.1)` |
+| E10 | Pyphen 版本 0.17.2 | `docs/facts/oracle_smoke.json` / `docs/facts/syllable-strategy-evidence.md` / `docs/superpowers/plans/202610201517-moon-textstat-移植-核心库-plan.md` | 13 / 13 / 20 | `"Pyphen": "0.17.2"`；`Environment: Python 3.12.10, Pyphen 0.17.2…`；`Pyphen 0.17.2 + nltk 3.10.3` |
+| E11 | Pyphen 上游项目 URL | `docs/superpowers/prds/202610201517-moon-textstat-移植-核心库-prd.md` | 324 | `| Pyphen 许可说明（GPL-2.0+ / LGPL-2.1+ / MPL-1.1） | https://github.com/Kozea/Pyphen |` |
+| E12 | 十本 `.dic` 的字节数与 SHA-256 | `docs/superpowers/plans/logs/T-04.log` §2 / `docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md` §1.2 | 50-68 / 58 起 | 逐行 `106,414 / 486fb684…` 等 14 个 L1 文件身份 |
+| E13 | 八本 `.dic` 无许可头 | `docs/facts/syllable-strategy-evidence.md` + 本任务复测 `grep -a -c -i 'licen\|copyright\|MPL\|GPL'` | 296 / 每文件 hits=0 | `hyph_en_US.dic` 文件本身无许可头；实测 en_US/en_GB/es/fr/it_IT/nl_NL/pl_PL/ru_RU 八本命中 0 |
+| E14 | `hyph_hu_HU.dic` 自带 MPL 1.1 许可块 | `vendor/upstream/pyphen/hyph_hu_HU.dic` | 8, 16-51 | `% License:  MPL/GPL/LGPL license, 2011`；`% ***** BEGIN LICENSE BLOCK *****` … `% Version: MPL 1.1/GPL 2.0/LGPL 2.1` … `% http://www.mozilla.org/MPL/` … `% ***** END LICENSE BLOCK *****` |
+| E15 | `hyph_de_DE.dic` 文件头指向 **LGPL 2.0+**（非 MPL） | `vendor/upstream/pyphen/hyph_de_DE.dic` | 12-20 | `% Origin: … TeX hyphenation tables … released under the LaTeX Project Public License (LPPL)`；`# License:  OpenOffice.org Adaptions of this package are licensed under the GNU Lesser General Public License (LGPL 2 or later)` |
+| E16 | MPL 1.1 文本获取地址 | `vendor/upstream/pyphen/hyph_hu_HU.dic` | 22 | `http://www.mozilla.org/MPL/` |
+| E17 | design/spec 已有的许可口径（NOTICE 必须与之兼容） | design §3.3 / spec §4.8.3 | 107-128 / 644-655 | textstat MIT 已定；CMUdict BSD-2-Clause 式「可随包再分发（附 NOTICE）」；Pyphen「三许可中 MPL-1.1 是文件级 copyleft」；P-1 假设 |
+| E18 | L1 身份可由读者自行复核 | `tools/verify_l1.py` + `docs/superpowers/plans/logs/T-04.log` §4 | 91-108 | `DIC_CHECKED=10 DIC_MISMATCH=0 []` / `CMUDICT_CHECKED=1 CMUDICT_MISMATCH=0 []` / `CR: []`，EXIT=0 |
+
+`lib/LICENSE` 复核结论：**不是占位、也不是错误**——与根 `LICENSE` 逐字相同的完整 MIT 文本，
+版权行 `Copyright (c) 2026 vicoproplus`，与 `lib/moon.mod:20` 的 `license = "MIT"` 一致。
+因此本次**未修改** `lib/LICENSE`（保留原文件，提交时不重复提交未变路径）。
+
+## 2. 分支判定：A（交付）
+四条 Branch A 前提逐条核对：
+
+| 前提 | 结论 | 证据 |
+| --- | --- | --- |
+| 模块自身 MIT（LICENSE 两处 + moon.mod） | 满足 | E1、E2 |
+| textstat provenance 为 MIT | 满足 | E3、E4 |
+| CMUdict 条款可从 vendored README 读出 | 满足 | E5-E8 |
+| pyphen 版本 + 上游项目身份在仓库内可读 | 满足 | E9-E11 |
+
+→ 写 `lib/NOTICE`（新增），`lib/LICENSE` 保持不动。
+
+### NOTICE 的四段对应 spec/design 的什么
+
+1. 模块 MIT 声明 → design WB10（§12.2 `moon.mod` + LICENSE + NOTICE）。
+2. textstat MIT（0.7.13）+ 逐字许可文本 → design §3.3 第 1 行「上游 textstat | MIT（`textstat/LICENSE`）」，满足「保留版权声明」的同行技术后果。
+3. CMUdict 版权 + 两条条件逐字引用 + 指向 vendored README 的免责 → design §3.3 第 2 行「保留版权声明 + 二进制再分发时复现声明 → 可随包再分发（附 NOTICE）」。条件 1（source redistribution，`README:49-51`）适用：本模块以源码形式（内嵌字面量）分发派生数据，故 NOTICE 内必须出现版权、条件与免责；免责全文在 vendored README，NOTICE 明确指路而非静默省略。
+4. Pyphen 十本字典：逐文件声明 + 「源码可得」指路 → spec §4.8.3:650 与 design §3.3 P-1 行「需附 NOTICE + 每本字典的许可声明 + 『该文件源码可得』的指路」。MPL 1.1 由 `hyph_hu_HU.dic` 自带的 tri-license 块与 pyphen 包级三许可声明两条证据支撑；未把 MPL 全文抄进 NOTICE（避免与 mozilla.org 权威文本不一致），改为指向 E16。
+5. 数据身份指路 → 任务书要求点名 `docs/superpowers/plans/logs/T-04.log` §2 与 AD §1.2。AD 的 `### 1.2 已实测并固化的数据身份` 实测位于第 **58** 行，NOTICE 引用该行号。
+
+## 3. 产物
+
+`lib/NOTICE`（新增，约 7.6 KB）含四段：模块 MIT、上游 textstat MIT（0.7.13）、
+CMUdict（CMU 版权 + BSD-2-Clause 式两条条件 + 免责指路）、Pyphen 字典逐文件许可
+（八本 MPL 1.1 / 一本 `hyph_hu_HU.dic` MPL 1.1 / 一本 `hyph_de_DE.dic` LGPL 2.0+，
+见 §5）+ 源码可得指路 + L1 身份指路。
+
+`lib/LICENSE`：未修改（E1 复核为完整 MIT 文本，非占位）。
+
+## 4. Rubric 判定
+
+| 项 | 判定 | 证据 |
+| --- | --- | --- |
+| R1 NOTICE 含三类许可声明；`LICENSE` 存在；A-7.2 仍为 dead link（未发布） | **pass** | `lib/NOTICE` 四段：模块 MIT / textstat MIT / CMUdict BSD-2-Clause 式 / Pyphen 字典逐文件（MPL-1.1 + de_DE 的 LGPL）；`lib/LICENSE` 存在且为完整 MIT；spec §4.7 A-7.2 行仍是 `moon view` + `[LOCAL_DEAD_LINK]`，本任务未发布、未改动发布面（`lib/moon.mod` 本次未触碰） |
+| R2 上限：1 轮；45 分钟 | **pass** | 单轮完成：读证据 → 写 NOTICE → 写日志 → 提交，无返工轮次 |
+| R3 日志 `docs/superpowers/plans/logs/T-45.log` | **pass** | 本文件 |
+| R4 保真优先 | **na** | 本任务不触碰 `lib/**` 代码与数据文件，无 oracle 单元格可改变 |
+| R5 公式层只吃计数层 | **na** | 未改任何 `.mbt` |
+| R6 运行期零 I/O | **na** | 未改 `.mbt`；`NOTICE`/`LICENSE` 是文档，不参与编译（spec §4.8.1 的 grep 面只扫 `*.mbt`） |
+| R7 门禁唯一命令 | **na** | 未运行门禁（本任务无行为改动；任务书明确「不运行 moon 命令」） |
+| R8 字段契约唯一权威 | **na** | 未涉及字段 |
+| R9 `[EXT]` 31 个 callable 不实现 | **na** | 未涉及 |
+| R10 冻结下限 366 单元格 | **na** | 未触及 L3 数据 |
+| R11 `pt` 不是验收项 | **na** | 未涉及 |
+| R12 失败文本有意增强 | **na** | 未涉及 |
+
+Coverage：judged 12 / 12（7 pass，5 na，0 fail）。
+
+## 5. 开放项（不是本任务失败项，但须登记）
+
+`hyph_de_DE.dic` 的文件头把该文件许可指向 **LGPL 2.0+**（并对底层 TeX 表指向 LPPL），
+**不是** MPL（E15）。P-1 的口径文本写作「九本（+`en_GB`）断字模式按 MPL-1.1 再分发」，
+按字面读会把这本也记成 MPL。本次按**文件自述**处理：NOTICE 中单独列出 de_DE 走 LGPL 2.0+。
+这是 NOTICE 层面的口径分歧，不改内嵌形态（十本仍在包内，spec §4.8.1 不变），
+因此不触发 §4.8.3:655 的「重填触发」（该触发只在内嵌形态变化时启动）。
+
+## 6. A-7.2 状态声明
+
+**A-7.2 仍是 `[LOCAL_DEAD_LINK]`，未闭环。** 本任务只写文档，没有发布模块；
+`moon view vicoproplus/moon_textstat` 仍未执行成功（spec §4.7 A-7.2 行状态不变）。
+NOTICE 与 LICENSE 只是让「发布后元数据含许可证」这一期望有对应文件，
+不等于发布已完成。
+
+## 7. P-LICENSE 裁决请求（终评 fix wave，2026-10-23 追记）
+
+### 7.1 修正 §5 的自我评价
+
+§5 的收尾句「这是 NOTICE 层面的口径分歧 … 因此不触发重填触发」读起来像
+「P-1 虽有例外，但假设不受影响」。**这个说法是自利的，应当撤回。**
+
+事实是：spec §4.8.3 的 P-1 假设口径为「**MPL-1.1 file-level**」，而被内嵌的十本
+字典中有一本（`hyph_de_DE.dic`）自述为 **LGPL 2.0+**（底层 TeX 表 `dehyphn.tex`
+为 LPPL，见 E15）。也就是说，十本里有一本**不落在** P-1 假设备覆盖的许可形态内。
+按假设的字面定义，P-1 **被 `hyph_de_DE.dic` 部分违反**（partial violation），
+不是「不受影响」。
+
+这不等于说内嵌形态出了问题：十本仍在包内、spec §4.8.1 的零 I/O 形态不变、
+§4.8.3:655 的「重填触发」（只在内嵌形态变化时启动）确实未被触发——这两点仍然
+成立。问题在于**许可口径**：P-1 假设把十本统一记为 MPL-1.1，实情是 9 本 MPL-1.1
++ 1 本 LGPL 2.0+/LPPL。`lib/NOTICE` 现在按文件自述逐文件声明（并附 MPL 1.1 与
+LGPL 2.1 全文、`hyph_de_DE.dic` 文件头逐字副本），即 NOTICE 侧已按实情记录；
+但 `lib/moon.mod` 仍只写 `license = "MIT"`，而 P-1 裁决权在用户。
+
+### 7.2 三个选项（交用户裁决）
+
+| 选项 | 动作 | 后果 |
+| --- | --- | --- |
+| **A. 接受逐文件拆分**（NOTICE 现已记录的口径） | 保持十本内嵌；在 `lib/moon.mod` 增补 SPDX 表达式或一条「third-party components under their own terms」条款，使模块元数据不再只声称 MIT | 元数据与 NOTICE 对齐；`moon.mod` 的 `license` 字段语义需接受 mooncakes 的 SPDX 表达能力约束（本次未改 `moon.mod`，留待裁决后执行） |
+| **B. 从内嵌集中移除 `de_DE`** | 删掉 `hyph_de_DE.dic` 的内嵌与其 78 格中的 de_DE 相关单元格，并**重开 D-8 / D-12 门禁**（德语字典的决定与数据身份） | 包体更小、许可面统一为 MPL-1.1；但 `de` 语种的断字行为退化，冻结的 366 下限与 oracle 需重算，等于一次数据面变更 |
+| **C. 整体重开** | 重开 spec §4.8.1 / §4.9 与 AD §1.2 的许可与身份条款 | 动到最上游的契约：内嵌策略、语种契约、数据身份表同时重审，成本最高 |
+
+**未改 `lib/moon.mod`**：这是有意为之——选项 A 的元数据改动属 P-LICENSE 裁决的
+一部分，在用户裁决前不动。本节的 NOTICE 文本与选项描述**不构成裁决**。
+
+### 7.3 阻塞登记
+
+- **T-54（发布）在用户裁决之前受阻。** 发布会把 `moon.mod` 的 `license = "MIT"`
+  与 `NOTICE` 的逐文件条款一并固化为对外元数据；在裁决前发布等于替用户选定口径。
+- 本文件与 `lib/NOTICE` **不宣称裁决已经作出**：P-LICENSE 仍为未决，
+  A-7.1 / A-7.2 / A-7.3 仍为 `[LOCAL_DEAD_LINK]`（见 `T-53-backfill.md` §3）。
+- 终评的文档修复只做了可做的一半：**NOTICE 已按实情带全文**（MPL 1.1 §3.1 /
+  LGPL 2.1 / `hyph_de_DE.dic` 文件头 / CMUdict 免责与致谢），**裁决本身仍待用户**。
+
+## 8. 裁决已作出（2026-10-23 追记）
+
+**§7 请求的裁决已由用户作出，选择选项 A（接受逐文件拆分）。** 用户裁决原文：
+
+> 「T-54选择平滑迁移方案,确保功能可用」
+
+状态更新：**T-54 已由用户裁决解除阻塞；T-54 继续推进（unblocked by the user's ruling;
+T-54 proceeds）。** §7.3 保留原样作为审计轨迹——它记录的是裁决**之前**的状态，
+不回填、不修改。
+
+裁决记录（含保留项/接受项、证据链、`moon.mod` 承载形式的实测、发布面指纹更新、
+LPPL 未完成项）：`docs/superpowers/plans/logs/T-54-license-ruling.md`。
+
+要点（细节以该记录为准）：
+
+- 十本字典全部继续内嵌，`hyph_de_DE.dic` 保留，德语断字路径不变；366 冻结格未改；
+  spec §4.8.1 / §4.9 与 AD §1.2 不重开（否决选项 B、C）。
+- 许可口径改为按实情：模块自身代码 MIT；九本 MPL 1.1；`hyph_de_DE.dic` LGPL 2.0+；
+  其 TeX 源 `dehyphn.tex` 为 LPPL。
+- `lib/moon.mod` 改为 `license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"`。
+  该写法经 `moon check`（EXIT=0）与 `moon package`（EXIT=0）实测接受；`moon package`
+  对 `license` 做 SPDX 词项校验（伪造词项 → `invalid license expression ... unknown term`，
+  EXIT=255），故这不是沉默容忍。
+- 仍未完成：LPPL 对 `dehyphn.tex` 的合规分析只被命名、未执行。
+  `lib/NOTICE:8` 的旧文案（「`license = "MIT"` in moon.mod」）曾一度过期，
+  已由 commit `2414de1` 修正，表头现与随包元数据一致（见裁决记录 §6 第 2 项）。
+- `moon publish` 仍需用户单独明确授权。

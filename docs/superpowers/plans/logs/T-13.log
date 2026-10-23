@@ -1,0 +1,242 @@
+# T-13 `lexicon_count` 与三开关 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`7f26880 refactor(count): keep the tokenizer package-internal and pin upstream edge cases`
+- 契约：PRD-A FR-03/FR-04；spec §4.3.1 第 3 行、§4.3.2；上游
+  `textstat/textstat/backend/counts/_count_words.py:39-46`；T-13 brief
+- 期望值来源环境：`textstat 0.7.13`，CPython `3.12.10`（`docs/facts/oracle_smoke.json` 头）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`（`cmd/gate` 尚未存在，T-36 才建）
+- **结论：PASS**（check 零警告 EXIT=0；test 45/45 EXIT=0；11 样本 × 4 形态共 44 格与 oracle 全等；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/lexicon_count.mbt` | 新增：`pub fn lexicon_count`（三开关直通 `list_words`） | 38 | `fbaa2d1046795ffa1d093fffa5e4cddf8f9ba46fa71e450fafb9dfeeee2478f7` |
+| `lib/lexicon_count_test.mbt` | 新增：3 条黑盒测试（11 样本 × 4 形态 + 严格增大不变式 + 开关探针） | 91 | `d3da23be65622d8c7b11d764d940c63e0ffdba303cf3d0d4214133c6a47df130` |
+| `lib/pkg.generated.mbti` | 工具链产物：Values 段新增 `pub fn lexicon_count(...)` | — | `3d911b90e54148814089dd7294b405b96dcec606d97e84ce00cb5e9f6697ceb6` |
+
+其余文件零改动（`git status` 仅 ` M lib/pkg.generated.mbti` + 两个未跟踪新文件 + `.qoder/`）。
+未新增目录、未新增依赖（`lib/moon.pkg` 仍为空）、未实现其他计数或公式。
+
+公开面（`.mbti` diff 唯一变化，且只增不改）：
+
+```diff
++pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
+```
+
+`.mbti` 的 Values 段现为 `char_count` / `letter_count` / `lexicon_count` 三行；`list_words` 仍不导出。
+
+---
+
+## 2. 实现（与上游逐字对应）
+
+上游 `_count_words.py:39-46` 的全部逻辑就是一次带三开关的转发：
+
+```python
+return len(list_words(text, rm_punctuation=rm_punctuation,
+                      split_contractions=split_contractions,
+                      split_hyphens=split_hyphens))
+```
+
+本移植逐字对应，未加任何自有规则：
+
+```moonbit
+pub fn lexicon_count(text, removepunct? = true, split_contractions? = false,
+                     split_hyphens? = false) -> Int32 {
+  list_words(text, rm_punctuation=removepunct,
+             split_contractions~, split_hyphens~).length()
+}
+```
+
+- 开关映射：`removepunct` → `list_words` 的 `rm_punctuation`（上游同名字段）；
+  `split_contractions` / `split_hyphens` 同名直通。上游未暴露 `rm_apostrophe` 与
+  `lowercase`，本入口也不暴露，保持默认（`false`）。
+- `list_words` 是包内 `fn`（T-12 收窄），本任务在**非测试代码**中直接调用它，
+  T-12 遗留的 `unused_value` 警告因此消失（见 §3.1）。
+- `.length()` 是 token 数，等价 Python `len(...)`；计数类型与
+  `TextStats.lexicon_count : Int32`（PRD-A 10.3）一致。
+- 分词语义（`\w`/`\s` 近似、步骤顺序、缩写撇号规则）不在此重述，只在
+  `list_words.mbt` 的文档里陈述一次；本文件仅指向它。
+- 纯函数：无 I/O、无异常。
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`
+
+改动前（基线，警告仍在）：
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Warning: [0001]
+    ╭─[ F:\moonbit比赛\moon_textstat\lib\list_words.mbt:41:4 ]
+ 41 │ fn list_words(
+    │    ─────┬────
+    │         ╰────── Warning (unused_value): Unused function 'list_words'
+Finished. moon: ran 1 task, now up to date (1 warnings, 0 errors)
+EXIT=0
+```
+
+改动后（零警告）：
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: ran 3 tasks, now up to date
+EXIT=0
+```
+
+`moon fmt` 后复跑同样为 `Finished. moon: ran 3 tasks, now up to date`，无警告行。
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 45, passed: 45, failed: 0.
+EXIT=0
+```
+
+基线（T-12）42/42；本次新增 3 条 → 45/45。根包 23 条（脚手架 1 + 值对象 3 +
+`char_count` 5 + `letter_count` 4 + `list_words` 7 + `lexicon_count` 3），
+`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+### 3.3 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: ran 1 task, now up to date
+Finished. moon: ran 2 tasks, now up to date
+EXIT=0
+
+$ moon info && moon fmt      # 复跑
+Finished. moon: no work to do
+Finished. moon: ran 2 tasks, now up to date
+EXIT=0
+
+$ moon fmt                   # 再复跑
+Finished. moon: no work to do
+```
+
+复跑幂等：三个文件 SHA-256 不变（见 §1）。`moon fmt` 把源码写法的
+`removepunct?` 渲染为 `removepunct~`、`-> Int` 渲染为 `-> Int32`（与 T-10/T-11 一致）；
+`.mbti` 仍为公开契约形态 `removepunct? : Bool` 与 `-> Int`。
+
+### 3.4 S1 静态门（A-8.3 检索式，改动范围）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib"
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lexicon_count.mbt lexicon_count_test.mbt pkg.generated.mbti | wc -l
+0
+```
+
+`numbers_and_symbols` 样本正文含 URL；沿用 T-11/T-12 约定把首字母写成 `\u{68}`（即 `h`），
+运行时文本与 oracle 原文逐字节相同。
+
+### 3.5 门禁探针
+
+```console
+$ moon run cmd/gate --target native --group=count
+Error: failed to resolve path `cmd/gate`
+
+Caused by:
+    系统找不到指定的文件。 (os error 2)
+EXIT=127
+```
+
+`cmd/gate` 在 T-36 才建立（当前 `lib/cmd/` 下只有 `main/`），`--group=count` /
+`--group=variant` 验收按 brief 顺延；本任务的等价证据是 §4 的 44 个 oracle 单元格断言。
+
+### 3.6 工作树
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/lexicon_count.mbt
+?? lib/lexicon_count_test.mbt
+```
+
+`lib/_build/` 被忽略，未加入索引。
+
+---
+
+## 4. 冻结 oracle 断言（11 样本 × 4 形态，44 格）
+
+期望值全部取自 `docs/facts/oracle_smoke.json` 的
+`results.lexicon_count`、`results["lexicon_count[removepunct=False]"]`、
+`results["lexicon_count[split_contractions=True]"]`、
+`results["lexicon_count[split_hyphens=True]"]`，非由本移植推导：
+
+| 样本 | default | removepunct=false | split_contractions | split_hyphens |
+| --- | --- | --- | --- | --- |
+| short_simple_sentence | 6 | 6 | 6 | 6 |
+| long_multi_sentence_paragraph | 88 | 88 | 88 | 88 |
+| abbreviations_and_initials | 31 | 31 | 31 | 31 |
+| hyphenated_words | 17 | 17 | 17 | 29 |
+| numbers_and_symbols | 28 | 28 | 28 | 29 |
+| multiple_paragraphs_newlines | 27 | 27 | 27 | 27 |
+| very_short_under_5_words | 2 | 2 | 2 | 2 |
+| empty_string | 0 | 0 | 0 | 0 |
+| whitespace_only | 0 | 0 | 0 | 0 |
+| punctuation_only | 0 | 1 | 0 | 0 |
+| spanish_text | 29 | 29 | 29 | 29 |
+
+44 格全部与编译后的 `@moon_textstat.lexicon_count` 相等。
+
+**必需不变式**（brief 步骤 2；A-2.2）：`hyphenated_words` 上
+`lexicon_count(split_hyphens=true) = 29 > lexicon_count(default) = 17`，
+测试中以 `assert_true(split > default)` 直接断言，不只靠两格相等。
+
+---
+
+## 5. 开关接线探针（oracle 无缩写样本时的补充证据）
+
+冻结语料不含缩写撇号，`split_contractions` 在 44 格中恒等于默认值，因此用
+vendored 上游现算三个小例并以断言固定（期望值来自上游，不是本移植）：
+
+```console
+$ cd textstat && PYTHONPATH=. python -c "import textstat; ..."
+"aren't"    {}                       -> 1
+"aren't"    {'split_contractions': True} -> 2
+"well-known" {}                      -> 1
+"well-known" {'split_hyphens': True}  -> 2
+" .? "      {}                       -> 0
+" .? "      {'removepunct': False}   -> 1
+```
+
+作用：若三个开关中的任一个被漏传或串线，探针与 44 格中的对应列会同时失败
+（例如把 `split_contractions` 错接成 `split_hyphens`，`hyphenated_words` 的
+`split_contractions` 格会得到 29 ≠ 17）。
+
+---
+
+## 6. 测试内容（3 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `lexicon_count matches the 11 frozen oracle samples in all four shapes` | 11 行 × 4 形态共 44 次 `assert_eq`；`numbers_and_symbols` 用 `\u{68}` 转义 URL 首字母但文本逐字节等同 oracle |
+| `split_hyphens strictly increases the count on hyphenated_words` | 17 / 29 两格 + `assert_true(split > default)` 严格增大 |
+| `lexicon_count forwards each switch to the tokenizer` | `aren't` 1→2（`split_contractions`）、`well-known` 1→2（`split_hyphens`）、` .? ` 0→1（`removepunct=false`） |
+
+无快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。
+
+---
+
+## 7. 备注
+
+- 本任务只加 `lexicon_count`，未新增其他计数或公式；`sentence_count` 起于 T-14。
+- `removepunct` 是唯一映射到 `rm_punctuation` 的开关；上游 `count_words` 的形参名
+  就是 `rm_punctuation`，公开入口按 PRD-A 使用 `removepunct`（与 oracle 的
+  `lexicon_count[removepunct=False]` 调用形态一致）。
+- `@typed_cache` 装饰器只影响性能，不影响语义；本移植不实现缓存。
+- 44 格 + 3 探针即本任务对 `--group=count` / `--group=variant` 的等价证据；
+  门禁在 T-36 建立后复验同一批单元格。

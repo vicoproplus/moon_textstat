@@ -1,0 +1,261 @@
+# T-30 — ARI
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`da544c7 feat(formula): implement smog_index with x^0.5 semantics`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-20；spec §4.4 表第 5 行与约束 4（不对称分母）、§4.3.3；A-5.1；
+上游 `backend/metrics/_automated_readability_index.py:10-38`、
+`backend/metrics/_chars_per_word.py:9-35`、
+`backend/metrics/_words_per_sentence.py:9-29`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 124/124 EXIT=0（T-29 后 119 + 本任务 5）；`.mbti` 只新增
+> `automated_readability_index`；S1 零命中；11 个样本值按位相等（`==`，非
+> 容差）；不对称分母由 `chars_per_word(" .? ") == 2.0` 的白盒断言固定；门禁
+> 顺延至 T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/averages.mbt` | 改：新增包内 `chars_per_word`（+37 行） | 99 | `dcf6b4276005c893a1652e034d06e822e8088eb6dc506a29129673ee774040d9` |
+| `lib/automated_readability_index.mbt` | 新增：公开 `automated_readability_index` | 47 | `a3d7f40ac6866e465767bae3d2c4bb818b355f09b1018532576eb936d4c6d912` |
+| `lib/automated_readability_index_test.mbt` | 新增：3 条黑盒测试 | 107 | `ab1c62ae35440b5ab813d01e48d47778d13d2943e20d215fa0ec00e05601b8e9` |
+| `lib/automated_readability_index_wbtest.mbt` | 新增：2 条白盒测试（分母判别） | 58 | `8462994c265d6b67f809580b506395d0d7f47cddc3896d725dc36cd4a654f6d3` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `automated_readability_index` 一行 | — | — |
+
+`lib/moon.pkg` 未改（本任务不需要新导入）。
+
+### 1.2 `lib/averages.mbt`：包内 `chars_per_word`
+
+```moonbit
+fn chars_per_word(text : String) -> Double {
+  let chars = char_count(text)
+  let words = lexicon_count(text, removepunct=false)
+  if words == 0 {
+    0.0
+  } else {
+    chars.to_double() / words.to_double()
+  }
+}
+```
+
+- 逐字对应上游
+  `count_chars(text, ignore_spaces=True) / count_words(text, rm_punctuation=False)`：
+  分子是 `char_count(text)`（默认 `ignore_spaces=true`），分母是
+  `lexicon_count(text, removepunct=false)`。
+- **分母不对称就是要点（约束 4）**：分子把标点计入字符数（上游注释原文
+  "We count puntuation-words as words because those characters get counted"），
+  所以分母保留标点词；`words_per_sentence`（已存在，默认
+  `removepunct=true`）用的是去标点词数。两个 helper 都在计数层，公式层不再
+  分词（spec §2.1 约束 2）。
+- 零分母守卫对应上游 `try/except ZeroDivisionError: return 0.0`；空串与纯空白
+  文本的分子分母同为 0 → 0.0。
+- 两个计数都是 32 位整数（计数层类型），精确可表示；先各自 `.to_double()`
+  再相除，等价于 CPython 的 `int / int` 正确舍入真除法。
+- 纯函数，无 I/O、无异常。
+
+### 1.3 `lib/automated_readability_index.mbt`
+
+```moonbit
+pub fn automated_readability_index(text : String) -> Double {
+  let a = chars_per_word(text)
+  let b = words_per_sentence(text)
+  if a == 0.0 || b == 0.0 {
+    return 0.0
+  }
+  4.71 * a + 0.5 * b - 21.43
+}
+```
+
+- 逐字对应上游：
+  `a = chars_per_word(text)`；`b = words_per_sentence(text)`；
+  `if a == 0 or b == 0: return 0.0`；
+  `return (4.71 * a) + (0.5 * b) - 21.43`。
+- **求值顺序（约束 1）**：源码写作 `(4.71 * a) + (0.5 * b) - 21.43`，解析树为
+  `((4.71 * a) + (0.5 * b)) - 21.43`；`moon fmt` 删掉冗余括号但不动树（与
+  `flesch_kincaid_grade.mbt` 的同款处理一致），最终源码为
+  `4.71 * a + 0.5 * b - 21.43`，`*` 优先、`+`/`-` 左结合，树不变。
+- **无 `lang` 参数**：spec §4.4 第 5 行“语种依赖：无”。ARI 不解析常量、易读
+  词表、发音词典或断字字典，故函数不抛错——返回类型不带 `raise`。
+- **零分支**：空串（分子分母均 0/0）、纯空白（字符 0、词 0）、纯标点（`a` 为
+  2.0 但 `b` 为 0.0，命中 `b == 0.0` 一侧）都返回 0.0。与 SMOG 不同，ARI 没有
+  常数下限，所有无词文本都是 0.0。
+- 纯函数，无 I/O。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 11 个样本的计数与值
+
+列：`count_chars(t,True)` | `count_words(t,False)`（保留标点） |
+`count_words(t)`（默认去标点） | `count_sentences(t)` | `a` | `b` | ARI |
+`struct.pack('>d')`。
+
+```console
+id                           cc  keep  def  sent  a                    b                    ari                   bits
+short_simple_sentence        18  6     6    1     3.0                  6.0                  -4.300000000000001    c011333333333334
+long_multi_sentence_paragraph 507 88   88   5     5.761363636363637    17.6                 14.506022727272729    402d031569315694
+abbreviations_and_initials   132 31    31   6     4.258064516129032    5.166666666666667    1.2088172043010736    3ff35750b5750b50
+hyphenated_words             150 17    17   2     8.823529411764707    8.5                  24.37882352941177     403860fa942dc762
+numbers_and_symbols          148 28    28   6     5.285714285714286    4.666666666666667    5.799047619047617     4017323989ff0654
+multiple_paragraphs_newlines 143 27    27   5     5.296296296296297    5.4                  6.215555555555557     4018dcba98765434
+very_short_under_5_words     8   2     2    1     4.0                  2.0                  -1.5899999999999999   bff970a3d70a3d70
+empty_string                 0   0     0    0     0.0                  0.0                  0.0                   0000000000000000
+whitespace_only              0   0     0    1     0.0                  0.0                  0.0                   0000000000000000
+punctuation_only             2   1     0    1     2.0                  0.0                  0.0                   0000000000000000
+spanish_text                 147 29    29   3     5.068965517241379    9.666666666666666    7.278160919540227     401d1cd63751cd60
+```
+
+上游返回值与 `oracle_smoke.json` 的
+`samples[].results.automated_readability_index.value` 逐行 `==`（ALL True）。
+
+### 2.2 不对称分母的判别证据
+
+除 `punctuation_only` 外，11 个样本的 `keep` 与 `def` 两列完全相同，所以
+**唯一能观察到约束 4 的行就是 `punctuation_only`**：
+
+```console
+' .? '  cc=2  keep=1  def=0  sent=1  a=2.0  b=0.0  ari=0.0
+'   \n\t ' cc=0 keep=0 def=0 sent=1  a=0.0  b=0.0  ari=0.0
+''      cc=0  keep=0  def=0  sent=0  a=0.0  b=0.0  ari=0.0
+'...'   cc=3  keep=1  def=0  sent=1  a=3.0  b=0.0  ari=0.0
+```
+
+`" .? "` 的 `a` 是 `2 / 1 = 2.0`；若误用默认 `lexicon_count`（=0）作分母则
+是 2/0，只能走守卫返回 0.0。白盒测试因此断言
+`char_count(" .? ")=2`、`lexicon_count(removepunct=false)=1`、
+`lexicon_count(" .? ")=0`、`sentence_count=1`、`chars_per_word(" .? ")=2.0`、
+`words_per_sentence=0.0`、`ARI=0.0`。该行 ARI 仍是 0.0，因为 `b == 0.0`
+一侧先命中——不对称性体现在 `a`，不在 ARI 的最终值上。
+
+### 2.3 结合顺序的敏感性
+
+用上游 `a`、`b` 比较 `(4.71*a)+(0.5*b)-21.43` 与
+`4.71*a+(0.5*b-21.43)`：
+
+```console
+short_simple_sentence         c011333333333334  c011333333333334  same
+long_multi_sentence_paragraph 402d031569315694  402d031569315694  same
+abbreviations_and_initials    3ff35750b5750b50  3ff35750b5750b50  same
+hyphenated_words              403860fa942dc762  403860fa942dc762  same
+numbers_and_symbols           4017323989ff0654  4017323989ff0654  same
+multiple_paragraphs_newlines  4018dcba98765434  4018dcba98765434  same
+very_short_under_5_words      bff970a3d70a3d70  bff970a3d70a3d70  same
+spanish_text                  401d1cd63751cd60  401d1cd63751cd60  same
+```
+
+即样本集观察不到这次重结合；实现仍按上游写 `((4.71*a)+(0.5*b))-21.43`，
+不据“样本相同”改写（约束 1 的理由是保真，不是样本偶然性）。
+
+### 2.4 期望值位模式核对
+
+从 `lib/automated_readability_index_test.mbt` 的 `samples` 表抽取 11 个数字
+字面量（先剥离字符串字面量，避免把样本文本里的 `3.14` 等当期望值），与
+`oracle_smoke.json` 的 `samples[].results.automated_readability_index.value`
+用 `struct.pack('>d', …)` 比较：
+
+```console
+short_simple_sentence           -4.300000000000001    c011333333333334  MATCH
+long_multi_sentence_paragraph   14.506022727272729    402d031569315694  MATCH
+abbreviations_and_initials      1.2088172043010736    3ff35750b5750b50  MATCH
+hyphenated_words                24.37882352941177     403860fa942dc762  MATCH
+numbers_and_symbols             5.799047619047617     4017323989ff0654  MATCH
+multiple_paragraphs_newlines    6.215555555555557     4018dcba98765434  MATCH
+very_short_under_5_words        -1.5899999999999999   bff970a3d70a3d70  MATCH
+empty_string                    0.0                   0000000000000000  MATCH
+whitespace_only                 0.0                   0000000000000000  MATCH
+punctuation_only                0.0                   0000000000000000  MATCH
+spanish_text                    7.278160919540227     401d1cd63751cd60  MATCH
+LEN 11 ALL True
+```
+
+字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`。
+
+## 3. 计划行与 oracle 的冲突（**以 oracle 为准**）
+
+计划 T-30 验收行（`docs/superpowers/plans/202610201517-moon-textstat-移植-核心库-plan.md:914`）写：
+
+> `numbers_and_symbols` / `punctuation_only` 单元格相等。
+
+`oracle_smoke.json` 的冻结值不是相等而是：
+
+```console
+$ python -c "import json;d=json.load(open('docs/facts/oracle_smoke.json'));\
+print([(s['id'], s['results']['automated_readability_index']['value']) \
+for s in d['samples'] if s['id'] in ('numbers_and_symbols','punctuation_only')])"
+[('numbers_and_symbols', 5.799047619047617), ('punctuation_only', 0.0)]
+```
+
+即 `numbers_and_symbols = 5.799047619047617`、`punctuation_only = 0.0`，
+**不相等**。本任务按“oracle 权威”处理：不构造相等断言、不改 oracle；两条
+冻结值分别固定在黑盒 `samples` 表与 A-5.1 测试里，并在
+`numbers_and_symbols` 分解测试的文档注释中写明该计划行与 oracle 的冲突。
+推测该计划行的本意是“两行的 ARI 单元格都等于各自 oracle 值”（都覆盖），
+但字面语义无法成立，故登记为计划文本缺陷，交由后续计划维护者修订。
+
+## 4. 测试（5 条，119 → 124）
+
+| 文件 / 测试 | 断言 |
+| --- | --- |
+| `automated_readability_index_test.mbt` / `automated_readability_index matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`-4.300000000000001, 14.506022727272729, 1.2088172043010736, 24.37882352941177, 5.799047619047617, 6.215555555555557, -1.5899999999999999, 0.0, 0.0, 0.0, 7.278160919540227` |
+| 同上 / `the numbers_and_symbols row is the frozen arithmetic` | 公开计数 `char_count=148`、`lexicon_count=28`（两种 `removepunct` 同值）、`sentence_count=6`；`a=148/28=5.285714285714286`、`b=28/6=4.666666666666667`；`4.71*a + 0.5*b - 21.43 == 5.799047619047617` 且等于公开函数返回值（“验证 `numbers_and_symbols` ARI against the oracle”） |
+| 同上 / `A-5.1: every wordless text gives 0.0` | `""`、`"   \n\t "`、`" .? "`、`" "`、`"\n"`、`"..."`、`"!?!"` 全部 `== 0.0`（ARI 无常数下限，与 SMOG 3.1291 不同） |
+| `automated_readability_index_wbtest.mbt` / `chars_per_word divides by the punctuation-preserving word count` | `" .? "`：`char_count=2`、`lexicon_count(removepunct=false)=1`、`lexicon_count=0`、`sentence_count=1`、`chars_per_word=2.0`、`words_per_sentence=0.0`、`ARI=0.0` —— **固定不对称分母**（白盒 helper 测试） |
+| 同上 / `chars_per_word is char_count over the keep-punctuation count` | `chars_per_word("The cat sat on the mat.")=3.0`、`("Hello, world.")=6.0`、`("...")=3.0`、`("")=0.0`、`("   \n\t ")=0.0`；短句 `a=3.0 b=6.0` 重导出 `-4.300000000000001` |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。
+
+## 5. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 2 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 124, passed: 124, failed: 0.          # EXIT=0；T-29 base 119 + 5
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn automated_readability_index(String) -> Double
+# .mbti 仅此一行（含空行），无其他符号变化；lib/moon.pkg 未改
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/averages.mbt lib/automated_readability_index.mbt \
+    lib/automated_readability_index_test.mbt lib/automated_readability_index_wbtest.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ awk '{ if (length($0) > m) m = length($0) } END { print m }' \
+    lib/averages.mbt lib/automated_readability_index*.mbt
+603                                                # < 65,535（S1 第 2 式）
+
+$ git status --porcelain
+ M lib/averages.mbt
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/automated_readability_index.mbt
+?? lib/automated_readability_index_test.mbt
+?? lib/automated_readability_index_wbtest.mbt
+```
+
+## 6. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 与 A-5.1 的
+`--group=degenerate` 由 T-36/T-52 复验。本任务不宣称门禁等价，只把 11 个
+oracle 值、A-5.1 的 0.0、不对称分母（`chars_per_word(" .? ")=2.0`）与
+`numbers_and_symbols` 的分解固定在包测试里。
+
+## 7. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. 计划行 “`numbers_and_symbols` / `punctuation_only` 单元格相等” 与 oracle
+   冲突，按 oracle 处理；详见 §3。
+3. 括号被 `moon fmt` 去掉（`(4.71 * a) + (0.5 * b) - 21.43` →
+   `4.71 * a + 0.5 * b - 21.43`），解析树不变；文档注释里保留原式并说明
+   fmt 行为。
+4. 未新增 `pl_PL`/`hu_HU`/`pt` 的 ARI 断言：ARI 无语种参数，oracle 的
+   `lang_probes` 也不含该字段（`pt` 非验收，R-33 裁决 b）。
+5. `lib/moon.pkg` 未改；本任务只动 `averages.mbt` 与三个新文件，外加
+   `moon info` 生成的 `.mbti`。

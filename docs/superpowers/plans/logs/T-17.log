@@ -1,0 +1,153 @@
+# T-17 `syllable_count` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`cbb5e30 feat(count): add the two-layer syllable resolver (CMU then hyphenation)`
+- 契约：PRD-A FR-07；spec §4.3.1 第 5 行、§4.3.3、§4.5.1；上游
+  `_count_syllables.py:23-34`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`，`pyphen 0.17.2`、cmudict 语料）；
+  oracle `docs/facts/oracle_smoke.json`
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 71/71 EXIT=0；`.mbti` 仅新增
+  `syllable_count`；S1 命中 0；源码内 `#warnings` 抑制清零）
+
+---
+
+## 1. 改动面（2 个新文件 + 4 个既有文件）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/syllable_count.mbt` | 新增：公共入口 `syllable_count` | 44 | `431de0626ab3fe3045f7c9c24c9c9a5363f02ad172c0046ebd88ca5983bdce1b` |
+| `lib/syllable_count_test.mbt` | 新增：3 条黑盒测试（11 样本、语种探针、失败/空串） | 120 | `9ef93549a0e45a3e07faa4fe8e0674ca86265854948c96e4a198af9bacc986fb` |
+| `lib/syllables.mbt` | 修改：删除 `syllables_for_word` 上的 `#warnings("-unused_value")` 与「临时」注释 | 63 | `9c13872344b33e5b7ab2f377aa4ef4e64446c87d8c17013a75cc7386d3b85c7f` |
+| `lib/hyphenation.mbt` | 修改：删除仅供测试的 `hyphenate_positions` 包装（连同其抑制） | 450 | `225531f9fed9ef6c46ca2179ebb1d47348a7b1fb041710e6d211d00e486e0666` |
+| `lib/hyphenation_wbtest.mbt` | 修改：把 `hyphenate_positions` 移入白盒测试文件并注明 test-only | 202 | `080ce1c2e9c38cbe4d62fa426b71c433b3f3ff1039abaa18684d5590a6e9af94` |
+| `lib/pkg.generated.mbti` | 生成：仅新增一行 `syllable_count` | 56 | `2178a73fbe20d521df6867d2cbbee2cba3c559e383307e0d187dbb127e98f602` |
+
+未新增依赖、未新增目录、未改动 `data/`、`gate/data/`。提交路径比 brief 清单多
+`lib/hyphenation_wbtest.mbt`（见 §2.3，删除生产代码里的测试包装必须同步移动）。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `syllable_count(text, lang = "en_US")`
+
+签名：`pub fn syllable_count(text : String, lang~ : String = "en_US") -> Int32 raise TextstatError`
+（`.mbti` 规范为 `String, lang? : String -> Int raise TextstatError`；本工具链
+`Int32` 与 `Int` 同型，`moon fmt` 选择 `Int32`）。
+
+1. **空串早退**：`text.length() == 0 → 0`，位于任何语种解析之前，对应上游
+   `if not text: return 0`（在 `get_cmudict`/`get_pyphen` 之前）。已用本地上游
+   实测：`set_lang("ar")` / `set_lang("xx_YY")` 下 `syllable_count("")` 均为 0，
+   即空串对不受支持语种**不抛**。
+2. **非空文本先解析语种**：`let _ = resolve_dict(lang)` 对应上游在逐词循环前
+   构造 `Pyphen(lang=...)`。这一步在「非空但零词」的输入上可观察：上游对
+   `" .? "`、`"   "`、`"!!!"` 配 `ar`/`xx_YY` 仍抛异常，所以「对零个词求和返回
+   0」不能吞掉失败。
+3. **逐词累加**：`list_words(text, lowercase=true)`（默认 `rm_punctuation=true`、
+   连字符不拆、撇号保留），对每个词调用 `syllables_for_word(word, lang)`
+   （T-16：先查发音表，否则断字位置 + 1）。
+4. **失败通道**：`UnsupportedLanguage(原样代码)` 原样上抛，无静默回退
+   （spec §4.5.1）；产品文案留给 T-35。
+5. 纯空白、纯标点在 `en_US` 下得到零词 → 0（与 oracle 一致）。
+
+`resolve_dict` 在入口与逐词各解析一次（N+1 次 Map 查找）。这是刻意保留
+`T-16` 的 `syllables_for_word(word, lang)` 签名，避免为省几次哈希查找而复制
+「语种根 + 解析码」双参数分支、制造第二条会漂移的路径；相对发音表/断字成本可忽略。
+
+### 2.2 语法与类型
+
+- `lang` 是正式参数（非上游 0.7.x 中「已弃用且无效果」的 `lang`），符合 brief。
+- 返回 `Int32`（`TextStats.syllable_count` 的计数类型，PRD-A 10.3）。
+
+### 2.3 lint 抑制清零
+
+- `syllables_for_word`：删除 `#warnings("-unused_value")`，现由 `syllable_count`
+  与白盒测试共同消费。
+- `hyphenate_positions`：非测试代码中没有消费方（音节层需要把**已解析的字典码**
+  同时交给发音表和断字引擎，消费的是 `hyphenation_positions`）。按验收「非测试
+  代码不允许保留 `#warnings`」，从 `hyphenation.mbt` 删除该包装，并以
+  test-only 注释移入 `hyphenation_wbtest.mbt`；全部原有断言不变。
+- 结果：`grep -rn "#warnings" lib --include=*.mbt --exclude-dir=_build` 无命中
+  （`_build` 内为工具链生成的测试驱动，不属源码）。
+
+## 3. 测试（3 条，68 → 71）
+
+| 组 | 断言 |
+| --- | --- |
+| 11 个 oracle 样本 | `en_US` 下 6 / 175 / 41 / 38 / 39 / 45 / 2 / 0 / 0 / 0 / 51，另断言省略 `lang` 时默认 `en_US`（6） |
+| 语种探针 | 探针句 11 个数值：en 22、en_US 22、en_GB 22、de_DE 25、es_ES 23、fr_FR 23、it_IT 22、nl_NL 26、pl_PL 22、ru_RU 6、hu_HU 23；ar、xx_YY 抛 `UnsupportedLanguage(原样代码)` |
+| 失败/空串 | `"hello world"` + ar 抛；`"   "` + ar、`" .? "` + xx_YY 抛（零词仍失败）；`""` 在 en_US/ar/xx_YY 下均为 0 |
+
+期望值核对：
+
+- 11 个样本文本与 `oracle_smoke.json` **逐字节相等**（脚本解析测试文件中的样本
+  数组后与 JSON 对比，11/11 文本与值一致；`numbers_and_symbols` 的 `\u{68}`
+  只是源码级转义，运行时字节相同）。
+- 11 个探针值先由本地上游 `set_lang(...)` 重算为 22/22/22/25/23/23/22/26/22/6/23，
+  再与 `docs/facts/oracle_smoke.json` 的 `lang_probes.<code>.syllable_count` 逐行
+  比对一致后写死。
+- 空串行为用本地上游实测：`ar`/`xx_YY` 的空串 = 0；非空（含零词文本）= 抛
+  `KeyError`。本移植把它映射为 `UnsupportedLanguage`（A-5.2 只判失败语义）。
+- 语种根/两层命中/大小写等逐词语义已由 T-16 白盒测试覆盖，本任务不重复。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 2 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 71, passed: 71, failed: 0.           # EXIT=0；T-16 后 68 + 本任务 3
+
+$ moon info && moon fmt                           # EXIT=0
+$ git diff lib/pkg.generated.mbti
++pub fn syllable_count(String, lang? : String) -> Int raise TextstatError
+# 仅此一行新增；TextstatError 原本已在 .mbti
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lib/syllable_count.mbt lib/syllable_count_test.mbt lib/syllables.mbt \
+    lib/hyphenation.mbt lib/hyphenation_wbtest.mbt lib/pkg.generated.mbti
+# 无输出，EXIT=1（S1 零命中）
+
+$ grep -rn "#warnings" lib --include=*.mbt --exclude-dir=_build
+# 无输出，EXIT=1（源码零抑制）
+```
+
+`git status` 仅 `.qoder/`（环境目录）与本任务改动；无其他修改。
+
+## 5. 首次调用冷启动成本（供 T-36/T-40 bench 预热）
+
+方法（复刻 T-15）：新增临时 `cmd/t17probe`（import 根包，调用
+`syllable_count("The extraordinary readability of international documentation.",
+lang="en_US")`），与基线 `cmd/main`（只打印 `Hello`）在同一 native debug 构建下
+各直接运行 12 次，取进程墙钟中位数；OS 文件缓存已热。探针源码与构建目录已删除。
+
+| 进程 | 中位墙钟 | 最小 |
+| --- | --- | --- |
+| 基线（无任何调用） | 13.17 ms | 9.93 ms |
+| 首次 `syllable_count`（en_US 探针句） | 983.24 ms | 945.76 ms |
+| **差值 ≈ 首次调用初始化成本** | **≈ 970 ms（0.95-1.0 s）** | |
+
+首次运行（OS 缓存最冷）为 2085 ms；随后 11 次稳定在 946-1093 ms。该成本一次性
+构建：十本断字字典（顶层 `hyphenation_dictionaries`，`hyphenation.mbt:44`）
++ 发音表（`data` 包顶层值，由 `pronunciation_syllable_count` 首次触发）。
+因此 bench 必须显式预热一次（建议用探针句），且空串路径按代码在解析语种前
+早退、不触发初始化。
+
+## 6. 备注 / 风险
+
+1. **「零词仍失败」是有意保真**：入口的 `resolve_dict` 让非空文本先建字典，与上游
+   `Pyphen(lang=...)` 的位置一致；否则 `"   "`+`ar` 会从上游的异常变成 0，改变
+   失败语义（spec §4.3.3 禁止「把失败改成 0」）。
+2. `hyphenate_positions` 的移动只影响测试：生产层从未消费该包装；`hyphenation.mbt`
+   的 `hyphenation_positions`/`resolve_dict` 未改动。
+3. `de`/`pt` 仍是显式失败（短名赢家 `de_AT`/`pt_BR` 未内嵌；R-33：`pt` 非验收项）。
+4. `pt` 的 24、语种矩阵与失败文案由 T-35 处理；门禁（`--group=count` A-2.1、
+   `--group=lang` A-4.1）按计划推迟到 T-36，本任务的直接断言为等价证据。
+5. 未实现 `polysyllabcount`/`monosyllabcount`（T-18/T-19）或其他指标。

@@ -1,0 +1,292 @@
+# T-54 — `moon publish` 执行日志（0.1.0 发布至 mooncakes）
+
+- 日期：2026-10-23
+- HEAD（preflight 时读取，即被发布的树）：`2414de13c312a76a2ba403f83d2a585930025c86`
+  （`2414de1 docs(license): align the NOTICE header with the shipped license expression`）
+- HEAD（本日志落版时）：preflight 之后仅追加了文档提交
+  `3c096b3 docs(license): close the NOTICE item and refresh the package fingerprint`。
+  只改 `T-45.log` 与 `T-54-license-ruling.md` 两个文档（`git diff 2414de1 3c096b3 -- lib`
+  为空），因此发布面（`lib/**`）与 preflight 所见的树逐字节相同。
+- 模块根：`lib/`（所有 `moon` 命令均在 `lib/` 下执行）
+- 用户授权（逐字）：**「T-54选择平滑迁移方案,确保功能可用」**
+  —— 该授权为许可口径裁决（选项 A：十本断字词典全部继续内嵌，逐文件许可条款记录于
+  `lib/NOTICE`），其完整裁决记录、证据链、元数据决定与仍开放项见
+  `docs/superpowers/plans/logs/T-54-license-ruling.md`。
+  本任务的 `moon publish` 执行本身亦在本次会话中由用户明确开闸（"You may run
+  `moon publish` — that is the point of this task"）。
+
+> 结论：**PUBLISHED**。`moon publish` EXIT=0（`Server status: 200 OK`），
+> `moon view` 返回版本 / 许可证 / 仓库地址三项，A-7.1 与 A-7.2 **已回填**（见 §6）。
+> 唯一与发布相关的残余项：A-7.3（注册表页面渲染，归单元 B）、
+> A-10.1/A-10.2（js/wasm）、LPPL 分析（§7）。
+
+## 1. 环境标识
+
+| 项 | 值 |
+| --- | --- |
+| backend | `native` |
+| moon | `moon 0.1.20261012 (748b63c 2026-10-12)` |
+| moonc | `v0.10.15+943464bfa (2026-10-12)` |
+| 主机 | win32 10.0.19045, x64 |
+| 注册表 | `https://mooncakes.io/api/v0/…` |
+
+## 2. Step 1 — preflight
+
+### 2.1 工具链
+
+```console
+$ cd lib && moon version
+moon 0.1.20261012 (748b63c 2026-10-12)
+
+Feature flags enabled: rr_moon_mod,rr_moon_pkg
+
+$ cd lib && moonc -v
+v0.10.15+943464bfa (2026-10-12)
+```
+
+### 2.2 工作树状态
+
+```console
+$ cd lib && git rev-parse HEAD
+2414de13c312a76a2ba403f83d2a585930025c86
+
+$ cd lib && git status --short -- .
+（无输出 —— lib/ 干净）
+
+$ git status --short
+?? .qoder/
+?? 2026-10-22-183204-empty-conversation.txt
+?? docs/superpowers/plans/logs/T-54-publish-surface.md
+```
+
+判定：`lib/` 无未提交改动，可复现发布。仓库根的三个 untracked 项中，`.qoder/` 与
+`2026-10-22-183204-empty-conversation.txt` 是任务书明列的**既存用户产物**；
+`docs/superpowers/plans/logs/T-54-publish-surface.md` 是许可裁决前由前置任务留下的
+未提交审计文档（同样不是 `lib/**` 的改动，不影响发布可复现性）。两者均未被触碰。
+
+### 2.3 注册表占位检查（plan E6：预期 404）
+
+```console
+$ cd lib && moon view vicoproplus/moon_textstat; echo EXIT=$?
+Error: registry module request failed at https://mooncakes.io/api/v0/manifest/vicoproplus/moon_textstat
+
+Caused by:
+    HTTP status client error (404 Not Found) for url (https://mooncakes.io/api/v0/manifest/vicoproplus/moon_textstat)
+EXIT=255
+```
+
+判定：**404 Not Found** = E-26（名称未占用）复现，即任务书预期的结果。**不是**
+401 / 连接错误，故 T-54 未被认证或网络问题阻塞。
+
+### 2.4 检查与测试
+
+```console
+$ cd lib && moon check --target native; echo CHECK=$?
+Finished. moon: no work to do
+CHECK=0
+
+$ cd lib && moon test --target native 2>&1 | tail -2
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 180, passed: 180, failed: 0.
+```
+
+判定：CHECK=0，180/180 通过。
+
+### 2.5 366 格门禁
+
+```console
+$ cd lib && moon run cmd/gate --target native; echo GATE=$?
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+GATE=0
+```
+
+判定：`cells=366 passed=366 floor=366`，GATE=0。
+
+### 2.6 打包
+
+```console
+$ cd lib && moon package; echo PKG=$?
+Running moon check ...
+Finished. moon: no work to do
+Check passed
+Package to F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+PKG=0
+```
+
+zip 条目数与哈希：
+
+```console
+$ python -c "import zipfile,hashlib,sys;p=sys.argv[1];z=zipfile.ZipFile(p);print('entries',len(z.namelist()));print('sha256',hashlib.sha256(open(p,'rb').read()).hexdigest())" _build/publish/vicoproplus-moon_textstat-0.1.0.zip
+entries 95
+sha256 93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8
+```
+
+包内许可文件与 SPDX 表达式：
+
+```console
+$ python -c "import zipfile;print([l for l in zipfile.ZipFile('_build/publish/vicoproplus-moon_textstat-0.1.0.zip').read('moon.mod').decode().splitlines() if l.startswith('license')])"
+['license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"']
+
+$ python -c "import zipfile;n=zipfile.ZipFile('_build/publish/vicoproplus-moon_textstat-0.1.0.zip').namelist();print([x for x in n if x in ('LICENSE','NOTICE','moon.mod')])"
+['LICENSE', 'moon.mod', 'NOTICE']
+```
+
+判定：PKG=0，95 条目，`LICENSE` / `NOTICE` / `moon.mod` 均在包内，三条款 SPDX 表达式
+原样携带。**step 1-6 全绿，继续。**
+
+## 3. Step 2 — 部署对账（plan A5）
+
+### 3.1 源侧
+
+```console
+$ cd lib && sha256sum _build/publish/vicoproplus-moon_textstat-0.1.0.zip
+93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8  _build/publish/vicoproplus-moon_textstat-0.1.0.zip
+```
+
+### 3.2 解包侧
+
+zip 解包到仓库外暂存目录 `F:/moonbit比赛/_t54_scratch`（95 个文件），
+与 `git ls-files -- lib`（96 个 tracked 文件）比对：
+
+```console
+$ diff <(tracked 列表) <(unpacked 列表)
+1d0
+< .gitignore
+```
+
+即文件清单的唯一差异是 `.gitignore` —— `lib/.gitignore` 被 packager 合法丢弃。
+对剩余 95 个文件做 `sha256sum` 清单比对：
+
+```console
+$ diff <(tracked 95 文件 hash 清单) <(unpacked 95 文件 hash 清单)
+（无输出，EXIT=0）
+```
+
+判定：**内容逐字节一致，差异为空**（除 `.gitignore`）。A5 部署对账通过。
+
+## 4. Step 3 — 发布
+
+```console
+$ cd lib && moon publish; echo PUBLISH=$?
+Running moon check ...
+Finished. moon: no work to do
+Check passed
+validating packaged zip: F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+extracting packaged zip to F:\moonbit比赛\moon_textstat\lib\_build\publish\verify\mooncake_publish_check7FFeyZ
+running moon check on extracted package
+Running moon check ...
+Finished. moon: ran 10 tasks, now up to date
+Check passed
+Server status: 200 OK
+PUBLISH=0
+```
+
+要点：`moon publish` **非交互完成**（无凭证提示），服务器返回 200 OK。
+本次任务中 `moon publish` 只执行了**一次**；未改版本号、未改模块名、未重试。
+
+## 5. Step 4 — 发布后验证
+
+### 5.1 `moon view`（A-7.2 回填证据）
+
+```console
+$ cd lib && moon view vicoproplus/moon_textstat; echo EXIT=$?
+vicoproplus/moon_textstat@0.1.0
+Description: Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O).
+License: MIT AND MPL-1.1 AND LGPL-2.1-or-later
+Repository: https://gitcode.com/vicoproplus/moon_textstat
+Published: 2026-10-23T05:17:33.765127+00:00
+Downloads: 1
+Latest: 0.1.0
+Versions: 1 (use --versions to list)
+EXIT=0
+```
+
+三项齐备：**版本** `0.1.0`、**许可证** `MIT AND MPL-1.1 AND LGPL-2.1-or-later`、
+**仓库地址** `https://gitcode.com/vicoproplus/moon_textstat`。许可证字段正是
+`lib/moon.mod` 的三条款 SPDX 表达式，与 `lib/NOTICE:7-9` 的口径一致。
+
+### 5.2 注册表安装即运行（A-7.1 回填证据）
+
+在仓库外暂存空模块 `F:/moonbit比赛/_t54_demo/demo` 中手工创建
+`moon.mod`（`import { "vicoproplus/moon_textstat@0.1.0" }`）、
+`cmd/main/moon.pkg`（`pkgtype(kind: "executable")` + 该 import）与
+`cmd/main/main.mbt`（调用 `analyze` 并打印 8 个公式值），然后：
+
+```console
+$ moon add vicoproplus/moon_textstat@0.1.0
+Registry index updated successfully
+Symbols updated successfully
+Warning: dependency `vicoproplus/moon_textstat` already exists, `moon add` will not update it. To update the dependency, run `moon add --upgrade vicoproplus/moon_textstat@<version>` or `moon add --upgrade vicoproplus/moon_textstat` for the latest version.
+ADD=0
+```
+
+（`moon new demo` 会初始化嵌套 git 仓库且本机无法创建符号链接，故按任务书许可的
+「by hand」路线创建；`moon add` 仍走真实注册表路径。）
+
+```console
+$ moon run cmd/main --target native
+116.14500000000001
+-1.4499999999999993
+2.4000000000000004
+3.1291
+-4.300000000000001
+-4.299999999999997
+2
+0.2976
+RUN2=0
+```
+
+八个公式值与 `lib/README.mbt.md` 的示例逐字一致（116.14500000000001 /
+-1.4499999999999993 / 2.4000000000000004 / 3.1291 / -4.300000000000001 /
+-4.299999999999997 / 2 / 0.2976）。**A-7.1 已回填。**
+
+注：`moon run cmd/main`（不带 `--target native`）在无 `preferred_target` 的 demo
+模块上会走 wasm 目标并返回 57（本机 `moonrun` wasm 加载失败，E-3 既有问题，与
+本次发布无关）；加 `--target native` 后 EXIT=0。
+
+### 5.3 `moon tree`（A-8.1 确认）
+
+```console
+$ cd _t54_demo/demo && moon tree; echo TREE=$?
+vicoproplus/demo@0.1.0 (local F:\moonbit比赛\_t54_demo\demo):
+└─ vicoproplus/moon_textstat -> vicoproplus/moon_textstat@0.1.0
+TREE=0
+```
+
+解析到的是**注册表包** `vicoproplus/moon_textstat@0.1.0`，不是路径依赖
+（无 `(local …)` 标注），A-8.1 的口径得到确认。
+
+## 6. A-7.1 / A-7.2 状态变更
+
+| 行 id | 原状态 | 新状态 | 证据 |
+| --- | --- | --- | --- |
+| A-7.1 | `[LOCAL_DEAD_LINK]` unresolved | **已回填** | §5.2：注册表 `moon add` EXIT=0 + `moon run` EXIT=0 打印 8 个公式值 |
+| A-7.2 | `[LOCAL_DEAD_LINK]` unresolved | **已回填** | §5.1：`moon view` EXIT=0，版本 / 许可证 / 仓库地址三项齐备 |
+
+同步追加至 `docs/superpowers/plans/logs/T-53-backfill.md` §6。
+
+## 7. 仍未解决（explicitly unresolved）
+
+1. **A-7.3**（README 中文章节在注册表页面**渲染**未验证）：按 `plan.md:172`
+   该行归单元 B（PRD-B FR-09），本任务不执行浏览器核对，责任移交单元 B。
+   本次只验证了 API 侧元数据（`moon view`），未打开 `mooncakes.io` 的网页。
+2. **A-10.1 / A-10.2**（js / wasm 目标）：本机 wasm 测试仍 EXIT=255
+   （`The test executable exited with exit code: 0xc0000139`，`moonrun` 加载失败，
+   E-3 复现）；js 目标未在本轮验证范围。发布包本身以 `preferred_target = "native"`
+   打包，未涉及这两个目标。
+3. **LPPL 分析未做**：`hyph_de_DE.dic` 的 TeX 源表 `dehyphn.tex` 为 LPPL。
+   LPPL 对「修改后文件必须改名」、分发时 `.tex` 源可获得性的具体要求，是否被
+   `hyph_de_DE.dic` 这一**转换产物**触发，未逐条核对。本日志只宣称其已在
+   `lib/NOTICE` 如实披露，不宣称 LPPL 合规。
+4. **`lib/NOTICE` 第 8 行文案**已在发布前的 `2414de1` 提交中修正
+   （与三条款表达式对齐），故 T-54-license-ruling.md §6.2 登记的该项已闭环。
+
+## 8. 未改动项声明
+
+- 未修改 `lib/**`：无版本号变更、无元数据编辑、无 `files` 键新增。
+  发布用的 zip 就是 §2.6 由 `moon package` 从既有 HEAD 打出的产物。
+- 未执行 `git add -A`；按显式路径提交两个日志文件。
+- 未触碰 `.qoder/` 与 `2026-10-22-183204-empty-conversation.txt`。
+- 暂存目录 `F:/moonbit比赛/_t54_scratch`、`F:/moonbit比赛/_t54_demo` 已删除。
+- `moon publish` 只执行一次；无失败、无 fallback（plan E6 的 fallback 分支未触发）。

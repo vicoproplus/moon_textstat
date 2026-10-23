@@ -1,0 +1,439 @@
+# T-08 生成产物禁手改与重跑一致 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`；Python 3.12.10、pyphen 0.17.2
+- 起始提交：`7e402d3 feat(gate-data): freeze 366 L3 alignment cells from the oracle`
+- 契约：AD §1.4 A1-3（临时目录重跑 + 逐字节一致）、AD §8（生成产物所有权）、
+  spec §4.8.4（`data/` 与 `gate/data/` 全量重建、禁手改）、spec §4.5.3 A-1.4/A-1.5、T-08 brief
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`；
+  未修改 `vendor/`、`textstat/`、`docs/facts/oracle_smoke.json`、`lib/data/data.mbt`、
+  `lib/gate/data/cell.mbt` 任何字节
+- **结论：PASS**
+
+---
+
+## 1. 受检文件（生成器写入面，共 6 个）
+
+| 文件 | 层 | 角色 | 字节数 | SHA-256 |
+| --- | --- | --- | --- | --- |
+| `lib/data/easy_words_data.mbt` | L2 | 生成：en/es 易读词表 | 223,563 | `71aca6e53a0a4af39d0eedfb0d580bffa27dc294fbf1080f75a35534fe52dab3` |
+| `lib/data/hyphenation_patterns_data.mbt` | L2 | 生成：10 本断字模式 | 2,728,095 | `8ad21aaaabb384e9fde24a123e02664fd8744260ff6e38832ec62f5d9c76096b` |
+| `lib/data/pronunciation_data.mbt` | L2 | 生成：裁剪发音表 | 615,854 | `865957296bc55ad5e1f8834683c8550872ad24bd5b28263326b89bcdb8edc3b5` |
+| `lib/data/pronunciation_supplement_gb_data.mbt` | L2 | 生成：`en_GB` 补充发音表 | 277,208 | `02d16c292286a65a70c05632892164e97ec09b0d3c09ecf34f75496309d0fc83` |
+| `lib/gate/data/l3_data.mbt` | L3 | 生成：366 个冻结单元格 | 86,826 | `603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d` |
+| `tools/l2_manifest.json` | — | 生成：L2+L3 确定性身份记录（`schema: 2`） | 10,071 | `55b5e671ec111bed33cfe54d75c4bb256bd66e4ec4e8f04e1bbf57f0135a7f80` |
+
+写入面是**闭集**：生成器 `write_outputs()` 只写上表 5 个源文件 + 1 个 manifest，
+`WROTE` 行逐条对应；`lib/data/` 与 `lib/gate/data/` 内其余文件
+（`data.mbt`、`data_test.mbt`、`moon.pkg`、`pkg.generated.mbti`、`cell.mbt`、`l3_test.mbt`）
+均为手写或工具链产物，不在生成器写入面内。
+
+---
+
+## 2. 快照（可恢复副本，仓库外临时区）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python - <<'PY'
+import hashlib, json, os, shutil, tempfile
+files = [
+ "lib/data/easy_words_data.mbt",
+ "lib/data/hyphenation_patterns_data.mbt",
+ "lib/data/pronunciation_data.mbt",
+ "lib/data/pronunciation_supplement_gb_data.mbt",
+ "lib/gate/data/l3_data.mbt",
+ "tools/l2_manifest.json",
+]
+snapdir = tempfile.mkdtemp(prefix="t08_snapshot_")
+rows = {}
+for rel in files:
+    b = open(rel, "rb").read()
+    rows[rel] = {"bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}
+    dst = os.path.join(snapdir, rel.replace("/", "__"))
+    open(dst, "wb").write(b)
+open(os.path.join(snapdir, "snapshot.json"), "w", encoding="utf-8").write(json.dumps(rows, indent=2, sort_keys=True))
+print("SNAPDIR=%s" % snapdir)
+for rel in files:
+    print("BEFORE %-52s bytes=%d sha256=%s" % (rel, rows[rel]["bytes"], rows[rel]["sha256"]))
+print("SNAP_FILES=%d" % len(files))
+PY
+SNAPDIR=F:\Temp\t08_snapshot_zbn94_v1
+BEFORE lib/data/easy_words_data.mbt                         bytes=223563 sha256=71aca6e53a0a4af39d0eedfb0d580bffa27dc294fbf1080f75a35534fe52dab3
+BEFORE lib/data/hyphenation_patterns_data.mbt               bytes=2728095 sha256=8ad21aaaabb384e9fde24a123e02664fd8744260ff6e38832ec62f5d9c76096b
+BEFORE lib/data/pronunciation_data.mbt                      bytes=615854 sha256=865957296bc55ad5e1f8834683c8550872ad24bd5b28263326b89bcdb8edc3b5
+BEFORE lib/data/pronunciation_supplement_gb_data.mbt        bytes=277208 sha256=02d16c292286a65a70c05632892164e97ec09b0d3c09ecf34f75496309d0fc83
+BEFORE lib/gate/data/l3_data.mbt                            bytes=86826 sha256=603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d
+BEFORE tools/l2_manifest.json                               bytes=10071 sha256=55b5e671ec111bed33cfe54d75c4bb256bd66e4ec4e8f04e1bbf57f0135a7f80
+SNAP_FILES=6
+```
+
+快照副本位于仓库外的 `F:\Temp\t08_snapshot_zbn94_v1\`（每文件一份原字节副本 + `snapshot.json`），
+可用于回滚；未进入交付产物、未进入 Git 索引。本轮重跑后所有文件逐字节不变，**未触发回滚**。
+
+---
+
+## 3. 全量重跑（覆盖语义）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python tools/gen_data.py
+L1_CHECKED=15 L1_MISMATCH=0
+PRONUNCIATION entries=48202 pinned=48202 OK
+PRONUNCIATION_SUPPLEMENT entries=21782 pinned=21782 OK rows_bytes=231288 rows_sha256=cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705
+PRONUNCIATION_ROWS primary_bytes=515949 primary_sha256=5ab9e6766293b319475eee0fa73c7f3a770822c0599f78a1305ab3ed376a9854 supplement_bytes=231288 supplement_sha256=cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705
+PATTERNS en_US lines=11125 pinned=11125 OK
+PATTERNS en_GB lines=14057 pinned=unpinned encoding=UTF-8 distinct=13932
+PATTERNS de_DE lines=77847 pinned=77847 OK
+PATTERNS es    lines=859 pinned=859 OK
+PATTERNS fr    lines=2908 pinned=2908 OK
+PATTERNS it_IT lines=420 pinned=420 OK
+PATTERNS nl_NL lines=16256 pinned=16256 OK
+PATTERNS pl_PL lines=4823 pinned=4823 OK
+PATTERNS ru_RU lines=3874 pinned=3874 OK
+PATTERNS hu_HU lines=102204 pinned=102204 OK
+EASY_WORDS en entries=2941 pinned=2941 OK
+EASY_WORDS es entries=20000 pinned=20000 OK
+SAMPLE short_simple_sentence        computed=6     oracle=6     OK
+SAMPLE long_multi_sentence_paragraph computed=175   oracle=175   OK
+SAMPLE abbreviations_and_initials   computed=41    oracle=41    OK
+SAMPLE hyphenated_words             computed=38    oracle=38    OK
+SAMPLE numbers_and_symbols          computed=39    oracle=39    OK
+SAMPLE multiple_paragraphs_newlines computed=45    oracle=45    OK
+SAMPLE very_short_under_5_words     computed=2     oracle=2     OK
+SAMPLE empty_string                 computed=0     oracle=0     OK
+SAMPLE whitespace_only              computed=0     oracle=0     OK
+SAMPLE punctuation_only             computed=0     oracle=0     OK
+SAMPLE spanish_text                 computed=51    oracle=51    OK
+SAMPLES=11 MISMATCH=0
+SAMPLES_ES=1 MISMATCH_ES=0
+PROBE en    computed=22    oracle=22    OK
+PROBE en_US computed=22    oracle=22    OK
+PROBE en_GB computed=22    oracle=22    OK
+PROBE de_DE computed=25    oracle=25    OK
+PROBE es_ES computed=23    oracle=23    OK
+PROBE fr_FR computed=23    oracle=23    OK
+PROBE it_IT computed=22    oracle=22    OK
+PROBE nl_NL computed=26    oracle=26    OK
+PROBE pl_PL computed=22    oracle=22    OK
+PROBE ru_RU computed=6     oracle=6     OK
+PROBE hu_HU computed=23    oracle=23    OK
+PROBE_SKIP ar    oracle_error='KeyError: None' ASSERTED
+PROBE_SKIP xx_YY oracle_error='KeyError: None' ASSERTED
+PROBES=11 MISMATCH=0
+L3_CELLS=366
+L3_SAMPLE=288 L3_LANG=78
+L3_GROUPS count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12
+L3_PT=0
+L3_EXT=0
+L3_SHAPES align=24 ext=31 probe_fields=6 excluded_probe_fields=4
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+WROTE lib/data/easy_words_data.mbt
+WROTE lib/data/hyphenation_patterns_data.mbt
+WROTE lib/data/pronunciation_data.mbt
+WROTE lib/data/pronunciation_supplement_gb_data.mbt
+WROTE lib/gate/data/l3_data.mbt
+WROTE tools/l2_manifest.json
+CHECK=PASS
+EXIT=0
+```
+
+覆盖语义核验：6 条 `WROTE` 行对应 §1 的整个写入面——**每个生成文件都被重写**，不是增量跳过。
+重写后的 mtime 全部落在同一秒，证明写盘确实发生（而非 `--check` 的只读路径）：
+
+```console
+$ stat -c '%y %n' lib/data/easy_words_data.mbt lib/data/hyphenation_patterns_data.mbt \
+    lib/data/pronunciation_data.mbt lib/data/pronunciation_supplement_gb_data.mbt \
+    lib/gate/data/l3_data.mbt tools/l2_manifest.json
+2026-10-21 11:15:53.977527600 +0800 lib/data/easy_words_data.mbt
+2026-10-21 11:15:53.981717300 lib/data/hyphenation_patterns_data.mbt
+2026-10-21 11:15:53.982687600 lib/data/pronunciation_data.mbt
+2026-10-21 11:15:53.982687600 lib/data/pronunciation_supplement_gb_data.mbt
+2026-10-21 11:15:53.982687600 lib/gate/data/l3_data.mbt
+2026-10-21 11:15:53.983687900 tools/l2_manifest.json
+```
+
+---
+
+## 4. 前后哈希比对
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python - <<'PY'
+import hashlib, json, os
+SNAP = r"F:\Temp\t08_snapshot_zbn94_v1"
+before = json.load(open(os.path.join(SNAP, "snapshot.json"), encoding="utf-8"))
+bad = 0
+for rel in sorted(before):
+    b = open(rel, "rb").read()
+    after = {"bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}
+    same = after == before[rel]
+    copy = open(os.path.join(SNAP, rel.replace("/", "__")), "rb").read()
+    copy_same = copy == b
+    bad += 0 if (same and copy_same) else 1
+    print("AFTER  %-52s bytes=%d sha256=%s" % (rel, after["bytes"], after["sha256"]))
+    print("VERDICT %-51s %s (copy_identical=%s)" % (rel, "IDENTICAL" if same else "CHANGED", copy_same))
+print("COMPARED=%d CHANGED=%d" % (len(before), bad))
+PY
+AFTER  lib/data/easy_words_data.mbt                         bytes=223563 sha256=71aca6e53a0a4af39d0eedfb0d580bffa27dc294fbf1080f75a35534fe52dab3
+VERDICT lib/data/easy_words_data.mbt                        IDENTICAL (copy_identical=True)
+AFTER  lib/data/hyphenation_patterns_data.mbt               bytes=2728095 sha256=8ad21aaaabb384e9fde24a123e02664fd8744260ff6e38832ec62f5d9c76096b
+VERDICT lib/data/hyphenation_patterns_data.mbt              IDENTICAL (copy_identical=True)
+AFTER  lib/data/pronunciation_data.mbt                      bytes=615854 sha256=865957296bc55ad5e1f8834683c8550872ad24bd5b28263326b89bcdb8edc3b5
+VERDICT lib/data/pronunciation_data.mbt                     IDENTICAL (copy_identical=True)
+AFTER  lib/data/pronunciation_supplement_gb_data.mbt        bytes=277208 sha256=02d16c292286a65a70c05632892164e97ec09b0d3c09ecf34f75496309d0fc83
+VERDICT lib/data/pronunciation_supplement_gb_data.mbt       IDENTICAL (copy_identical=True)
+AFTER  lib/gate/data/l3_data.mbt                            bytes=86826 sha256=603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d
+VERDICT lib/gate/data/l3_data.mbt                           IDENTICAL (copy_identical=True)
+AFTER  tools/l2_manifest.json                               bytes=10071 sha256=55b5e671ec111bed33cfe54d75c4bb256bd66e4ec4e8f04e1bbf57f0135a7f80
+VERDICT tools/l2_manifest.json                              IDENTICAL (copy_identical=True)
+COMPARED=6 CHANGED=0
+```
+
+### 前后对照表
+
+| 文件 | 前 bytes | 后 bytes | 前 SHA-256 | 后 SHA-256 | 判定 |
+| --- | ---: | ---: | --- | --- | --- |
+| `lib/data/easy_words_data.mbt` | 223,563 | 223,563 | `71aca6e5…52dab3` | `71aca6e5…52dab3` | 逐字节一致 |
+| `lib/data/hyphenation_patterns_data.mbt` | 2,728,095 | 2,728,095 | `8ad21aaa…c76096b` | `8ad21aaa…c76096b` | 逐字节一致 |
+| `lib/data/pronunciation_data.mbt` | 615,854 | 615,854 | `86595729…edc3b5` | `86595729…edc3b5` | 逐字节一致 |
+| `lib/data/pronunciation_supplement_gb_data.mbt` | 277,208 | 277,208 | `02d16c29…0fc83` | `02d16c29…0fc83` | 逐字节一致 |
+| `lib/gate/data/l3_data.mbt` | 86,826 | 86,826 | `60383671…80b28d` | `60383671…80b28d` | 逐字节一致 |
+| `tools/l2_manifest.json` | 10,071 | 10,071 | `55b5e671…35a7f80` | `55b5e671…35a7f80` | 逐字节一致 |
+
+`CHANGED=0`，且每份文件与仓库外快照副本亦 `copy_identical=True`：**无需回滚，无差异记录**。
+
+---
+
+## 5. AD §1.4 A1-3 字面要求：临时根隔离重跑
+
+A1-3 的原文是「在临时目录重跑生成器，得到的源文件必须与本仓库内的 L2 产物逐字节相同」。
+为不只依赖原地覆盖，另做一次**隔离重跑**：把生成器所需输入
+（`tools/`、`vendor/`、`textstat/`、`docs/facts/`、`docs/superpowers/designs/`）复制到
+仓库外的临时根，让生成器在该根下重新产出，再与本仓库产物比哈希。
+
+```console
+$ cp -r 输入面 → F:\Temp\t08_temp_regen_pdppwoq4
+TEMP_ROOT=F:\Temp\t08_temp_regen_pdppwoq4
+
+$ cd "F:/Temp/t08_temp_regen_pdppwoq4" && python tools/gen_data.py
+L3_CELLS=366
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+WROTE lib/data/easy_words_data.mbt
+WROTE lib/data/hyphenation_patterns_data.mbt
+WROTE lib/data/pronunciation_data.mbt
+WROTE lib/data/pronunciation_supplement_gb_data.mbt
+WROTE lib/gate/data/l3_data.mbt
+WROTE tools/l2_manifest.json
+CHECK=PASS
+EXIT=0
+```
+
+```console
+$ python - <<'PY'   # 与 §2 快照哈希逐文件比对
+TEMPDIR lib/data/easy_words_data.mbt                       bytes=223563 sha256=71aca6e53a0a4af39d0eedfb0d580bffa27dc294fbf1080f75a35534fe52dab3 -> MATCH
+TEMPDIR lib/data/hyphenation_patterns_data.mbt             bytes=2728095 sha256=8ad21aaaabb384e9fde24a123e02664fd8744260ff6e38832ec62f5d9c76096b -> MATCH
+TEMPDIR lib/data/pronunciation_data.mbt                    bytes=615854 sha256=865957296bc55ad5e1f8834683c8550872ad24bd5b28263326b89bcdb8edc3b5 -> MATCH
+TEMPDIR lib/data/pronunciation_supplement_gb_data.mbt      bytes=277208 sha256=02d16c292286a65a70c05632892164e97ec09b0d3c09ecf34f75496309d0fc83 -> MATCH
+TEMPDIR lib/gate/data/l3_data.mbt                          bytes=86826 sha256=603836713127ad39c2151817d1605ec506172ebdc30547b33df6253e2180b28d -> MATCH
+TEMPDIR tools/l2_manifest.json                             bytes=10071 sha256=55b5e671ec111bed33cfe54d75c4bb256bd66e4ec4e8f04e1bbf57f0135a7f80 -> MATCH
+TEMPDIR_FILES=6 MISMATCH=0
+```
+
+```console
+$ cd "F:/Temp/t08_temp_regen_pdppwoq4" && python tools/gen_data.py --check
+FILE lib/data/easy_words_data.mbt                 OK
+FILE lib/data/hyphenation_patterns_data.mbt       OK
+FILE lib/data/pronunciation_data.mbt              OK
+FILE lib/data/pronunciation_supplement_gb_data.mbt OK
+FILE lib/gate/data/l3_data.mbt                    OK
+FILES=5 OK=5 DIFF=0 MISSING=0
+MANIFEST OK
+CHECK=PASS
+EXIT=0
+```
+
+结论：生成结果**与工作区绝对路径无关**，在独立根下重跑得到同一组字节。6/6 MATCH。
+
+---
+
+## 6. `--check`（A-1.4 / A-1.5 权威命令）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python tools/gen_data.py --check
+...
+PROBES=11 MISMATCH=0
+L3_CELLS=366
+L3_SAMPLE=288 L3_LANG=78
+L3_GROUPS count=88 variant=40 formula=64 degenerate=96 lang=66 errors=12
+L3_PT=0
+L3_EXT=0
+L3_SHAPES align=24 ext=31 probe_fields=6 excluded_probe_fields=4
+L3_ORACLE bytes=133102 sha256=a3d6cdc87855decd677ddfab989499d00032c8260c4f6e6f9ec556071b544372
+FILE lib/data/easy_words_data.mbt                 OK
+FILE lib/data/hyphenation_patterns_data.mbt       OK
+FILE lib/data/pronunciation_data.mbt              OK
+FILE lib/data/pronunciation_supplement_gb_data.mbt OK
+FILE lib/gate/data/l3_data.mbt                    OK
+FILES=5 OK=5 DIFF=0 MISSING=0
+MANIFEST OK
+CHECK=PASS
+EXIT=0
+```
+
+- A-1.4（L2 可重生成且逐字节一致）：`FILES=5 OK=5 DIFF=0`、`EXIT=0`；
+- A-1.5（L3 可重生成且单元格数 = 366）：`L3_CELLS=366`、`EXIT=0`，且 `l3_data.mbt` 为 `OK`；
+- 前置 L1 身份同时复验：`L1_CHECKED=15 L1_MISMATCH=0`（与 §3 首行一致）。
+
+---
+
+## 7. 每文件形态校验（S1-3 marker / 行宽 / CR）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && python - <<'PY'
+import re
+files = [
+ "lib/data/easy_words_data.mbt",
+ "lib/data/hyphenation_patterns_data.mbt",
+ "lib/data/pronunciation_data.mbt",
+ "lib/data/pronunciation_supplement_gb_data.mbt",
+ "lib/gate/data/l3_data.mbt",
+ "tools/l2_manifest.json",
+]
+total_violations = 0
+for rel in files:
+    b = open(rel, "rb").read()
+    text = b.decode("utf-8")
+    markers = text.count("DO NOT EDIT")
+    cr = b.count(b"\r")
+    lines = text.split("\n")
+    maxcols = max(len(l) for l in lines)
+    long_lines = sum(1 for l in lines if len(l) >= 65535)
+    ok = markers == 1 and cr == 0 and maxcols < 65535
+    total_violations += 0 if ok else 1
+    print("SHAPE %-52s markers=%d CR=%d maxcols=%d lines>=65535=%d -> %s" % (rel, markers, cr, maxcols, long_lines, "OK" if ok else "VIOLATION"))
+print("S1_3_VIOLATIONS=%d FILES=%d" % (total_violations, len(files)))
+PY
+SHAPE lib/data/easy_words_data.mbt                         markers=1 CR=0 maxcols=1170 lines>=65535=0 -> OK
+SHAPE lib/data/hyphenation_patterns_data.mbt               markers=1 CR=0 maxcols=1201 lines>=65535=0 -> OK
+SHAPE lib/data/pronunciation_data.mbt                      markers=1 CR=0 maxcols=1219 lines>=65535=0 -> OK
+SHAPE lib/data/pronunciation_supplement_gb_data.mbt        markers=1 CR=0 maxcols=1216 lines>=65535=0 -> OK
+SHAPE lib/gate/data/l3_data.mbt                            markers=1 CR=0 maxcols=128 lines>=65535=0 -> OK
+SHAPE tools/l2_manifest.json                               markers=1 CR=0 maxcols=118 lines>=65535=0 -> OK
+S1_3_VIOLATIONS=0 FILES=6
+```
+
+| 文件 | `DO NOT EDIT` 次数 | CR 字节 | 最长行（列） | < 65,535 | 判定 |
+| --- | ---: | ---: | ---: | :---: | --- |
+| `lib/data/easy_words_data.mbt` | 1 | 0 | 1,170 | 是 | OK |
+| `lib/data/hyphenation_patterns_data.mbt` | 1 | 0 | 1,201 | 是 | OK |
+| `lib/data/pronunciation_data.mbt` | 1 | 0 | 1,219 | 是 | OK |
+| `lib/data/pronunciation_supplement_gb_data.mbt` | 1 | 0 | 1,216 | 是 | OK |
+| `lib/gate/data/l3_data.mbt` | 1 | 0 | 128 | 是 | OK |
+| `tools/l2_manifest.json` | 1 | 0 | 118 | 是 | OK |
+
+- S1 检索式 3（每个生成文件恰好 1 个「禁止手改」标记）：**零违规**（6/6 恰为 1）；
+- 行宽上限（DR-R3 `E0033` 的 65,535 列）：最宽 1,219 列，余量充足；
+- CR 字节：6/6 为 0（DR-R8 CRLF 陷阱不适用）；
+- manifest 的唯一命中是 `"marker"` 字段的值（生成器同源常量 `MARKER`），不是注释，JSON 合法性未受影响
+  （`--check` 的 `MANIFEST OK` 已复验）。
+
+---
+
+## 8. MoonBit 工具链（B0 批末检查点 V1）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: ran 4 tasks, now up to date
+EXIT=0
+
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon build --target native
+Finished. moon: no work to do
+EXIT=0
+
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+  正在创建库 ...\_build\native\debug\test\gate\data\data.internal_test.lib 和对象 ...data.internal_test.exp
+  正在创建库 ...\_build\native\debug\test\gate\data\data.blackbox_test.lib 和对象 ...data.blackbox_test.exp
+  正在创建库 ...\_build\native\debug\test\data\data.internal_test.lib 和对象 ...data.internal_test.exp
+  正在创建库 ...\_build\native\debug\test\data\data.blackbox_test.lib 和对象 ...data.blackbox_test.exp
+Total tests: 23, passed: 23, failed: 0.
+EXIT=0
+```
+
+- `moon check` EXIT=0（4 个任务）；
+- `moon build` EXIT=0（无待办）；
+- `moon test` EXIT=0，**23/23 通过，0 失败**（含 `data` 与 `gate/data` 两个测试包）；
+- 未出现 `no test entry found`（A-0.2 的空跑陷阱不适用）。
+
+---
+
+## 9. 重跑后的工作区洁净
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat" && git status --porcelain
+?? .qoder/
+```
+
+```console
+$ git diff --stat
+（空）
+$ git diff --stat -- lib/data lib/gate/data tools/l2_manifest.json
+（空）
+$ git diff --name-only -- lib/data lib/gate/data tools/l2_manifest.json | wc -l
+0
+```
+
+- 受版本控制的生成产物**零改动**：`git diff` 为空，`git diff --name-only` 计数 0；
+- 唯一未跟踪项是 `.qoder/`（任务允许），无 `_build/`、无临时脚本、无残留快照；
+- 因此本轮提交只需新增本日志文件，`tools/l2_manifest.json` **不进入本次提交**。
+
+---
+
+## 10. 与历史日志的交叉核对（无跨任务漂移）
+
+| 文件 | 本任务实测 SHA-256 | 历史来源 | 一致 |
+| --- | --- | --- | :---: |
+| `lib/data/pronunciation_data.mbt` | `865957296bc5…edc3b5` | T-06.log §1（615,854 B） | 是 |
+| `lib/data/hyphenation_patterns_data.mbt` | `8ad21aaaabb3…c76096b` | T-06.log §1（2,728,095 B） | 是 |
+| `lib/data/easy_words_data.mbt` | `71aca6e53a0a…52dab3` | T-06.log §1（223,563 B） | 是 |
+| `lib/data/pronunciation_supplement_gb_data.mbt` | `02d16c292286…0fc83` | T-06.log §3（277,208 B） | 是 |
+| `lib/gate/data/l3_data.mbt` | `603836713127…80b28d` | T-07.log §1（86,826 B） | 是 |
+| `tools/l2_manifest.json` | `55b5e671ec11…35a7f80` | T-07.log §1（10,071 B） | 是 |
+
+→ 从 T-06/T-07 落盘到本轮全量重跑，6 个产物**一字节未变**，`data/` 与 `gate/data/` 的可重生成性在跨任务时段内成立。
+
+---
+
+## 11. 命令清单（本轮）
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | 快照脚本（6 文件哈希 + 仓库外副本） | `SNAP_FILES=6`，`SNAPDIR=F:\Temp\t08_snapshot_zbn94_v1` |
+| 2 | `python tools/gen_data.py` | EXIT=0，6 条 `WROTE`，`L3_CELLS=366` |
+| 3 | 重算哈希并比对快照 | `COMPARED=6 CHANGED=0` |
+| 4 | 临时根隔离重跑 `python tools/gen_data.py` | EXIT=0，`TEMPDIR_FILES=6 MISMATCH=0` |
+| 5 | 临时根 `python tools/gen_data.py --check` | EXIT=0，`FILES=5 OK=5 DIFF=0` |
+| 6 | `python tools/gen_data.py --check`（仓库内） | EXIT=0，`FILES=5 OK=5 DIFF=0`、`MANIFEST OK` |
+| 7 | marker / 行宽 / CR 校验 | `S1_3_VIOLATIONS=0 FILES=6` |
+| 8 | `cd lib && moon check --target native` | EXIT=0 |
+| 9 | `cd lib && moon build --target native` | EXIT=0 |
+| 10 | `cd lib && moon test --target native` | EXIT=0，23/23 |
+| 11 | `git status --porcelain` / `git diff --stat` | 仅 `?? .qoder/`，生成产物零改动 |
+
+---
+
+## 12. 结论
+
+**PASS**
+
+| 验收项 | 证据 | 判定 |
+| --- | --- | :---: |
+| 重跑前后哈希相同（AD §1.4 A1-3） | §4 `COMPARED=6 CHANGED=0`；§5 隔离根 `MISMATCH=0` | PASS |
+| `--check` EXIT=0（A-1.4 / A-1.5） | §6 `FILES=5 OK=5 DIFF=0`、`L3_CELLS=366`、`EXIT=0` | PASS |
+| `moon check/build/test --target native` EXIT=0 | §8 三条命令 EXIT=0，23/23 | PASS |
+| S1-3 marker 规则零违规 | §7 6/6 恰 1 个标记，`S1_3_VIOLATIONS=0` | PASS |
+| 行宽 < 65,535 且无 CR | §7 最宽 1,219 列、CR 全 0 | PASS |
+| 生成产物非手改、提交面仅日志 | §9 `git diff` 为空；提交仅 `docs/superpowers/plans/logs/T-08.log` | PASS |
+
+- 未发现任何真实不一致，**未触发快照回滚，未改动任何生成数据**；
+- 日志提交：`git add docs/superpowers/plans/logs/T-08.log`，消息
+  `chore(data): verify generated artifacts are reproducible (T-08)`。

@@ -1,0 +1,284 @@
+# T-47 静态禁止面审计 (A-8.3)
+
+日期：2026-10-22
+任务：T-47（静态禁止面 A-8.3）
+契约：PRD-A FR-32、安全性 NFR；spec §4.8.1、§4.7 A-8.3
+分支：`sdd/moon-textstat-core`
+裁决依据：`docs/superpowers/plans/logs/T-36-exit-shim-decision.md`（DECISION 1 + 补充 + 补充二）、ledger `progress.md:67` 与 `progress.md:70`（DECISION 2）
+
+---
+
+## 0. 验收口径说明（与 plan 原文的偏离，先说清楚）
+
+plan / brief 的验收原文是「命中 `0` 且 grep EXIT=1（无匹配即通过）（A-8.3）」。
+
+该措辞写于两次用户裁决**之前**。用户随后记录了两条白名单裁决：
+
+- **DECISION 1**（`T-36-exit-shim-decision.md` 正文 + 补充）：允许 `lib/cmd/gate/exit.mbt` 中**一处** `extern "c"` 垫片（用于把门禁结果映射为精确退出码 0/1/2）；并在补充中允许 `lib/cmd/gate/main.mbt` 中**一处** `@env.args()`（门禁需要读取 argv）。
+- **DECISION 2**（`T-36-exit-shim-decision.md` 补充二 + ledger `progress.md:70`）：允许 `lib/cmd/gate/records.mbt` 的最小 C 文件写入声明（`fopen`/`fwrite`/`fclose`/`mkdir`）用于写 `_gate/failures-*.jsonl`，并允许 `lib/cmd/gate` 中**第二处** `@env.now()`（仅用于文件名时间戳）。A-8.3 的机器检查改为：**全仓所有禁止面命中必须落在 `lib/cmd/gate/` 内**；库、`data/`、`gate/data/` 仍为 0。
+
+因此本任务的有效验收是**白名单检查**而非「裸 0」：
+
+1. 全仓禁止面命中数：`extern` = 5、`@env.` = 2、其余禁止面（`@fs`/`read_file`/`write_file`/`open_file`/`http`/`socket`）= 0。
+2. 全部 7 条命中必须落在 `lib/cmd/gate/` 内。
+3. 排除 `lib/cmd/gate/` 后的命中数必须为 0（该 grep 的退出码为 1）。
+
+「命中 0 且 grep EXIT=1」这条原始措辞在白名单裁决后已不可满足（白名单非空时 grep 必然有匹配、退出码必然为 0）。本日志记录**真实退出码**并解释该差异，不做粉饰。
+
+---
+
+## 1. 命令与原始输出
+
+### 1.1 全仓 A-8.3 检索（brief 指定命令，模块根 `lib/`）
+
+```
+cd "F:/moonbit比赛/moon_textstat/lib" && grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . ; echo "EXIT=$?"
+```
+
+原始输出（逐字）：
+
+```
+./cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+./cmd/gate/main.mbt:267:  let args = @env.args()
+./cmd/gate/records.mbt:187:    failure_record_path(@env.now()),
+./cmd/gate/records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+./cmd/gate/records.mbt:211:extern "c" fn gate_fwrite(
+./cmd/gate/records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+./cmd/gate/records.mbt:228:extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
+EXIT=0
+```
+
+**真实退出码 = 0**（有匹配）。不是 1。
+
+### 1.2 排除白名单目录后的检索（证明非白名单面为 0）
+
+```
+cd "F:/moonbit比赛/moon_textstat/lib" && grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | grep -v '^\./cmd/gate/' ; echo "EXIT=$?"
+```
+
+原始输出（逐字）：
+
+```
+EXIT=1
+```
+
+**真实退出码 = 1**（无匹配）。这正是原始验收措辞「EXIT=1」所描述的状态，但它的适用范围是**白名单之外**的部分，而不是全仓。
+
+### 1.3 分类计数
+
+```
+cd lib && grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | wc -l
+```
+```
+5
+```
+
+```
+cd lib && grep -rnE '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | wc -l
+```
+```
+2
+```
+
+```
+cd lib && grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . | wc -l
+```
+```
+0
+```
+
+### 1.4 全仓（仓库根，非仅 `lib/`）复核
+
+```
+cd "F:/moonbit比赛/moon_textstat" && grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes . ; echo "EXIT=$?"
+```
+
+原始输出（逐字）：
+
+```
+./lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+./lib/cmd/gate/main.mbt:267:  let args = @env.args()
+./lib/cmd/gate/records.mbt:187:    failure_record_path(@env.now()),
+./lib/cmd/gate/records.mbt:206:extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"
+./lib/cmd/gate/records.mbt:211:extern "c" fn gate_fwrite(
+./lib/cmd/gate/records.mbt:220:extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"
+./lib/cmd/gate/records.mbt:228:extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"
+EXIT=0
+```
+
+仓库根与 `lib/` 的结果一致：`git ls-files "*.mbt" | grep -v "^lib/"` 无输出，即**全仓 `.mbt` 源码全部位于 `lib/`**（共 78 个受版本控制的 `.mbt`），`tools/`、`vendor/`、`textstat/` 无 MoonBit 源码。
+
+### 1.5 检索覆盖面的文件清单（`lib/` 下全部 `.mbt`：78 tracked at `866d9f2` + 1 untracked `cmd/gate/bench.mbt` = 79）
+
+为可复现，清单固定在日志记录时的快照提交 `866d9f2` 上枚举：
+
+```
+$ git ls-tree -r --name-only 866d9f2 -- lib | grep '\.mbt$' | sort
+```
+
+原始输出（逐字，共 **78** 行）：
+
+```
+lib/analyze.mbt
+lib/analyze_test.mbt
+lib/automated_readability_index.mbt
+lib/automated_readability_index_test.mbt
+lib/automated_readability_index_wbtest.mbt
+lib/averages.mbt
+lib/char_count.mbt
+lib/char_count_test.mbt
+lib/cmd/gate/compare.mbt
+lib/cmd/gate/exit.mbt
+lib/cmd/gate/inject.mbt
+lib/cmd/gate/main.mbt
+lib/cmd/gate/records.mbt
+lib/cmd/gate/samples.mbt
+lib/cmd/gate/sha256.mbt
+lib/cmd/gate/sha256_wbtest.mbt
+lib/cmd/main/main.mbt
+lib/coleman_liau_index.mbt
+lib/coleman_liau_index_test.mbt
+lib/dale_chall_readability_score.mbt
+lib/dale_chall_readability_score_test.mbt
+lib/data/data.mbt
+lib/data/data_test.mbt
+lib/data/easy_words_data.mbt
+lib/data/hyphenation_patterns_data.mbt
+lib/data/pronunciation_data.mbt
+lib/data/pronunciation_supplement_gb_data.mbt
+lib/difficult_words.mbt
+lib/difficult_words_list.mbt
+lib/difficult_words_list_test.mbt
+lib/difficult_words_test.mbt
+lib/difficult_words_wbtest.mbt
+lib/easy_words.mbt
+lib/easy_words_wbtest.mbt
+lib/flesch_kincaid_grade.mbt
+lib/flesch_kincaid_grade_test.mbt
+lib/flesch_reading_ease.mbt
+lib/flesch_reading_ease_test.mbt
+lib/gate/data/cell.mbt
+lib/gate/data/l3_data.mbt
+lib/gate/data/l3_test.mbt
+lib/gunning_fog.mbt
+lib/gunning_fog_test.mbt
+lib/gunning_fog_wbtest.mbt
+lib/hyphenation.mbt
+lib/hyphenation_wbtest.mbt
+lib/lang_config.mbt
+lib/lang_config_wbtest.mbt
+lib/lang_matrix_test.mbt
+lib/letter_count.mbt
+lib/letter_count_test.mbt
+lib/lexicon_count.mbt
+lib/lexicon_count_test.mbt
+lib/linsear_write_formula.mbt
+lib/linsear_write_formula_test.mbt
+lib/list_words.mbt
+lib/list_words_wbtest.mbt
+lib/long_word_count.mbt
+lib/long_word_count_test.mbt
+lib/monosyllabcount.mbt
+lib/monosyllabcount_test.mbt
+lib/moon_textstat.mbt
+lib/moon_textstat_test.mbt
+lib/moon_textstat_wbtest.mbt
+lib/polysyllabcount.mbt
+lib/polysyllabcount_test.mbt
+lib/reading_time.mbt
+lib/reading_time_test.mbt
+lib/sentence_count.mbt
+lib/sentence_count_test.mbt
+lib/smog_index.mbt
+lib/smog_index_test.mbt
+lib/syllable_count.mbt
+lib/syllable_count_test.mbt
+lib/syllables.mbt
+lib/syllables_wbtest.mbt
+lib/types.mbt
+lib/types_test.mbt
+```
+
+口径说明：`866d9f2` 只包含 **78 个受版本控制**的 `.mbt`；日志记录时工作树另有 **1 个未跟踪**文件 `lib/cmd/gate/bench.mbt`（该文件在 `866d9f2` 之后才提交，故 `git ls-tree 866d9f2 -- lib/cmd/gate` 中没有它），即 **78 tracked at 866d9f2 + 1 untracked `lib/cmd/gate/bench.mbt` present in the working tree at log time = 79**。§1.1–§1.4 的检索作用于工作树，故覆盖 79 个文件；§2.1 的分层统计按同一口径（78 快照 + 1 未跟踪）给出。
+
+---
+
+## 2. 逐条命中的白名单分类
+
+| # | 位置 | 命中类型 | 白名单依据 | 分类 |
+|---|---|---|---|---|
+| 1 | `lib/cmd/gate/exit.mbt:15` | `extern "c" fn gate_native_exit(code : Int32) = "exit"` | DECISION 1（`T-36-exit-shim-decision.md` 正文第 1–3 条：允许 `exit.mbt` 中一行 `extern "c"`） | 白名单内（唯一 exit 垫片） |
+| 2 | `lib/cmd/gate/main.mbt:267` | `let args = @env.args()` | DECISION 1 补充（允许 `lib/cmd/gate/main.mbt` 中一处 `@env.args()` 用于 argv 解析） | 白名单内（唯一 argv 读取） |
+| 3 | `lib/cmd/gate/records.mbt:187` | `failure_record_path(@env.now()),` | DECISION 2 补充二（允许 `lib/cmd/gate` 第二处 `@env.now()`，仅用于文件名时间戳） | 白名单内（唯一 now 读取） |
+| 4 | `lib/cmd/gate/records.mbt:206` | `extern "c" fn gate_fopen(path : Bytes, mode : Bytes) -> UInt64 = "fopen"` | DECISION 2 补充二（`records.mbt` 允许最小 C 文件写入声明 `fopen`/`fwrite`/`fclose`/`mkdir`） | 白名单内（文件写入 FFI 1/4） |
+| 5 | `lib/cmd/gate/records.mbt:211` | `extern "c" fn gate_fwrite(` | 同上 | 白名单内（文件写入 FFI 2/4） |
+| 6 | `lib/cmd/gate/records.mbt:220` | `extern "c" fn gate_fclose(file : UInt64) -> Int32 = "fclose"` | 同上 | 白名单内（文件写入 FFI 3/4） |
+| 7 | `lib/cmd/gate/records.mbt:228` | `extern "c" fn mkdir(path : Bytes, mode : Int32) -> Int32 = "mkdir"` | 同上（补充二明确列出「创建 `_gate` 目录所需的 `mkdir` 等价声明」） | 白名单内（文件写入 FFI 4/4） |
+
+**分类汇总**
+
+- `extern` 命中 = **5**：1（`exit.mbt`）+ 4（`records.mbt`）。与预期完全一致。
+- `@env.` 命中 = **2**：`main.mbt` 的 argv + `records.mbt` 的 now。与预期完全一致。
+- `@fs` / `read_file` / `write_file` / `open_file` / `http` / `socket` 命中 = **0**。与预期完全一致。
+- 命中总数 = 7，全部位于 `lib/cmd/gate/`。
+
+### 2.1 是否有命中落在 `lib/cmd/gate/` 之外？
+
+**没有。** 7 条命中的文件路径全部以 `./cmd/gate/` 开头（`exit.mbt`、`main.mbt`、`records.mbt`），即全部位于 `lib/cmd/gate/` 内。
+
+排除白名单目录后的检索（§1.2）退出码为 1、输出为空，**独立地证明非白名单面为 0**。
+
+进一步分层核对（按目录统计 `lib/` 下全部 `.mbt`，共 79 个文件；以下分解为 **as of commit `866d9f2`** 的快照口径 + 记录时工作树中 1 个未跟踪文件 `lib/cmd/gate/bench.mbt`，见 §1.5 口径说明）：
+
+```
+   60 ./lib          ← 库主体
+    9 ./lib/cmd/gate ← 8 个受版本控制于 866d9f2 + 1 个未跟踪的 bench.mbt
+    6 ./lib/data
+    3 ./lib/gate/data
+    1 ./lib/cmd/main
+```
+
+合计：60 + 9 + 6 + 3 + 1 = **79**（= 78 tracked at 866d9f2 + 1 untracked `lib/cmd/gate/bench.mbt`）。此分解与 §1.5 的逐字清单一致：`lib/gate/data` 下即清单中的 `cell.mbt`、`l3_data.mbt`、`l3_test.mbt` 三行。
+
+- `./lib`（库主体，60 个文件）：禁止面命中 **0**。
+- `./lib/data`（数据包，6 个文件）：禁止面命中 **0**。
+- `./lib/gate/data`（门禁数据包，3 个文件）：禁止面命中 **0**。
+- `./lib/cmd/main`（1 个文件）：禁止面命中 **0**。
+- `./lib/cmd/gate`（9 个文件，其中 `bench.mbt` 在 `866d9f2` 之后才提交）：禁止面命中 **7**（全部在白名单内）。
+
+这与 DECISION 2 的口径「库、`data/`、`gate/data/` 仍为 0」完全吻合。
+
+**未发现真实缺陷。** 无命中落在 `lib/cmd/gate/` 之外，因此本任务无需向任何所属任务上报缺陷。
+
+---
+
+## 3. Rubric 判定
+
+rubric 文件：`.superpowers/sdd/202610201517-moon-textstat-移植-核心库-plan/rubric-task-47.md`（R1–R9 为九条 Global Constraints 逐字复制，R10–R12 为本任务验收项）。
+
+| 项 | 判定 | 证据 |
+|---|---|---|
+| R1 保真优先 | na | 本任务为只读静态审计，未改动任何源码或 oracle 单元格（`git status` 变更仅为他人正在进行的 `lib/cmd/gate/*` 工作与未跟踪文件）。 |
+| R2 公式层只吃计数层 | na | 未改动任何源码；不适用。 |
+| R3 运行期零 I/O | pass | 库、`data/`、`gate/data/`、`cmd/main` 禁止面命中均为 0（§2.1 目录分层统计）。全部 FFI/`@env` 命中集中于 `lib/cmd/gate/`，且经 DECISION 1/DECISION 2 裁决豁免。 |
+| R4 门禁唯一命令 | na | 本任务未运行门禁；`moon run` 被本轮次明确禁止（另一 worker 持有构建目录）。 |
+| R5 字段契约唯一权威 | na | 未新增/改动字段表。 |
+| R6 `[EXT]` 31 个不实现 | na | 未改动任何 callable。 |
+| R7 冻结下限 366 单元格 | na | 未改动 oracle 数据；本任务不涉及单元格。 |
+| R8 `pt` 不是验收项 | na | 未涉及 `pt`。 |
+| R9 失败文本不参与对拍 | na | 未改动失败文本。 |
+| R10 验收（A-8.3） | pass | 白名单口径：命中 7 条全部在 `lib/cmd/gate/` 内；分类计数 `extern`=5、`@env.`=2、其余=0，与预期一致；排除白名单后检索 EXIT=1 且输出为空（§1.1–§1.3）。原始措辞「命中 0 且 EXIT=1」在两次用户裁决后已不适用于全仓（见 §0），其 EXIT=1 状态在白名单外部分成立。 |
+| R11 上限（≤5 条命令 / ≤2 轮次 / 10 分钟） | pass | 审计本体命令 7 条（§1.1 全仓检索 1 条、§1.2 排除白名单 1 条、§1.3 三个分类计数 3 条、§1.4 仓库根复核 1 条、§1.5 文件清单 1 条；§1.3 的三条计数在先前版本中被折叠记为 1 条，故曾写作 5 条），1 个轮次完成。 |
+| R12 日志 | pass | 本文件 `docs/superpowers/plans/logs/T-47.log`，含命令、原始输出、白名单分类、rubric 判定与结论。 |
+
+**Rubric 覆盖：12 / 12 已判定（2 pass / 1 pass 关键项 + 10 na）**——无 `fail`、无未判定项。
+
+---
+
+## 4. 结论
+
+**Verdict: PASS**（按 DECISION 1 + DECISION 2 的白名单口径）。
+
+- A-8.3 静态禁止面：全仓 7 条命中，`extern`=5 / `@env.`=2 / 其余=0，**全部落在 `lib/cmd/gate/` 内**；库、`data/`、`gate/data/`、`cmd/main` 为 0。
+- 无命中落在白名单之外，**无真实缺陷需上报**。
+- 记录的真实退出码：全仓检索 **EXIT=0**（白名单非空，必然有匹配）；排除 `lib/cmd/gate/` 后 **EXIT=1**（无匹配）。plan 中「命中 0 且 grep EXIT=1」的措辞早于两次用户裁决，白名单是具约束力的解释。

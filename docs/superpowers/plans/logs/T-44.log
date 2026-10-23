@@ -1,0 +1,209 @@
+# T-44 — `moon.mod` 发布元数据
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`3385779 test(gate): assert the 19-field index and its kinds`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-31；spec §4.8.2；AD §7 DR-R2；design WB10（§12.2）。
+
+> 结论：PASS。8/8 元数据齐备且非空；`files` 键 0 行（DR-R2）；
+> `moon check --target native` EXIT=0；`moon test --target native`
+> 179/179 EXIT=0；`moon package` EXIT=0。
+> `repository` 取仓库已配置的 `origin`（非臆造），见 §2。
+
+## 1. 改动面
+
+| 文件 | 角色 | SHA-256 |
+| --- | --- | --- |
+| `lib/moon.mod` | 改：填 `repository` / `keywords` / `description`（其余 5 项原已就位） | `12ebed9b21258b04ff61ac6944e55fe419919adfab8330c50cbb7f877d024275` |
+
+改动前 → 后：
+
+| 键 | 改动前 | 改动后 |
+| --- | --- | --- |
+| `name` | `"vicoproplus/moon_textstat"` | 不变 |
+| `version` | `"0.1.0"` | 不变 |
+| `readme` | `"README.mbt.md"` | 不变 |
+| `repository` | `""`（空） | `"https://gitcode.com/vicoproplus/moon_textstat"` |
+| `license` | `"MIT"` | 不变 |
+| `keywords` | `[ ]`（空） | `[ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]` |
+| `description` | `""`（空） | `"Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O)."` |
+| `preferred_target` | `"native"` | 不变（显式 native，未留 `wasm`，E-3） |
+
+未新增 `files` 键（spec §4.8.2 注；E-17）。
+
+## 2. `repository` 的取值依据
+
+`git remote -v` 实测（非猜测）：
+
+```console
+$ git remote -v
+origin  https://gitcode.com/vicoproplus/moon_textstat.git (fetch)
+origin  https://gitcode.com/vicoproplus/moon_textstat.git (push)
+```
+
+`repository` 取该 `origin` 去掉 `.git` 后缀的形态，即本仓库的唯一既有远端，
+**不是**臆造的 mooncakes 规范路径。说明两点：
+
+1. 该 URL 是**仓库**地址（`moon.mod` 的 `repository` 语义即源码仓库），
+   不是包注册页地址；mooncakes 上的包页由 `name` 推导，不需要写在 `repository`。
+2. 仓库归属（PRD-A 七、开放问题第 1 行 / design U-7）在 T-01 已按「根目录为独立
+   仓库」落地（`docs/superpowers/plans/logs/T-01-repo-state.md` §1：`rev-parse
+   --is-inside-work-tree` → `true`，toplevel = 仓库根），因此 `origin` 就是该
+   裁决后的仓库地址。**无阻塞子项**；若日后仓库迁移到 GitHub，只需改这一行。
+
+`keywords` 全部取自模块的实际能力面（README「Metrics」节与 design D-1/D-15），
+无虚构：`readability`（八个可读性公式）、`textstat`（所移植的上游包名）、
+`flesch`（FRE/FK 两条公式）、`syllable`（音节计数与断字回退）、
+`hyphenation`（Pyphen 模式表内嵌）、`moonbit`（语言/生态）。共 6 个，落在
+3–6 的区间内，全小写。
+
+## 3. 验证
+
+```console
+$ cd lib && grep -c '^files' moon.mod
+0
+# grep 自身 EXIT=1（0 命中），即 DR-R2 满足：无 files 键
+
+$ cd lib && moon check --target native
+Finished. moon: no work to do
+# EXIT=0
+
+$ cd lib && moon test --target native
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 179, failed: 0.
+# EXIT=0
+
+$ cd lib && moon package
+Running moon check ...
+Finished. moon: no work to do
+Check passed
+Package to F:\moonbit比赛\moon_textstat\lib\_build\publish\vicoproplus-moon_textstat-0.1.0.zip
+# EXIT=0
+```
+
+八项元数据非空校验（脚本读回 `moon.mod` 逐键打印，见 §1 表右列）：
+`name`/`version`/`readme`/`repository`/`license`/`keywords`/`description`/
+`preferred_target` 均命中且值非空，**8/8**。
+
+A-7.2 的 `[LOCAL_DEAD_LINK]` 状态**不变**：本任务只证明元数据齐备且 `moon package`
+可产出 zip，不构成「已在注册表发布」的证据（注册表侧仍需 T-53/T-54 的裁决与实跑）。
+
+## 4. 未做的事（有意）
+
+- 未改 `lib/README.mbt.md`（其内容已满足 WB9，改动会与 T-40 的验证面冲突）。
+- 未新增 `NOTICE`：spec §4.8.3 的 P-1 分支要求「附 NOTICE 与逐文件许可声明」，
+  但该分支的许可口径仍是**未决假设**（PRD-A 七、开放问题第 3 行），且
+  `NOTICE` 不在本任务的文件面内 → 登记为 T-44 之外的条件性缺口，不擅自补写。
+- 未改 `version`：`0.1.0` 与 design WB10/既有发布产物名一致；首个正式发布版本号
+  由发布流程（T-53/T-54）裁决。
+
+## 5. Rubric 判定（rubric-task-44-brief.md，R1–R12）
+
+R1 验收（`grep -c '^files'` = 0；`moon check --target native` EXIT=0；元数据 8/8）  PASS
+   证据：`grep -c '^files' lib/moon.mod` → 0（DR-R2，无 files 键）；`moon check
+   --target native` EXIT=0；脚本读回八键全部非空（§1 表右列，8/8）。
+   A-7.2 的 `[LOCAL_DEAD_LINK]` 状态不变（未在注册表发布，见 §3 末段）。
+R2 上限（1 轮；20 分钟）                                                      PASS
+   证据：本轮 4 条命令（grep、check、test、package），1 轮次，用时约 3 分钟。
+R3 日志 docs/superpowers/plans/logs/T-44.log                                     PASS
+   证据：本文件即该路径，随提交入库。
+R4 保真优先（改动须不改变任一 oracle 单元格）                                    NA
+   证据：只改 moon.mod 的发布元数据；`moon test --target native` 179/179 EXIT=0，
+   oracle 单元格 366 个零变化（门禁 cells=366 输出）。
+R5 公式层只吃计数层                                                             NA
+   证据：未改动公式层。
+R6 运行期零 I/O                                                                  NA
+   证据：未增删库内代码；本任务无新增 FFI/文件读取面。
+R7 门禁唯一命令（moon run cmd/gate --target native）                              NA
+   证据：本任务未运行门禁；验收不含门禁退出码。
+R8 字段契约唯一权威（PRD-A 10.3）                                                NA
+   证据：未新增/改动字段表。
+R9 [EXT] 31 个 callable 不实现                                                    NA
+   证据：未涉及 callable 面。
+R10 冻结下限 366 单元格                                                          NA
+   证据：未改动期望值；`moon test` 输出 cells=366 与本任务无关。
+R11 pt 不是验收项                                                               NA
+   证据：未涉及 pt 语种路径。
+R12 失败文本有意增强、不参与对拍                                                  NA
+   证据：未改动失败文本。
+
+Coverage：judged 12 / 12（pass 3 / na 9）。
+
+## 6. 回归修复：`moon fmt --check`（评审发现，本任务引入）
+
+评审指出 `831bd4b` 引入 `moon fmt --check` 回归：全仓唯一的 fmt diff 是
+`lib/moon.mod`。复现并修复如下。
+
+### 6.1 复现（修复前）
+
+```console
+$ cd lib && moon fmt --check
+diff --git "a/...\lib\moon.mod" "b/...\lib\_build\wasm-gc\release\format\moon.mod"
+@@ -19,7 +19,14 @@
+ license = "MIT"
+
+-keywords = [ "readability", "textstat", "flesch", "syllable", "hyphenation", "moonbit" ]
++keywords = [
++  "readability",
++  "textstat",
++  "flesch",
++  "syllable",
++  "hyphenation",
++  "moonbit",
++]
+Error: failed when formatting project
+# EXIT=255
+```
+
+原因：格式化器要求数组**逐项换行**（每项一行 + 尾随逗号 + 收尾 `]` 顶格），
+不接受单行多元素形态。这是我手写的 `keywords` 布局与格式化器不一致所致，
+与 `moon.mod` 的键集合无关。
+
+### 6.2 修复
+
+```console
+$ cd lib && moon fmt
+Finished. moon: ran 89 tasks, now up to date
+# EXIT=0
+```
+
+`moon fmt` 只重排了 `keywords` 的字面布局（`git status` 中唯一变更仍为
+`lib/moon.mod`；其余 88 个任务为 no-op）。`lib/moon.mod` 修复后
+SHA-256：`bcd96ce41d655b51ebfecadfce9e10fe1635cf493b8d6c331617d47af2738369`
+（修复前 `12ebed9b…`，差异仅为空白/换行）。
+
+### 6.3 修复后验证
+
+```console
+$ cd lib && moon fmt --check
+Finished. moon: ran 89 tasks, now up to date
+# EXIT=0
+
+$ cd lib && moon check --target native
+Finished. moon: no work to do
+# EXIT=0
+
+$ cd lib && moon test --target native
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 179, failed: 0.
+# EXIT=0
+
+$ cd lib && grep -c '^files' moon.mod
+0
+```
+
+八项元数据**值**逐项复核（脚本解析后打印，与 §1 表逐字相同）：
+
+```text
+name             = "vicoproplus/moon_textstat"
+version          = "0.1.0"
+readme           = "README.mbt.md"
+repository       = "https://gitcode.com/vicoproplus/moon_textstat"
+license          = "MIT"
+keywords         = 6 项 ["readability","textstat","flesch","syllable","hyphenation","moonbit"]
+description      = "Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O)."
+preferred_target = "native"
+```
+
+**语义零变化**：8 项键值逐字不变，只有 `keywords` 的排版从单行改为多行；
+无键增删、无值改写。`files` 键仍为 0 行（DR-R2 保持）。

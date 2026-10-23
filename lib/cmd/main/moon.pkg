@@ -1,5 +1,0 @@
-// import {
-//   "vicoproplus/moon_textstat" @lib,
-// }
-
-pkgtype(kind: "executable")

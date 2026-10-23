@@ -1,0 +1,32 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/cmd/gate"
+
+import {
+  "vicoproplus/moon_textstat/gate/data",
+}
+
+// Values
+pub fn enforce_field_index() -> Unit
+
+pub fn field_index_evidence(Array[@data.Cell]) -> String
+
+pub fn field_index_problems(Array[@data.Cell]) -> Array[String]
+
+// Errors
+
+// Types and methods
+type Actual
+
+type Failure
+
+type FieldEntry
+
+type FieldKind derive(Eq)
+
+type FieldValue
+
+type GateConfig
+
+// Type aliases
+
+// Traits

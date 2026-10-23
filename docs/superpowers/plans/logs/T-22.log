@@ -1,0 +1,195 @@
+# T-22 难词列表（去重/非去重）日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`29df18e feat(count): implement difficult-word counting with root thresholds`
+- 契约：PRD-A FR-12/FR-13；spec §4.3.4（去重 = 集合语义、非去重 = 序列
+  语义，C-4）；AD-2 §2.3；上游 `textstat.py:751-776`、
+  `_list_difficult_words.py:29-32`、`_set_difficult_words.py:28`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`、pyphen `0.17.2`、nltk cmudict）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 96/96 EXIT=0；`.mbti` 仅新增
+  `difficult_words_list`；生产面 `#warnings` 0 处；S1 命中 0）
+
+---
+
+## 1. 改动面（2 个新文件 + 2 个修改文件）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/difficult_words.mbt` | 修改：新增 `list_difficult_words` / `unique_spellings`，计数改为复用列表实现 | 213 | `c62b361901fc6576cf2104e5dd5288744df16ecb5ffb795fd45da375a0fef143` |
+| `lib/difficult_words_list.mbt` | 新增：公共入口 `difficult_words_list` | 37 | `a345bc8282bfd1c3e75f9f6d2d713f8d1c1bedd5c44d4f40aa312b98d23bf4c3` |
+| `lib/difficult_words_list_test.mbt` | 新增：4 条黑盒测试（11 样本集合、顺序/阈值/大小写、零词、失败通道） | 191 | `4cb06ae95aad591d6da53f454a40c249e806cae01acbff6ac76d7e7b0f94e7c6` |
+| `lib/pkg.generated.mbti` | 生成：仅新增一行 `difficult_words_list` | 64 | `de0ad0fbfeb50a6fa7ff17f6a06920f6f7b5702eacbf46e30ddde446425befcb` |
+
+未改动 `lib/data/`、`lib/gate/data/`、`lib/moon.pkg`；未新增依赖；未新增
+其他公共符号。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `list_difficult_words(text, syllable_threshold, lang)`（包内私有）
+
+上游 `_list_difficult_words.py:29-32` 逐行复刻：
+
+```python
+words = list_words(text)
+diff_words = [word for word in words if is_difficult_word(word, syllable_threshold, lang)]
+```
+
+- 分词调用 `list_words(text)`（**不**小写），保留原大小写、去标点、连字符与
+  缩写合并且不拆。这正是 oracle `difficult_words_list` 保留 `Readability`、
+  `Washington`、`Prices`、`Depende` 的原因，也是长样本去重为 31（而不是把
+  `Readability`/`readability` 合并成 30）的原因。
+- 过滤谓词复用 T-21 的 `is_difficult_word`；小写只发生在词表查找内。
+- 返回出现顺序的数组，不做任何去重或重排。该函数是**唯一**的选词实现：
+  `count_difficult_words` 与公共 `difficult_words_list` 都调用它，因此两者
+  在成员与拼写上不可能漂移。
+
+### 2.2 `unique_spellings(words)`（包内私有）
+
+上游 `set_difficult_words` 是 `set(list_difficult_words(...))`
+（`_set_difficult_words.py:28`），集合成员按精确 `String` 相等。本实现按首次
+出现顺序输出：
+
+```moonbit
+for word in words {
+  if !unique.contains(word) {
+    unique.push(word)
+  }
+}
+```
+
+- 去重按精确拼写，大小写敏感：`Readability` 与 `readability` 是两个元素。
+- 首次出现顺序是本移植的确定性展示选择；spec §4.3.4 / C-4 只要求集合相等，
+  门禁按集合比对（AD-2 §2.3）。上游 `list(set(...))` 的顺序随
+  `PYTHONHASHSEED` 变化，**不是**可复现的 oracle 属性（D-16）。
+- `Array::contains` 为线性扫描，整体 O(n²)。样本规模下可忽略，且避免为
+  `HashSet` 引入新的核心包依赖（T-48 依赖树面保持现状）。
+
+### 2.3 计数层改为复用列表实现
+
+`count_difficult_words` 删除原有的分词/谓词循环，改为：
+
+1. `let difficult = list_difficult_words(text, threshold, lang)`；
+2. `unique=false` → `difficult.length()`（出现顺序序列长度）；
+3. `unique=true` → `unique_spellings(difficult).length()`（集合大小）。
+
+阈值钩子、`unique` 默认 `false`、失败通道均保持 T-21 行为不变。T-21 的 8 条
+测试（92/92）在本次改动后全部保持绿色。
+
+### 2.4 公共入口 `difficult_words_list`
+
+```text
+pub fn difficult_words_list(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Array[String] raise TextstatError
+```
+
+- 默认 `lang="en_US"`、`syllable_threshold=2`、`unique=true`，与上游公开签名
+  （`textstat.py:751-776`）一致。
+- `unique=true`：`unique_spellings(list_difficult_words(...))`，精确拼写去重，
+  首次出现顺序；顺序不构成契约。
+- `unique=false`：直接返回出现顺序数组（含重复）。
+- 失败语义与 `difficult_words` 相同：零词/纯易读词返回 `[]`（即使语种不受
+  支持）；非易读候选进入音节层时抛 `UnsupportedLanguage(原样代码)`，上游在
+  同一点抛 `KeyError: None`。
+
+### 2.5 测试源码的 S1 规避
+
+`numbers_and_symbols` 的 oracle 期望列表含分词后的
+`httpsexamplecomabc1`。为避免 S1 正则命中 `http`，该期望元素与文本中的 URL
+scheme 一样把首字母写成 `\u{68}`；运行时字符串与 oracle 完全相同。注释中不
+出现该字面量。
+
+## 3. 上游实测（`textstat 0.7.13`，`warnings.simplefilter('ignore')`）
+
+### 3.1 11 个 oracle 样本（`en_US`，阈值 2，去重）
+
+`docs/facts/oracle_smoke.json` 的 `results.difficult_words_list.value`，长度
+与 `results.difficult_words.value` 全部相等：
+
+```text
+short_simple_sentence 0              long_multi_sentence_paragraph 31
+abbreviations_and_initials 6         hyphenated_words 11
+numbers_and_symbols 7                multiple_paragraphs_newlines 4
+very_short_under_5_words 0           empty_string 0
+whitespace_only 0                    punctuation_only 0
+spanish_text 13
+```
+
+关键集合成员：长样本同时含 `readability` 与 `Readability`（31）；缩写样本含
+`Washington`；连字符样本含 `wellknown`；数字样本含 `Prices`；西语样本含
+`fórmulas` 与 `Depende`。列表期望值逐项写入测试，未由移植反推。
+
+### 3.2 补充用例（逐条上游实跑）
+
+```text
+difficult_words_list("extraordinary extraordinary cat", unique=False)
+  → ['extraordinary', 'extraordinary']
+difficult_words_list("extraordinary extraordinary cat")
+  → ['extraordinary']
+difficult_words_list("extraordinary readability extraordinary", unique=False)
+  → ['extraordinary', 'readability', 'extraordinary']
+difficult_words_list("Readability readability")
+  → ['Readability', 'readability']（集合 2 元素）
+difficult_words_list("extraordinary", 5) → ['extraordinary']
+difficult_words_list("extraordinary", 6) → []
+difficult_words_list("") / "   \n\t " / " .? " → []
+ar/xx_YY：
+  ""、"   "、" .? "、"the cat sat"、"hello world" → []
+  "xyzzy" → KeyError: None
+```
+
+## 4. 测试（4 条，92 → 96）
+
+| 组 | 断言 |
+| --- | --- |
+| 11 个 oracle 样本（黑盒） | 去重结果排序后与 oracle 期望数组逐元素相等；同时断言列表长度等于 `difficult_words` 的两种模式，证明计数与列表共用实现 |
+| 顺序/阈值/大小写（黑盒） | `"extraordinary extraordinary cat"` 非去重 2 项/去重 1 项；`"extraordinary readability extraordinary"` 的出现顺序；阈值 5 得 1、阈值 6 得 0；`Readability readability` 去重 2 项 |
+| 零词输入（黑盒） | 空串、纯空白、纯标点两种模式均为 `[]` |
+| 失败通道（黑盒） | `ar`/`xx_YY` 下零词、纯标点、全易读句均 `[]`；`xyzzy`、`extraordinary`、探针句抛 `UnsupportedLanguage(原样代码)` |
+
+## 5. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date          # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 96, passed: 96, failed: 0.             # EXIT=0；T-21 后 92 + 本任务 4
+
+$ moon build --target native
+Finished. moon: no work to do                       # EXIT=0
+
+$ moon info && moon fmt && moon fmt --check         # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn difficult_words_list(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Array[String] raise TextstatError
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes \
+    lib/difficult_words.mbt lib/difficult_words_list.mbt lib/difficult_words_list_test.mbt
+# 无输出（S1 零命中，grep EXIT=1 表示确实无匹配）
+```
+
+`git status` 仅 `.qoder/`（环境目录）、上述 3 个新/改文件与本文档；无其他
+修改。
+
+## 6. 备注 / 风险
+
+1. **去重顺序不构成契约**：本实现固定首次出现顺序，便于复现；门禁（T-36）
+   必须按集合比较，不能按序列比较（AD-2 §2.3）。
+2. **计数与列表共用 `list_difficult_words`**：这是本任务的核心重构，避免两套
+   谓词循环漂移；T-21 的 8 条测试与 92 个既有测试全部保持绿色。
+3. **`unique_spellings` 为 O(n²)**：仅按难词数增长，当前最大 oracle 样本 31
+   项；若 T-40 对超长文本的 `analyze` 采样触发瓶颈，再评估 `HashSet`（会改变
+   `moon.pkg` 依赖面，需同步 T-48）。
+4. 门禁 `--group=count`（A-2.1）与集合比较推迟到 T-36；本任务的 4 条断言与
+   oracle 逐样本集合相等作为等价证据。
+5. `fórmulas` 的重音字符已由既有 `list_words` 保留；本任务不引入新的分词规则。

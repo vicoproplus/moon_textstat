@@ -1,0 +1,242 @@
+# T-31 — Coleman-Liau
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`c891a9e feat(formula): implement automated_readability_index with asymmetric denominators`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-21；spec §4.4 表第 6 行、约束 1、§4.3.3；A-5.1；
+上游 `backend/metrics/_coleman_liau_index.py:9-37`、
+`backend/metrics/_letters_per_word.py:9-29`、
+`backend/metrics/_sentences_per_word.py:9-29`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 127/127 EXIT=0（T-30 后 124 + 本任务 3）；`.mbti` 只新增
+> `coleman_liau_index`；S1 零命中；11 个样本值按位相等（`==`，非容差）；
+> `punctuation_only` = 0.0 由 `letters_per_word` 的零分母判别固定；门禁顺延至
+> T-36（不宣称门禁等价）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/averages.mbt` | 改：新增包内 `letters_per_word`、`sentences_per_word`（+54 行） | 153 | `286161928ac14dd54cd05f0dc8e77abfed61336e8314f8d566233a1e77f09f2a` |
+| `lib/coleman_liau_index.mbt` | 新增：公开 `coleman_liau_index` | 52 | `5a07aa016cefb6582b1b23611ce6275e55fbc0c763f4d3e5d362f40172e5d25e` |
+| `lib/coleman_liau_index_test.mbt` | 新增：3 条黑盒测试 | 113 | `47b3409623f42c776577f73f9b6da68ef5b0e85fdfa5a768f934abd9b3528080` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `coleman_liau_index` 一行 | — | — |
+
+`lib/moon.pkg` 未改（本任务不需要新导入）。
+
+### 1.2 `lib/averages.mbt`：两个包内 helper
+
+```moonbit
+fn letters_per_word(text : String) -> Double {
+  let letters = letter_count(text)
+  let words = lexicon_count(text)
+  if words == 0 {
+    0.0
+  } else {
+    letters.to_double() / words.to_double()
+  }
+}
+
+fn sentences_per_word(text : String) -> Double {
+  let sentences = sentence_count(text)
+  let words = lexicon_count(text)
+  if words == 0 {
+    0.0
+  } else {
+    sentences.to_double() / words.to_double()
+  }
+}
+```
+
+- 逐字对应上游 `count_letters(text) / count_words(text)` 与
+  `count_sentences(text) / count_words(text)`：分子分别是 `letter_count`、
+  `sentence_count`，分母都是默认口径的 `lexicon_count(text)`（`removepunct=true`）。
+  两个 helper 都在计数层，公式层不再分词（spec §2.1 约束 2）。
+- 零分母守卫对应上游 `try/except ZeroDivisionError: return 0.0`。分母为 0
+  恰是“没有词”的文本：空串（分子也 0）、纯空白、纯标点；纯标点的句数是 1，
+  若不守卫 `1 / 0` 会得到无穷，故守卫是必需的分支。
+- 两个计数都是 32 位整数（计数层类型），精确可表示；先各自 `.to_double()`
+  再相除，等价于 CPython 的 `int / int` 正确舍入真除法。
+- 纯函数，无 I/O、无异常。
+
+### 1.3 `lib/coleman_liau_index.mbt`
+
+```moonbit
+pub fn coleman_liau_index(text : String) -> Double {
+  let letters = letters_per_word(text) * 100
+  let sentences = sentences_per_word(text) * 100
+  if letters == 0.0 || sentences == 0.0 {
+    return 0.0
+  }
+  0.058 * letters - 0.296 * sentences - 15.8
+}
+```
+
+- 逐字对应上游：
+  `letters = letters_per_word(text) * 100`；
+  `sentences = sentences_per_word(text) * 100`；
+  `if letters == 0 or sentences == 0: return 0.0`；
+  `return (0.058 * letters) - (0.296 * sentences) - 15.8`。
+- **先乘 100 再守卫**：上游把每词平均放大为“每百词”计数后才判零；本实现保持
+  这一顺序（两次 `* 100` 在分支之前，分支测试放大后的局部量）。乘以 100
+  不会把非零平均变成 0.0，故守卫命中的条件与“任一平均为 0”完全一致。
+- **求值顺序（约束 1）**：源码写作 `(0.058 * letters) - (0.296 * sentences) -
+  15.8`，解析树为 `((0.058 * letters) - (0.296 * sentences)) - 15.8`；
+  `moon fmt` 删掉冗余括号但不动树，最终源码为
+  `0.058 * letters - 0.296 * sentences - 15.8`，`*` 优先、`-` 左结合。
+- **无 `lang` 参数**：spec §4.4 第 6 行“语种依赖：无”。本入口不解析常量、易读
+  词表、发音词典或断字字典，故不抛错——返回类型不带 `raise`。
+- **零分支**：空串（两个平均均 0/0）、纯空白（字母 0、词 0、句 1）、纯标点
+  （字母 0、词 0、句 1，`letters_per_word` 零分母 → 0.0，`letters == 0.0`
+  一侧命中）都返回 0.0。三个形状的冻结值都是 0.0。
+- 纯函数，无 I/O。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 11 个样本的计数与值
+
+列：`count_letters` | `count_words`（默认去标点） | `count_sentences` |
+`letters_per_word` | `sentences_per_word` | `letters*100` | `sentences*100` |
+Coleman-Liau | `struct.pack('>d')`。
+
+```console
+id                            let  w  s  lpw                   spw                    letters*100          sentences*100      cli                    bits
+short_simple_sentence         17   6  1  2.8333333333333335    0.16666666666666666    283.33333333333337   16.666666666666664 -4.299999999999997     c011333333333330
+long_multi_sentence_paragraph 497  88 5  5.6477272727272725    0.056818181818181816   564.7727272727273    5.681818181818182  15.275000000000002     402e8cccccccccce
+abbreviations_and_initials    116  31 6  3.7419354838709675    0.1935483870967742     374.19354838709677   19.35483870967742  0.17419354838709644    3fc64bf964bf9640
+hyphenated_words              132  17 2  7.764705882352941     0.11764705882352941    776.4705882352941    11.76470588235294  25.75294117647059      4039c0c0c0c0c0c1
+numbers_and_symbols           128  28 6  4.571428571428571     0.21428571428571427    457.1428571428571    21.428571428571427 4.37142857142857       40117c57c57c57c4
+multiple_paragraphs_newlines  139  27 5  5.148148148148148     0.18518518518518517    514.8148148148148    18.51851851851852  8.577777777777776      402127d27d27d27c
+very_short_under_5_words      7    2  1  3.5                   0.5                    350.0                50.0               -10.299999999999999    c024999999999999
+empty_string                  0    0  0  0.0                   0.0                    0.0                  0.0                0.0                    0000000000000000
+whitespace_only               0    0  1  0.0                   0.0                    0.0                  0.0                0.0                    0000000000000000
+punctuation_only              0    0  1  0.0                   0.0                    0.0                  0.0                0.0                    0000000000000000
+spanish_text                  144  29 3  4.9655172413793105    0.10344827586206896    496.55172413793105   10.344827586206897 9.937931034482759      4023e0387f1e0388
+```
+
+上游返回值与 `oracle_smoke.json` 的
+`samples[].results.coleman_liau_index.value` 逐行 `==`（ALL True）。
+
+### 2.2 零分母判别（`punctuation_only`）
+
+```console
+t                count_letters count_words count_sentences lpw spw cli
+''               0             0           0               0.0 0.0 0.0
+'   \n\t '       0             0           1               0.0 0.0 0.0
+' .? '           0             0           1               0.0 0.0 0.0
+'...'            0             0           1               0.0 0.0 0.0
+'!?!'            0             0           1               0.0 0.0 0.0
+' '              0             0           1               0.0 0.0 0.0
+```
+
+`" .? "` 是计划验收行点名的判别样本：字母 0、词 0、句 1，所以
+`letters_per_word` 是守卫后的 `0 / 0 → 0.0`，`sentences_per_word` 是守卫后的
+`1 / 0 → 0.0`，`letters == 0.0` 一侧先命中，公式返回 0.0。白盒 helper 不可从
+黑盒测试直接调用，测试用公开计数（`letter_count=0`、`lexicon_count=0`、
+`sentence_count=1`）+ 返回值 0.0 固定同一事实。
+
+### 2.3 结合顺序的敏感性
+
+用上游 `letters*100`、`sentences*100` 比较左结合
+`((0.058*l) - (0.296*s)) - 15.8` 与右结合 `0.058*l - (0.296*s + 15.8)`：
+
+```console
+id                            left                  right                 ulp
+long_multi_sentence_paragraph 15.275000000000002    15.274999999999999    2
+abbreviations_and_initials    0.17419354838709644   0.17419354838709467   64
+hyphenated_words              25.75294117647059     25.752941176470593    1
+very_short_under_5_words      -10.299999999999999   -10.3                 1
+```
+
+其余 7 行（含 3 个 0.0 行）两种结合顺序位模式相同。`abbreviations_and_initials`
+的 64 ulp 来自结果在 0.17 附近的抵消；因此左结合形式在样本集内**可观测**，
+实现按上游写 `((0.058*l) - (0.296*s)) - 15.8`，不据“多数行相同”改写。
+
+### 2.4 期望值位模式核对
+
+从 `lib/coleman_liau_index_test.mbt` 的 `samples` 表抽取 11 个数字字面量（先
+剥离字符串字面量，避免把样本文本里的 `3.14` 等当期望值），与
+`oracle_smoke.json` 的 `samples[].results.coleman_liau_index.value` 用
+`struct.pack('>d', …)` 比较：
+
+```console
+short_simple_sentence          -4.299999999999997    c011333333333330  MATCH
+long_multi_sentence_paragraph  15.275000000000002    402e8cccccccccce  MATCH
+abbreviations_and_initials     0.17419354838709644   3fc64bf964bf9640  MATCH
+hyphenated_words               25.75294117647059     4039c0c0c0c0c0c1  MATCH
+numbers_and_symbols            4.37142857142857      40117c57c57c57c4  MATCH
+multiple_paragraphs_newlines   8.577777777777776     402127d27d27d27c  MATCH
+very_short_under_5_words       -10.299999999999999   c024999999999999  MATCH
+empty_string                   0.0                   0000000000000000  MATCH
+whitespace_only                0.0                   0000000000000000  MATCH
+punctuation_only               0.0                   0000000000000000  MATCH
+spanish_text                   9.937931034482759     4023e0387f1e0388  MATCH
+LEN 11 ALL True
+```
+
+字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`。
+
+## 3. 测试（3 条，124 → 127）
+
+| 文件 / 测试 | 断言 |
+| --- | --- |
+| `coleman_liau_index_test.mbt` / `coleman_liau_index matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`-4.299999999999997, 15.275000000000002, 0.17419354838709644, 25.75294117647059, 4.37142857142857, 8.577777777777776, -10.299999999999999, 0.0, 0.0, 0.0, 9.937931034482759` |
+| 同上 / `the long_multi_sentence_paragraph row is the frozen arithmetic` | 公开计数 `letter_count=497`、`lexicon_count=88`、`sentence_count=5`；`letters=564.7727272727273`、`sentences=5.681818181818182`；左结合 `=15.275000000000002` 且等于公开函数返回值；右结合 `=15.274999999999999`（差 2 ulp，固定结合顺序） |
+| 同上 / `punctuation_only has a zero word count, so both averages are 0.0` | `" .? "`：`letter_count=0`、`lexicon_count=0`、`sentence_count=1`、公式 `0.0`；另 `""`、`"   \n\t "`、`" "`、`"\n"`、`"..."`、`"!?!"` 全部 `== 0.0`（A-5.1） |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 127, passed: 127, failed: 0.          # EXIT=0；T-30 base 124 + 3
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn coleman_liau_index(String) -> Double
+# .mbti 仅此一行（含空行），无其他符号变化；lib/moon.pkg 未改
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/averages.mbt lib/coleman_liau_index.mbt \
+    lib/coleman_liau_index_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ awk '{ if (length($0) > m) m = length($0) } END { print m }' \
+    lib/averages.mbt lib/coleman_liau_index.mbt lib/coleman_liau_index_test.mbt
+609                                                # < 65,535（S1 第 2 式）
+
+$ git status --porcelain
+ M lib/averages.mbt
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/coleman_liau_index.mbt
+?? lib/coleman_liau_index_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 与 A-5.1 的
+`--group=degenerate` 由 T-36/T-52 复验。本任务不宣称门禁等价，只把 11 个
+oracle 值、`punctuation_only` 的 0.0（零分母判别）与左结合减法固定在包测试里。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. 括号被 `moon fmt` 去掉（`(0.058 * letters) - (0.296 * sentences) - 15.8`
+   → `0.058 * letters - 0.296 * sentences - 15.8`），解析树不变；文档注释里
+   保留原式与右结合的 ulp 证据。
+3. 未新增 `_wbtest.mbt`：任务提交面只列
+   `averages.mbt`/`coleman_liau_index.mbt`/`coleman_liau_index_test.mbt`，两个
+   helper 的零分母事实改用公开计数在 `_test.mbt` 中固定（见 §2.2）。
+4. 未新增 `pl_PL`/`hu_HU`/`pt` 断言：Coleman-Liau 无语种参数，oracle 的
+   `lang_probes` 也不含该字段（`pt` 非验收，R-33 裁决 b）。
+5. `lib/moon.pkg` 未改；本任务只动 `averages.mbt` 与两个新文件，外加
+   `moon info` 生成的 `.mbti`。

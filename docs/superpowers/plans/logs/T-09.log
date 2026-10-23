@@ -1,0 +1,258 @@
+# T-09 值对象与字段集合 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`
+- 起始提交：`c2e13fb docs(plans): record B0 batch review and gates`
+- 契约：spec §4.2（19 行 schema + schema 级约束 1-4）、AD-4（字段契约唯一权威 = PRD-A 10.3）、
+  design D-5/D-13、T-09 brief
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`
+- **结论：PASS**（19/19 字段逐行一致；check/build/test 全 EXIT=0；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/types.mbt` | 新增：`TextStats` 19 字段 + `AnalyzeOptions` 7 字段 + `default()` | 67 | `d28d7768a80bff176f9d2859419c31275bbf18846e5e09617c3a5eca40bab705` |
+| `lib/types_test.mbt` | 新增：3 条黑盒测试（字段往返 / 默认值 / 非默认构造） | 113 | `cdb9a17410912df00a99524848b15ed004de611bb8abc82fa627d5ad1dc26aa9` |
+| `lib/pkg.generated.mbti` | 工具链产物：新增两个公开结构体与 `default()` | — | `4f82f065301e683d9c3cdc7161854e9c1b9da13272b6b45ae961685ac500b326` |
+
+`lib/moon_textstat.mbt`（包根脚手架）与其余既有包均**零改动**；未新增 `lib/formula/` 等目录；
+未实现 `analyze`、任何计数或任何公式（T-10..T-34 的范围）。
+
+---
+
+## 2. 验收命令与原始输出
+
+### 2.1 `moon check --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: no work to do
+EXIT=0
+```
+
+首次编译（文件写入后、格式化前）的原始输出证明类型面真的被编译过：
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Warning: [0025]
+   ╭─[ F:\moonbit比赛\moon_textstat\lib\types_test.mbt:8:15 ]
+   │
+ 8 │   let stats : TextStats = {
+   │               ────┬────
+   │                   ╰────── Warning (test_unqualified_package): `TextStats` is implicitly imported in test. Use `@moon_textstat.TextStats` instead.
+───╯
+Warning: [0025]
+    ╭─[ F:\moonbit比赛\moon_textstat\lib\types_test.mbt:79:17 ]
+    │
+ 79 │   let options = AnalyzeOptions::default()
+    │                 ───────┬──────
+    │                        ╰──────── Warning (test_unqualified_package): `AnalyzeOptions` is implicitly imported in test. Use `@moon_textstat.AnalyzeOptions` instead.
+────╯
+Warning: [0025]
+    ╭─[ F:\moonbit比赛\moon_textstat\lib\types_test.mbt:94:17 ]
+    │
+ 94 │   let options : AnalyzeOptions = {
+    │                 ───────┬──────
+    │                        ╰──────── Warning (test_unqualified_package): `AnalyzeOptions` is implicitly imported in test. Use `@moon_textstat.AnalyzeOptions` instead.
+────╯
+Finished. moon: ran 3 tasks, now up to date (3 warnings, 0 errors)
+EXIT=0
+```
+
+三条 `test_unqualified_package` 警告按仓库既有惯例（`lib/data/data_test.mbt` 使用 `@data.` 限定）
+改为 `@moon_textstat.TextStats` / `@moon_textstat.AnalyzeOptions` 后清零；复跑为 `0 warnings`。
+
+### 2.2 `moon build --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon build --target native
+Finished. moon: no work to do
+EXIT=0
+```
+
+### 2.3 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+  正在创建库 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\test\moon_textstat.blackbox_test.lib 和对象 F:\moonbit比赛\moon_textstat\lib\_build\native\debug\test\moon_textstat.blackbox_test.exp
+Total tests: 26, passed: 26, failed: 0.
+EXIT=0
+```
+
+基线（改动前）：`Total tests: 23, passed: 23, failed: 0.`；本次新增 3 条 → 26/26，
+T-06/T-07/T-08 的全部既有测试仍通过。
+
+### 2.4 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: no work to do
+Finished. moon: ran 1 task, now up to date
+EXIT=0
+```
+
+`moon fmt` 把源码里的 `Int` 渲染为 `Int32`（同一类型：本工具链 `Int` 即 32 位整数，
+与 `lib/data/data.mbt` 的既有写法一致；`.mbti` 统一显示 `Int`）。格式化幂等：
+复跑 `moon info && moon fmt` 后 `git status --porcelain` 只有下列 3 个文件。
+
+---
+
+## 3. 字段集合逐行比对（19/19）
+
+比对脚本从 spec §4.2 schema 表（表头到「schema 级约束」之前）抽取字段名与类型，
+从 `lib/types.mbt` 的 `pub(all) struct TextStats` 体抽取实现行，逐行按「名 + 序 + 类型」比对；
+类型归一化：源码 `Int32` ≡ spec `Int`。
+
+```console
+$ python <比对脚本>
+spec_fields=19 impl_fields=19 MATCH=19/19 ORDER_OK=True
+ 1 char_count                     Int           | char_count                     Int           | OK
+ 2 letter_count                   Int           | letter_count                   Int           | OK
+ 3 lexicon_count                  Int           | lexicon_count                  Int           | OK
+ 4 sentence_count                 Int           | sentence_count                 Int           | OK
+ 5 syllable_count                 Int           | syllable_count                 Int           | OK
+ 6 polysyllabcount                Int           | polysyllabcount                Int           | OK
+ 7 monosyllabcount                Int           | monosyllabcount                Int           | OK
+ 8 difficult_words                Int           | difficult_words                Int           | OK
+ 9 difficult_words_list           Array[String] | difficult_words_list           Array[String] | OK
+10 long_word_count                Int           | long_word_count                Int           | OK
+11 reading_time                   Double        | reading_time                   Double        | OK
+12 flesch_reading_ease            Double        | flesch_reading_ease            Double        | OK
+13 flesch_kincaid_grade           Double        | flesch_kincaid_grade           Double        | OK
+14 gunning_fog                    Double        | gunning_fog                    Double        | OK
+15 smog_index                     Double        | smog_index                     Double        | OK
+16 automated_readability_index    Double        | automated_readability_index    Double        | OK
+17 coleman_liau_index             Double        | coleman_liau_index             Double        | OK
+18 linsear_write_formula          Double        | linsear_write_formula          Double        | OK
+19 dale_chall_readability_score   Double        | dale_chall_readability_score   Double        | OK
+```
+
+schema 约束复核：
+
+1. **字段集合稳定**：19 个，不增不减；`grep -c 'zh_' lib/types.mbt lib/types_test.mbt` → `0` / `0`
+   （任何中文扩展字段都不存在；测试里的 `TextStats` 结构体字面量必须列全 19 个字段才能编译，
+   这就是字段集合与「无 `zh_` 字段」的结构性断言）。
+2. **字段语义互不重叠**：19 个名字互不相同（上表逐一不同）。
+3. **默认参数**：见下节。
+4. **类型区分**：9 个整数计数字段用 `Int32`（≡`Int`），10 个公式/阅读时长字段用 `Double`。
+
+---
+
+## 4. `AnalyzeOptions` 默认值与 spec §4.2 约束 3 比对
+
+| 字段 | spec 约束 3 | `AnalyzeOptions::default()` | 测试断言 |
+| --- | --- | --- | --- |
+| `lang` | `en_US` | `"en_US"` | `assert_eq("en_US", options.lang)` |
+| `difficult_syllable_threshold` | 2 | `2` | `assert_eq(2, ...)` |
+| `difficult_unique` | `true` | `true` | `assert_true(...)` |
+| `long_word_threshold` | 6 | `6` | `assert_eq(6, ...)` |
+| `ms_per_char` | 14.69 | `14.69` | `assert_eq(14.69, ...)` |
+| `linsear_strict_upper` | `true` | `true` | `assert_true(...)` |
+| `linsear_strict_lower` | `false` | `false` | `assert_false(...)` |
+
+7/7 一致。
+
+---
+
+## 5. 测试内容（3 条，均为真实断言）
+
+| 测试 | 断言内容 |
+| --- | --- |
+| `TextStats exposes the 19 schema fields` | 19 个字段全部赋互异哨兵值（101..108、`["alpha","bravo","charlie"]`、110、111.125..119.25），逐字段读回并 `assert_eq`；同时以类型标注 `Int32`/`Array[String]`/`Double` 钉住声明类型 |
+| `AnalyzeOptions defaults match spec 4.2 constraint 3` | 7 个默认值逐项断言（含 `14.69` 精确相等） |
+| `AnalyzeOptions accepts non-default values with declared types` | 用非默认值构造，读回 5 个字段并断言类型标注；其余 2 个布尔开关断言 |
+
+无空测试、无占位测试；未引入快照测试（值稳定，按 AGENTS.md 用 `assert_eq`）。
+
+---
+
+## 6. 静态门（S1 检索式 1，改动范围）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' types.mbt types_test.mbt pkg.generated.mbti | wc -l
+0
+$ grep -c 'zh_' types.mbt types_test.mbt
+types.mbt:0
+types_test.mbt:0
+```
+
+改动面零外部依赖面：`lib/moon.pkg` 仍为空（无 import），无 `extern`、无文件/网络/环境读取。
+
+---
+
+## 7. `.mbti` diff（唯一公开面变化）
+
+```diff
+$ git diff -- lib/pkg.generated.mbti
+@@ -6,6 +6,38 @@ package "vicoproplus/moon_textstat"
+ // Errors
+ 
+ // Types and methods
++pub(all) struct AnalyzeOptions {
++  lang : String
++  difficult_syllable_threshold : Int
++  difficult_unique : Bool
++  long_word_threshold : Int
++  ms_per_char : Double
++  linsear_strict_upper : Bool
++  linsear_strict_lower : Bool
++}
++pub fn AnalyzeOptions::default() -> Self
++
++pub(all) struct TextStats {
++  char_count : Int
++  letter_count : Int
++  lexicon_count : Int
++  sentence_count : Int
++  syllable_count : Int
++  polysyllabcount : Int
++  monosyllabcount : Int
++  difficult_words : Int
++  difficult_words_list : Array[String]
++  long_word_count : Int
++  reading_time : Double
++  flesch_reading_ease : Double
++  flesch_kincaid_grade : Double
++  gunning_fog : Double
++  smog_index : Double
++  automated_readability_index : Double
++  coleman_liau_index : Double
++  linsear_write_formula : Double
++  dale_chall_readability_score : Double
++}
+ 
+ // Type aliases
+```
+
+只有新增，无删除、无改名；其余包（`data/`、`gate/data/`、`cmd/main/`）的 `.mbti` 零变化。
+
+---
+
+## 8. 工作树与提交
+
+```console
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/types.mbt
+?? lib/types_test.mbt
+```
+
+`.qoder/` 为本地 IDE 配置，未加入索引；`lib/_build/` 被 `lib/.gitignore` 忽略，未加入索引。
+
+提交（显式路径）：
+
+```console
+$ git add lib/types.mbt lib/types_test.mbt lib/moon_textstat.mbt lib/pkg.generated.mbti docs/superpowers/plans/logs/T-09.log
+$ git commit -m "feat(types): add the 19-field TextStats value object and analyze defaults"
+```
+
+`lib/moon_textstat.mbt` 为包根脚手架，保持原样、未删除（`git add` 对未改动文件为 no-op）。
+提交后 `git status --porcelain` 仅剩 `?? .qoder/`。

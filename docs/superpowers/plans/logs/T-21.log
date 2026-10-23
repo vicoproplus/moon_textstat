@@ -1,0 +1,241 @@
+# T-21 难词判定与 `difficult_words` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`1f39017 refactor(count): drop the test-only easy-word count helper`
+- 契约：PRD-A FR-10/FR-11；spec §4.3.4（含 R-09/R-32/R-43 去重口径）；
+  上游 `_is_difficult_word.py:35-51`、`_count_difficult_words.py:10-36`、
+  `_list_difficult_words.py:29-32`、`_gunning_fog.py:28`、`constants.py:15-65`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`、pyphen `0.17.2`、nltk cmudict）
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 92/92 EXIT=0；`.mbti` 仅新增
+  `difficult_words`；生产面 `#warnings` 0 处；S1 命中 0）
+
+---
+
+## 1. 改动面（3 个新文件 + 2 个修改文件）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/difficult_words.mbt` | 新增：谓词、后端计数、按根阈值、公共入口 | 176 | `a414638249c5026a18771db6c0b9b93442f6eaa0970a3fe0a3426877e4d65df5` |
+| `lib/difficult_words_test.mbt` | 新增：4 条黑盒测试（11 样本、13 语种探针、阈值/去重/大小写、失败通道） | 162 | `a0eaabb1e85b0b85e2e9a51137062b92ceef019db6692fcd325724b37193cef3` |
+| `lib/difficult_words_wbtest.mbt` | 新增：4 条白盒测试（判定顺序、Fog/公开两种口径、根阈值、失败通道） | 130 | `3d4707a97fc9616b97b461ab9bc8105d23223c5be74ba07968c3c2b6baee6053` |
+| `lib/easy_words.mbt` | 修改：删除 T-20 的 `#warnings` 与 TEMP 注释，更新调用方说明 | 82 | `efdc41a3bb94294f3ffd1c77fa0ea163eb6ed0542c8e7704ea49aaa034a4c902` |
+| `lib/pkg.generated.mbti` | 生成：仅新增一行 `difficult_words` | 62 | `3d7a292393f5f7ea6f42f28739a67fe9129db1cfa9c5ae42ce4472817319e818` |
+
+未改动 `lib/data/`、`lib/gate/data/`、`lib/moon.pkg`；未新增依赖；未新增
+公共 helper。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `is_difficult_word(word, syllable_threshold, lang)`（包内私有）
+
+上游判定顺序逐条复刻，短路顺序一致：
+
+1. `len(word.split()) != 1` → false。`split_on_python_space` 与 Python
+   `str.split()` 同义，空串、纯空白、含空白的多词串都在此返回 false；该检查在
+   阈值与语种解析之前，所以 `"extra ordinary"` 在 `ar` 下也是 false 而不抛。
+2. `word.to_lower()` 后查 `is_easy_word(lang, ...)`（T-20）→ false。小写化在此
+   完成，词表只含小写条目（T-20 已固定前置条件）。
+3. `syllables_for_word(word, lang) < syllable_threshold` → false。
+4. 否则 true。
+
+`syllables_for_word` 直接接收已小写词；它内部与上游 `count_syllables` 一样按
+小写做发音表/断字查找，所以不再重复大小写处理。`"Extraordinary"` 走到音节层
+时已是 `"extraordinary"`。
+
+### 2.2 `count_difficult_words(text, lang, syllable_threshold?, unique=false)`（包内私有）
+
+上游整体为：
+
+```python
+if unique:
+    return len(set_difficult_words(text, syllable_threshold, lang))
+return len(list_difficult_words(text, syllable_threshold, lang))
+```
+
+1. **分词调用按上游实际源码修正 brief 的括号说法**。T-21 brief 写
+   `list_words(text, lowercase=True)`，但本地冻结上游
+   `_list_difficult_words.py:29` 是 `words = list_words(text)`（**不**小写）。
+   两处证据表明必须保留原大小写：
+   - 冻结 oracle `long_multi_sentence_paragraph` = **31**。该样本 33 个难词
+     出现、按精确拼写去重为 31；若先把词流小写，`Readability` 与
+     `readability` 合并，去重值变成 **30**（本地上游实测）。
+   - oracle `difficult_words_list` 保留 `Readability`、`Washington`、`Prices`、
+     `Depende` 等原拼写，T-22 的列表语义同样依赖这一点。
+   因此实现调用 `list_words(text)`（大写保留、去标点、连字符与缩写合并且不拆）。
+   小写只发生在 `is_difficult_word` 的词表查找内，故**出现次数**与大小写无关，
+   而**去重集合**按精确拼写区分。该结论已写入源码注释与测试注释。
+2. `unique=false` 返回出现次数（按词序收集后取长度）。
+3. `unique=true` 返回精确拼写的去重个数。实现先 `sort()` 再数相邻不等项；
+   排序只为把相等拼写聚在一起，任何与相等一致的全序都可，顺序在本入口不可观测
+   （spec §4.3.4 C-4 的集合语义）。`String` 的 `Compare` 是 shortlex，与精确相等
+   一致，足够。
+4. **阈值参数可选，专为 T-28 钩子**：省略时取
+   `difficult_threshold_for_root(lang_root(lang))`，即上游 Gunning Fog 在调用
+   本函数前从 `LANG_CONFIGS` 读到的语种根阈值。公共入口始终显式传 2，所以该
+   默认值不会进入公开字段；`unique` 默认 false，与上游后端
+   `count_difficult_words(..., unique=False)` 及 Fog 的位置参数调用一致。
+   之所以用可选参数而不是"暂未被调用"的独立包装函数：T-20 已实测
+   `moon check` 不编译测试文件，纯供 T-28/白盒使用的私有函数会报
+   `unused_value`；本设计让 root helper 在公共入口可达的调用链中被引用，
+   无需 `#warnings`。
+
+### 2.3 `difficult_threshold_for_root(root)`（包内私有）
+
+`pl → 4`、`hu → 5`，其余根（en/es/de/fr/it/nl/ru/未知）继承英语 `3`。参数是
+**根**而非完整代码；T-28 调用 `difficult_threshold_for_root(lang_root(lang))`。
+注释标明这是 T-28 钩子，T-25 建完整 `LANG_CONFIGS` 表时可迁移，值与原样输入
+是契约。该函数被 2.2 的省略阈值分支引用，因此无未使用告警。
+
+### 2.4 公共入口 `difficult_words`
+
+签名（`.mbti`）：
+
+```text
+pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
+```
+
+默认 `lang="en_US"`、`syllable_threshold=2`、`unique=true`（spec §4.2 约束 3；
+上游 `textstat.py:723-749` 的公开默认）。实现直接转发到
+`count_difficult_words(text, lang, syllable_threshold=..., unique=...)`，不另建
+逻辑。返回 `Int32`（`TextStats.difficult_words` 的计数类型，PRD-A 10.3）。
+
+**失败语义按词判定，不是入口预解析**：空串/纯空白/纯标点无词可判 → 0；
+易读词在音节层之前返回 false → 0；只有非易读候选进入
+`syllables_for_word` 时才抛 `UnsupportedLanguage(原样代码)`。这一条与
+`syllable_count` 的入口预解析不同，但与上游列表推导逐词调用
+`count_syllables` 的位置一致。
+
+### 2.5 删除 T-20 临时抑制
+
+`is_easy_word` 现被 `is_difficult_word` 生产调用，按 T-20 复审约定删除
+`lib/easy_words.mbt` 中的：
+
+```moonbit
+// TEMP(T-20): remove this suppression in T-21, when `difficult_words` calls `is_easy_word`.
+#warnings("-unused_value")
+```
+
+并把"仅白盒调用"的说明改为"由 `is_difficult_word` 在单词小写后调用，另供
+白盒测试"。生产面 `#warnings` 归零。
+
+## 3. 上游实测（`textstat 0.7.13`，`warnings.simplefilter('ignore')`）
+
+### 3.1 11 个 oracle 样本（`en_US`，阈值 2，去重）
+
+```text
+short_simple_sentence 0        long_multi_sentence_paragraph 31
+abbreviations_and_initials 6   hyphenated_words 11
+numbers_and_symbols 7          multiple_paragraphs_newlines 4
+very_short_under_5_words 0     empty_string 0
+whitespace_only 0              punctuation_only 0
+spanish_text 13
+```
+
+`spanish_text` 的样本级 `lang` 字段是 `es_ES`，但 oracle 的 `results` 是生成器在
+`set_lang("en_US")` 后计算的（`results_es` 才是 `es_ES`）；冻结表与 brief 均取
+`results`，故为 13。
+
+### 3.2 13 个语种探针（`"The extraordinary readability of international documentation."`）
+
+```text
+en 4  en_US 4  en_GB 4  de_DE 4  fr_FR 4  it_IT 4  nl_NL 4
+pl_PL 4  hu_HU 4  es_ES 3  ru_RU 0  ar KeyError  xx_YY KeyError
+```
+
+`es_ES` 少一个是因为西语易读表含 `international`；`ru_RU` 为 0 是因为俄语断字
+字典给每个词 1 音节，低于公开阈值 2。
+
+### 3.3 补充用例（逐条上游实跑）
+
+```text
+difficult_words("cat") = 0                       （easy）
+difficult_words("extraordinary") = 1
+"extraordinary extraordinary" unique=true → 1，unique=false → 2
+"the"   阈值 0 → 0（easy 先于阈值）
+"xyzzy" 阈值 0 → 1
+"extraordinary" 阈值 5 → 1，阈值 6 → 0（en_US 五音节）
+"Readability readability" → 2（精确拼写去重）
+"Extraordinary extraordinary" → 2
+ar: ""/"   "/" .? "/"the cat sat"/"hello world" → 0（无词或全易读，不抛）
+ar/xx_YY: "xyzzy"、探针句 → KeyError: None
+```
+
+E-28/A-3.3 文本
+`readability syntax remarkable remarkable remarkable comprehension vocabulary comprehension vocabulary remarkable`：
+
+```text
+阈值 2：非去重 10，去重 5
+阈值 3：非去重 9，去重 4     ← Fog 输入口径
+阈值 5：非去重 3，去重 2（en/pl 根到不了 5；hu 根为 5 时实测 2/1）
+```
+
+按根阈值省略调用：`en_US`/`pl_PL` → 9，`hu_HU` → 2（去重 1）。白盒测试已固定。
+
+## 4. 测试（8 条，84 → 92）
+
+| 组 | 断言 |
+| --- | --- |
+| 11 个 oracle 样本（黑盒） | 上表 11 个值，全部 `en_US`、默认阈值 2、默认去重；另断言省略全部可选参数得 0 |
+| 13 个语种探针（黑盒） | 11 个数值行 + `ar`/`xx_YY` 抛 `UnsupportedLanguage(原样代码)` |
+| 阈值/去重/大小写（黑盒） | `cat` 0、`extraordinary` 1、重复 1/2、`Readability readability` 2、阈值 0 的 `the` 0 与 `xyzzy` 1、阈值 5/6 的 1/0 |
+| 失败通道（黑盒） | 两种不支持语种下空/空白/标点/全易读句均为 0；`xyzzy`、`extraordinary`、探针句抛 |
+| 判定顺序（白盒） | 非单词（空、空白、多词）在阈值 0 与 `ar` 下均为 false；易读词在阈值 0 下 false；五音节词阈值 5 true / 6 false |
+| Fog 与公开两种口径（白盒） | 阈值 2 的 10/5、阈值 3 的 9/4、阈值 5 的 3/2；省略阈值的 en/pl/hu 根结果；`unique` 省略为 false；大小写精确去重；零词 0 |
+| 根阈值（白盒） | en 3、pl 4、hu 5、es 3、de 3、未知 3；`lang_root("pl_PL")`/`("hu_HU")` 接入后 4/5 |
+| 失败通道（白盒） | 零词/易读词在 `ar` 下 0；`xyzzy` 在 `ar`/`xx_YY` 下抛 |
+
+11 个样本文本与 `docs/facts/oracle_smoke.json` 逐字节一致（`numbers_and_symbols`
+的 `\u{68}` 只是源码级转义）；期望值全部来自 oracle 与本地上游实跑，不由移植
+反推。
+
+## 5. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date         # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 92, passed: 92, failed: 0.             # EXIT=0；T-20 后 84 + 本任务 8
+
+$ moon info && moon fmt                             # EXIT=0
+$ moon fmt --check                                  # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+0                                                   # T-20 遗留抑制已删除
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lib/difficult_words.mbt lib/difficult_words_test.mbt lib/difficult_words_wbtest.mbt lib/pkg.generated.mbti
+# 无输出（S1 零命中）
+```
+
+`git status` 仅 `.qoder/`（环境目录）、3 个新文件、2 个修改文件与本文档；
+无其他修改。
+
+## 6. 备注 / 风险
+
+1. **brief 的 `lowercase=true` 是笔误，已按上游源码与 oracle 纠正**：31 与 T-22
+   的列表拼写都要求 `list_words(text)` 保留原大小写；若未来有人"照 brief 修正"
+   会把 `long_multi_sentence_paragraph` 变成 30，白盒/黑盒与门禁都会立即失败。
+2. **内部阈值默认值是根阈值而非 2**：这是 T-28 钩子的有意设计，公共入口显式传 2。
+   T-28 可调用 `count_difficult_words(text, lang)` 直接得到"根阈值 + 非去重"，
+   也可显式 `syllable_threshold=...`。T-25 若迁移 `difficult_threshold_for_root`，
+   需保留该调用形态。
+3. **失败是条件性的**：空输入/纯标点/全易读文本在不受支持语种下返回 0（上游
+   逐词推导的真实行为）；含非易读词时抛 `UnsupportedLanguage`。T-35 的语种矩阵
+   应按此语义断言，不能改成"任何输入都抛"。
+4. **唯一去重按精确拼写**：`unique=true` 的元素集合按 `String` 相等，不做小写
+   归一；顺序经排序后不可观测，不构成契约（C-4）。
+5. 门禁（`--group=count` A-2.1、`--group=variant` A-2.2）按计划推迟到 T-36；
+   本任务的 8 条断言作为等价证据。
+6. 词流对每个词做一次 `split_on_python_space`（等价于上游 `word.split()`），
+   与 `list_words` 的既有分配同量级；T-40 采样时再评估。

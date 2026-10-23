@@ -1,0 +1,338 @@
+# T-15 断字引擎（Liang + 短名回退）日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`（**子目录**）
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`4f208a8 feat(count): implement sentence_count with the upstream word-boundary rule`
+- 契约：PRD-A FR-07/FR-24/FR-27；spec §4.5.1、§4.9；design D-2/D-15/FE1；上游
+  `pyphen/__init__.py:21-26,47-61,105-155,157-202,205-234`；T-15 brief
+- 期望值来源环境：`pyphen 0.17.2`（`D:/Programs/Python/Python312/Lib/site-packages/pyphen`），
+  CPython `3.12.10`
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`
+  （`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 60/60 EXIT=0；71,840 格与 pyphen 0.17.2
+  全等；S1 命中 0；`.mbti` 只新增公共错误类型）
+
+---
+
+## 1. 改动面（4 个文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/hyphenation.mbt` | 新增：错误类型 + 10 本字典解析 + `positions` + 短名回退 + `hyphenate_positions` | 455 | `222a97980ccf91fed98a5f83d38ad6c64d36b40e405d7a733d3dae1bb19a646c` |
+| `lib/hyphenation_wbtest.mbt` | 新增：13 条白盒测试（10 个字典 + 大小写/空词 + 解析 + 失败通道） | 125 | `e782b85d152a932f59f8231609a74848f2e6da181cf04397f293e39fd6fdfefc` |
+| `lib/pkg.generated.mbti` | 工具链产物：Errors 段新增 `pub suberror TextstatError` | — | `5130a092fe0e2fc74c3b25059edefc612a55b348b46ac93724417dd8d9f41602` |
+| `lib/moon.pkg` | 新增根包 → `data` 包的 import（消费 L2 模式表所必需；见 §7-1） | — | `40ccdd4e78df3f0bd720e19dbe541727c05005713a1abd4522803745cf417b44` |
+
+其余文件零改动。未新增依赖（模块外无依赖）、未新增目录、未实现音节计数或发音层、
+未新增任何公共函数。
+
+公开面（`.mbti` diff 唯一变化，且只增不改）：
+
+```diff
++pub suberror TextstatError {
++  UnsupportedLanguage(String)
++}
+```
+
+`hyphenation_positions`、`resolve_dict`、`hyphenate_positions`、字典结构与全部
+辅助函数均为包内私有，不出现在 `.mbti`。
+
+---
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 模式解析（`HyphDict.__init__`，`pyphen/__init__.py:105-155`）
+
+| 上游成分 | 本移植 |
+| --- | --- |
+| `pattern.strip()` | `line.trim()`；数据生成时已做 `str.strip()`，这里只复检，ASCII 空白（`\t\n\r `）口径，见 §7-3 |
+| `not pattern or pattern.startswith(ignored)` | `is_ignored_pattern_line`：六个前缀 `%` `#` `LEFTHYPHENMIN` `RIGHTHYPHENMIN` `COMPOUNDLEFTHYPHENMIN` `COMPOUNDRIGHTHYPHENMIN` |
+| `re.sub(r'\^{2}([0-9a-f]{2})', chr(int(hh,16)), pattern)` | `expand_hex_escapes`：两个小写十六进制位，`i+3 < n` 边界，`unsafe_to_char`（码点 ≤ 0xFF） |
+| `if '/' in pattern and '=' in pattern: pattern.split('/', 1)[0]` | 先做十六进制展开、再判 `/` 与 `=`、再取第一个 `/` 左侧；右侧 alternative 只影响上游 `DataInt.data`，不影响位置 |
+| `re.findall(r'(\d?)(\D?)')` | `tokenize_pattern` 的逐码点扫描（见 2.2） |
+| `if max(values) == 0: continue` | `has_nonzero` 为假即丢弃 |
+| 首尾 0 裁剪 + `start` | 两个 while 循环裁剪，`start` 记录前导零个数 |
+| `patterns[''.join(tags)] = start, values[start:end]` | `Map[String, (Int32, Array[Int32])]` 赋值；后行覆盖前行 |
+| `maxlen = max(len(key) ...)` | 插入时维护 `key.char_length()` 最大值（码点） |
+
+### 2.2 分词器的两处关键细节（保真核心）
+
+1. `findall` 在末尾总有一个空匹配，因此每个模式在最后一个字符后再补一个 0；
+   与前导/尾部 0 裁剪配合后等价。
+2. **连续数字产生空 tag**：`aktionärs11ausschüsse` 这类行（`de_DE` 有 9 行、
+   `hu_HU` 有 11 行；按 pyphen 的 ignored 前缀过滤后统计）在 `re.findall` 下得到
+   `tags = [... 's', '', 'a' ...]`、`values` 多一个槽；空 tag 不增加 key 字符但占
+   一个 value 槽，因此 **裁剪前的 value 列表比 key 长**；裁剪后切片可能更短
+   （如 `aktionärs11ausschüsse` 只保留 `[1, 1]`，`start = 9`），位移由 `start`
+   承载。本实现显式保留该行为（不做「数字覆盖当前 gap」的简化），并在
+   71,840 格对拍中覆盖。
+
+### 2.3 位置计算（`HyphDict.positions` + `Pyphen.positions`）
+
+- `word.to_lower()` → `.` + word + `.`；`references` 长 `len(pointed)+1`；
+- `for i in range(len(pointed)-1)`，`j` 到 `min(i+maxlen, len(pointed))`（含）；
+- 命中 `(start, values)` 时对 `references[i+start ..]` 逐槽取 max；
+  `values` 长于 key 的尾部越界写入落在 padding 之后，最终被 `left/right` 过滤，
+  本实现用 `index < references.length()` 丢弃（与 Python 切片赋值在该尾部的可观察
+  结果等价，见源码注释）；
+- 奇数槽 → 位置 `k-1`；`left=2`、`right=len(word)-2` 过滤后升序返回。
+
+### 2.4 语言解析与短名回退
+
+`resolve_dict`：`-`→`_`、`to_lower`、按 `_` 分段并从右向左逐段截短查找。别名表
+= 10 个规范码的小写 + 上游按文件名排序的短名赢家：
+
+| 输入 | 结果 | 依据 |
+| --- | --- | --- |
+| `en` | `en_GB` | `hyph_en_GB.dic` 排序先于 `hyph_en_US.dic`（D-15） |
+| `en_US` / `EN-us` / `en-US` | `en_US` | 规范码大小写不敏感 |
+| `es_ES` / `fr_FR` | `es` / `fr` | 截短回退 |
+| `it` `nl` `pl` `ru` `hu` | 对应 `it_IT` `nl_NL` `pl_PL` `ru_RU` `hu_HU` | 排序赢家 |
+| `de` / `pt` | **raise `UnsupportedLanguage`** | 上游赢家 `de_AT` / `pt_BR` 未入包；不借用 `de_DE` |
+| `ar` / `xx_YY` | **raise `UnsupportedLanguage`** | 无匹配 |
+
+错误载荷是调用方原始拼写（未归一化），供 T-17/T-35 组装产品失败文本。
+
+---
+
+## 3. 验收命令与原始输出
+
+### 3.1 `moon check --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon check --target native
+Finished. moon: ran 9 tasks, now up to date
+EXIT=0
+```
+
+零警告（`moon check` 输出中没有 `Warning:` 行）。
+
+### 3.2 `moon test --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon test --target native
+Total tests: 60, passed: 60, failed: 0.
+EXIT=0
+```
+
+基线（T-14）47/47；本次新增 13 条 → 60/60。根包 38 条（原 25 + 新 13），
+`data/` 14 条与 `gate/data/` 8 条全部仍通过。
+
+冷构建后首次 `moon test` 墙钟 5.80 s（含 data/门禁测试库重链）；缓存命中后
+1.05 s（其中含一次字典构建，见 §5）。
+
+13 条新测试（`--outline` 编号 26-38）：
+
+| # | 测试 |
+| --- | --- |
+| 0 | en_US positions match pyphen |
+| 1 | en_GB positions match pyphen |
+| 2 | de_DE positions match pyphen |
+| 3 | es positions match pyphen |
+| 4 | fr positions match pyphen |
+| 5 | it_IT positions match pyphen |
+| 6 | nl_NL positions match pyphen |
+| 7 | pl_PL positions match pyphen |
+| 8 | ru_RU positions match pyphen |
+| 9 | hu_HU positions match pyphen |
+| 10 | hyphenation ignores ASCII case and empty words have no positions |
+| 11 | language resolution keeps upstream short-name fallback |
+| 12 | unsupported language codes raise UnsupportedLanguage |
+
+### 3.3 `moon build --target native`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon clean
+$ time moon build --target native
+Finished. moon: ran 9 tasks, now up to date
+real 0m0.967s
+EXIT=0
+```
+
+- 产物：`_build/native/debug/build/cmd/main/main.exe`，175,104 字节（模板入口，
+  不链接根包）；native 运行时 `libruntime.lib` 513,358 字节。
+- 干净构建 0.97 s；随后增量构建 `no work to do` 0.12 s。库本身以包归档参与
+  `moon test`，没有 CLI 消费方，因此不产生更大的可执行文件。
+
+### 3.4 `moon info && moon fmt`
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat/lib" && moon info && moon fmt
+Finished. moon: ran 4 tasks, now up to date
+Finished. moon: ran 33 tasks, now up to date
+EXIT=0
+```
+
+`moon fmt` 归一化源码类型写法 `Int` → `Int32`（`type Int32 = Int`，工具链
+`moon ide peek-def Int32` 确认；`.mbti` 仍呈现 `Int`），并重排长行；复跑幂等。
+`.mbti` diff 仅 §1 所示三行。
+
+### 3.5 S1 静态门（A-8.3 检索式，改动范围）
+
+```console
+$ cd "F:/moonbit比赛/moon_textstat"
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes \
+    lib/hyphenation.mbt lib/hyphenation_wbtest.mbt
+$ echo $?
+1
+```
+
+命中 0（`grep` EXIT=1 即无匹配）。
+
+### 3.6 工作树
+
+```console
+$ git status --porcelain
+ M lib/moon.pkg
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/hyphenation.mbt
+?? lib/hyphenation_wbtest.mbt
+```
+
+除 `.qoder/` 外只有本任务的 4 个文件。
+
+---
+
+## 4. 期望值与保真对拍
+
+### 4.1 brief 规定的断言（10 个字典，27 个位置向量 + 大小写/空词/解析/失败断言）
+
+全部由本机 `pyphen 0.17.2` 现算并复核：
+
+| 字典 | 词 → 位置 |
+| --- | --- |
+| en_US | `wellknown [4]`, `hyphenation [2,6]`, `extraordinary [2,5,7,9]`, `readability [4,8,9]`, `documentation [3,4,7,9]`, `international [2,5,7,11]` |
+| en_GB | `hyphenation [2,6,7]`, `extraordinary [2,10]`, `readability [4,6,8]`, `documentation [3,4,8,9]`, `international [2,5,7,11]` |
+| de_DE | `extraordinary [2,5,7,9,11]`, `Silbentrennung [3,6,10]`, `niezwykły [3,6]` |
+| es | `extraordinario [2,5,7,9,11]`, `buitengewoon [3,6]` |
+| fr | `extraordinaire [2,5,7,9]`, `rendkívüli [8]` |
+| it_IT | `straordinario [6,8,10]`, `buitengewoon [2,3,6]` |
+| nl_NL | `wellknown [3,4]`, `readability [2,3,5,7,9]` |
+| pl_PL | `niezwykły [3,6]`, `extraordinary [5,7,9,11]` |
+| ru_RU | `необыкновенный [2,6,8,11]` |
+| hu_HU | `extraordinary [3,5,7,9]`, `rendkívüli [4,6,8]` |
+| en 短名 | `wellknown []`, `hyphenation [2,6,7]`（= en_GB） |
+
+### 4.2 扩展对拍（编译产物级，71,840 格，0 差异）
+
+为避免「只对上 brief 的 27 个位置向量」，用临时白盒探针（`lib/t15probe_wbtest.mbt`，
+执行后已删除，不在工作树）对**编译后的** `hyphenate_positions` 产出
+`lang<TAB>word<TAB>positions`，再用 pyphen 0.17.2 逐格比对：
+
+| 语料 | 词数 | 字典 | 格数 | 差异 |
+| --- | --- | --- | --- | --- |
+| oracle 11 样本词 + 易读词表每 5 取 1 + brief 词 + hu alternative 派生 + de `\d\d` 派生 | 1,129 | 10 | 11,290 | 0 |
+| 每本字典模式左值每 37 行取 1 去数字 + 400 条随机字母串 | 6,055 | 10 | 60,550 | 0 |
+| **合计** | — | — | **71,840** | **0** |
+
+其中包含 `de_DE` 全部 9 条连续数字模式派生的词（`aktionärsausschüsse`、
+`äquatorialafrika`、`blutharnstoff`、`chorankündigung`、`dampfähnlich` 等）、
+`hu_HU` 2,396 条 `/alt=` 行派生的词、四套非 ASCII 字母表（波兰语、俄语、匈牙利
+语、德语变音）。两份语料还分别交叉跑全部 10 个字典，覆盖了 key 与字典语言不一致
+时的匹配路径。
+
+### 4.3 失败通道
+
+`de`、`pt`、`ar`、`xx_YY` 均命中 `UnsupportedLanguage`，且 payload 与输入逐字符
+相等（测试 12 在 `catch` 中只匹配该构造器，其他错误不会被吞掉）。
+
+---
+
+## 5. 初始化成本（time to first lookup）
+
+MoonBit 顶层 `let` 是**首次使用时**初始化（实测：仅 import 根包、不调用任何函数
+时进程时间与基线相同）。因此「模块初始化」成本 = 第一次断字调用的成本。测量方法：
+
+- 基线：`cmd/main`（不 import 根包）可执行文件，直接运行 12 次，取中位数。
+- 探针：临时 `cmd/t15probe`（import 根包并调用一个临时 `pub` 包装，内部走
+  `hyphenate_positions`），同法 12 次。探针与临时包装均已删除。
+- 环境：native debug，同一台机器，OS 文件缓存已热。
+
+| 进程 | 中位墙钟 |
+| --- | --- |
+| 基线（无字典） | 10.48 ms |
+| 首次断字查找（构建 10 本字典 + 一次 `extraordinary`/en_US） | 693.75 ms |
+| **差值 ≈ 初始化成本** | **≈ 683 ms**（0.68-0.70 s） |
+
+冷文件缓存首跑 3.24 s（一次性 OS 读盘）。之后的所有查找复用同一批字典：60,550
+次查找 + 打印的探针测试整体 3.29 s（含编译检查与进程启动），热测试套件 1.05 s。
+T-36/T-40 的 bench 需按「首查 ≈0.7 s、后续 O(词长 × maxlen)」规划预热。
+
+---
+
+## 6. 测试设计
+
+- 全部为确定性断言（`assert_eq`），无快照。
+- 大小写：`Extraordinary` / `EXTRAORDINARY` / `SILBENTRENNUNG` 与全小写同结果
+  （上游在 `positions` 内小写）。
+- 空词：`""` 在 en_US 与 hu_HU 下都是 `[]`。
+- 解析：`resolve_dict` 直接断言 `en`→en_GB、`EN-us`→en_US、`en_US`、`de_DE`、
+  `es_ES`→es、`fr_FR`→fr；行为侧再断言 `en` 的 `wellknown` 为 `[]`、
+  `hyphenation` 为 `[2,6,7]`。
+- 失败：四个代码逐一捕获并断言构造器与 payload。
+
+---
+
+## 7. 备注与风险
+
+1. **`lib/moon.pkg` 是新改动的文件**：T-15 是第一个消费 `data` 包的任务，必须在
+   根包 `moon.pkg` 写 `import { "vicoproplus/moon_textstat/data" }`。brief 的
+   commit 路径清单未列该文件，但不改它无法编译/取数；已按最小改动只加 import。
+2. **`de` / `pt` 显式失败**：上游短名赢家 `de_AT` / `pt_BR` 未入包（AD-1 固定身份
+   之外的字典），按 brief 不发明数据、不回退到 `de_DE`。若未来门禁或用户用例需要
+   这两个短名，须先按 AD §1.2 测量并追加身份行，再放开别名。
+3. **`strip` 的口径**：上游 `str.strip()` 是 Unicode 空白；数据生成器已按 Python
+   `str.strip()` 处理后写入 L2，因此运行时只需复检 ASCII 空白。若未来数据源改为
+   未 strip 的原始行，需要把 trim 扩展到 `is_python_space`。
+4. **`\d` 口径**：扫描只认 ASCII 数字；十本字典经核查无 Unicode 十进制数字权重
+   （生成器与本次逐行核查均为 0）。
+5. **`to_lower` 只处理 ASCII**：与仓库既有 `str.lower()` 近似口径一致；语料与模式
+   全小写，`Extraordinary` 等测试覆盖 ASCII 大写；非 ASCII 大写轮换不在契约内。
+6. **`hyphenate_positions` 的 `#warnings("-unused_value")`**：本任务内没有任何
+   非测试调用方（`moon check` 不计白盒测试的使用），T-17 的 `syllable_count` 接入
+   后应删除该抑制。源码注释已说明。
+7. **`hyphenation_positions` 对未解析代码显式失败**（修复轮 1 修改）：原实现返回
+   `[]`，评审指出 T-17 若直接调用会把未知语种静默变成「每词 1 音节」；现改为
+   `raise UnsupportedLanguage(dict_lang)`。`parse_dictionary` 对缺失的内嵌表同样
+   改为 `abort`（内部数据完整性不变量，不静默降级）。
+8. **门禁顺延**：`cmd/gate` 在 T-36 建立；本任务对 A-4.1（`--group=lang`）的等价
+   证据是 §4 的断言与 71,840 格对拍，T-36 用同一批字典代码复验。
+9. `positions` 不实现上游的 `cache`：纯函数、结果与缓存无关；T-40 bench 若需要
+   热缓存，另立任务加。
+
+---
+
+## 8. 修复轮 1（评审后）
+
+评审结论：算法通过，但提出 2 项 Important 与若干测试/文案项。本轮处置：
+
+| 项 | 处置 | 证据 |
+| --- | --- | --- |
+| Important 1：无连续数字/`/alt=` 的固定回归用例 | 新增 `aktionärsausschüsse` de_DE → `[2,4,5,9,10,12,17]`；`asszonyok` hu_HU → `[2,5]`（含 `/sz=` alternative 行） | `lib/hyphenation_wbtest.mbt`；两条均由本机 pyphen 0.17.2 现算 |
+| Important 2：`hyphenation_positions` 未知代码返回 `[]` | 改为 `raise UnsupportedLanguage(dict_lang)`；新增负向测试 | 同上；`unresolved dictionary codes fail instead of yielding no positions` |
+| Minor：`parse_dictionary` 缺失内嵌表静默为空 | 改为 `abort("missing embedded hyphenation dictionary: " + code)` | `lib/hyphenation.mbt` |
+| Minor：短名 `it/nl/pl/ru/hu` 未被断言 | 新增 `short names resolve to their full dictionaries`，同时钉住字面结果与「短名 = 全名」等式 | `it`→`[6,8,10]`、`nl`→`[3,6,9]`、`pl`→`[3,6]`、`ru`→`[2,6,8,11]`、`hu`→`[2,5]` |
+| Minor：日志数字不实 | 连续数字模式：`de_DE` 9 行、`hu_HU` 11 行（原写 20）；brief 向量 27 个（原写 30） | 本文件 §2.2/§4.1/§4.2/§4.2 表 |
+| Minor：`#warnings("-unused_value")` | 保留至 T-17 接入后删除（已登记） | `lib/hyphenation.mbt` |
+
+修复轮验证（2026-10-21）：
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date
+CHECK=0
+$ moon test --target native
+Total tests: 62, passed: 62, failed: 0.
+TEST=0
+$ moon fmt --check
+Finished. moon: ran 33 tasks, now up to date
+FMT=0
+```
+
+说明：修复轮由子代理完成代码；其会话在提交前中断，控制器复核了工作树差异、重跑上述命令后按显式路径提交。

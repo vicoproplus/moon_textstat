@@ -1,0 +1,327 @@
+# T-36 — 门禁骨架与参数契约
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`e47f386 docs(plans): extend the gate whitelist to its single argv read`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-30；spec §4.6；AD §3.1-§3.4、§5、§6；design D-18/§11.2；
+用户裁决 `docs/superpowers/plans/logs/T-36-exit-shim-decision.md`。
+
+> 结论：PASS。`moon check --target native` / `moon build --target native`
+> EXIT=0 且零警告；`--group=selfcheck` 与默认 `all` 均 366/366 EXIT=0；
+> 六个分组 `passed=cells`；未知参数、`--bench`、`--group=data`、
+> `--inject!=0` 均 EXIT=2；A-6.2 首行逐字相同、剥 CR 后命中 1。静态白名单
+> `extern`=1（`lib/cmd/gate/exit.mbt`）、`@env.`=1（`lib/cmd/gate/main.mbt`）、
+> 其余禁止面 0。既有 145 条 native 测试仍全绿。
+
+## 1. 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/cmd/gate/moon.pkg` | 新增：`pkgtype(kind: "executable")`；import 根包、`gate/data`、core/env | 7 | `55134a679cbf6dae88ba5ba28549342b3f6a3cf1d0f93bd704a944f885f69df7` |
+| `lib/cmd/gate/exit.mbt` | 新增：全仓唯一 native C `exit` 垫片 + cfg 门控的 abort 回退 | 30 | `ca8ca9ff9fac715a7906be4cf438e464c0ca05ba7ff683a044a60859062b29d0` |
+| `lib/cmd/gate/samples.mbt` | 新增：11 个样本原文 + 语种探针句，硬编码自 oracle | 36 | `4b130dfbfb8b9a88c9c908709e89b3b1302fb52158fea7db39226123287e246d` |
+| `lib/cmd/gate/main.mbt` | 新增：参数解析、分组选择、自报、退出码、唯一 argv 读取 | 196 | `43108ab710e7c0397d8f563dd4ab7ad7ca4c2ebbf443d629f591b1da6d26c030` |
+| `lib/cmd/gate/compare.mbt` | 新增：24 个 `[ALIGN]` 形态派发、四类比较、失败诊断 | 198 | `f2dff0567dd8252b991fa920718fd40490b7fa54bb07bc2bd52a7fc2c1e21c76` |
+| `lib/cmd/gate/pkg.generated.mbti` | `moon info` 生成：仅两个私有类型名 | 15 | `2e09aba2c1d03e287c731701cdbff2b89f518307ea157e37c258a624b047c06d` |
+| `docs/superpowers/plans/logs/T-36.log` | 新增：本日志 | — | — |
+
+未修改任何库、`data/`、`gate/data/` 文件；未改动任何 oracle 单元格。
+
+## 2. 实现要点
+
+1. **首行恒定**：`const CANONICAL_INVOCATION = "moon run cmd/gate --target native"`，
+   在 `main` 的第一条语句打印，不带参数；第二行恒为
+   `cells=<selected> passed=<passed> floor=366 group=<id> inject=<n>`。
+2. **参数封闭集**：`args[0]` 视为程序路径并跳过；只接受
+   `--group=all|count|variant|formula|lang|degenerate|errors|data|selfcheck`、
+   `--bench`、`--inject=<n>`。未知参数、重复参数、空值/非数字/超长
+   `--inject` 均打印 `gate: ...` 诊断后 EXIT=2。
+3. **分组选择**：`all` 与 `selfcheck` 都取 `@gate_data.all_cells()`（366）；
+   其余分组取 `@gate_data.cells_for_group(id)`。`data`（T-41）、`--bench`
+   （T-40）、`--inject!=0`（T-38）按契约明确 EXIT=2；`--inject=0` 接受并
+   报告 `inject=0`。
+4. **冻结下限**：`@gate_data.total_cells()` < 366 时，先打印报告，再打印
+   `gate: loaded ... below the frozen floor 366` 并 EXIT=2（与所选分组无关）。
+5. **退出码**：下限失败 → 2；否则 `passed < cells` → 1；否则 → 0。
+   0/1/2 由唯一 native C `exit` 垫片精确设置。
+6. **单元格求值**：样本侧按 `sample_id` 取 `samples.mbt` 原文，语种侧
+   （`lang`/`errors`）取探针句；语种一律取单元格的 `lang`。派发覆盖
+   AD §5 的 24 个 `[ALIGN]` 形态（含 `char_count[ignore_spaces=False]`、
+   `lexicon_count` 三变体、Linsear 双开关）；31 个 `[EXT]` 形态一律不构造。
+7. **比较口径**：`EInt` 按值；`EDouble` 按
+   `Double::reinterpret_as_uint64` 位模式；`EList` 按大小写敏感的集合
+   （两侧复制后排序逐项比较）；`EError` 只要求调用抛出任意
+   `TextstatError`，返回值即失败。每个失败单元格打印一行
+   `FAIL sample_id=... shape=... lang=... expected=... actual=...`。
+8. **零 I/O**：样本与探针硬编码；不读 `docs/facts/oracle_smoke.json`；
+   无文件/网络访问。全仓唯一 `@env.args()` 在 `main.mbt`，唯一 `extern`
+   在 `exit.mbt`，其余源码保持 0。
+
+## 3. 验收原始输出
+
+### 3.1 selfcheck（A-0.3 / A-6.3）
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+```
+
+### 3.2 默认 all
+
+```console
+$ cd lib && moon run cmd/gate --target native
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+```
+
+### 3.3 六个分组
+
+```console
+$ moon run cmd/gate --target native --group=count
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=variant
+moon run cmd/gate --target native
+cells=40 passed=40 floor=366 group=variant inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=formula
+moon run cmd/gate --target native
+cells=64 passed=64 floor=366 group=formula inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=degenerate
+moon run cmd/gate --target native
+cells=96 passed=96 floor=366 group=degenerate inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=lang
+moon run cmd/gate --target native
+cells=66 passed=66 floor=366 group=lang inject=0
+EXIT=0
+$ moon run cmd/gate --target native --group=errors
+moon run cmd/gate --target native
+cells=12 passed=12 floor=366 group=errors inject=0
+EXIT=0
+```
+
+### 3.4 未知参数（EXIT=2，首行仍打印）
+
+```console
+$ moon run cmd/gate --target native --group=bogus
+moon run cmd/gate --target native
+gate: unknown --group value: bogus
+EXIT=2
+
+$ moon run cmd/gate --target native --wat
+moon run cmd/gate --target native
+gate: unknown argument: --wat
+EXIT=2
+
+$ moon run cmd/gate --target native --group=count --group=lang
+moon run cmd/gate --target native
+gate: duplicate argument: --group=lang
+EXIT=2
+```
+
+### 3.5 未实现特性（按契约 EXIT=2）
+
+```console
+$ moon run cmd/gate --target native --bench
+moon run cmd/gate --target native
+gate: --bench is not implemented until T-40
+EXIT=2
+
+$ moon run cmd/gate --target native --group=data
+moon run cmd/gate --target native
+gate: --group=data is not implemented until T-41
+EXIT=2
+
+$ moon run cmd/gate --target native --group=selfcheck --inject=1
+moon run cmd/gate --target native
+gate: --inject=<n> with n != 0 is not implemented until T-38
+EXIT=2
+
+$ moon run cmd/gate --target native --group=count --inject=0
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+```
+
+### 3.6 A-6.2 首行与 AD §3.1 命中数
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck | head -1
+moon run cmd/gate --target native
+
+$ cd .. && sed -n '/^### 3.1/,/^### 3.2/p' docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md | tr -d '\r' | grep -c '^moon run cmd/gate --target native$'
+1
+```
+
+### 3.7 构建与测试
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: no work to do
+EXIT=0
+
+$ moon build --target native
+  正在创建库 ...\lib\_build\native\debug\build\cmd\gate\gate.lib 和对象 ...\gate.exp
+Finished. moon: ran 6 tasks, now up to date
+EXIT=0
+
+$ moon test --target native
+Total tests: 145, passed: 145, failed: 0.
+EXIT=0
+```
+
+`moon check` 与 `moon build` 输出无任何 Warning 行；新增包首次编译时
+`moon check --target native` 同样以 0 警告结束（见 §5 R1 的重跑口径）。
+
+### 3.8 静态白名单
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+COUNT=1
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/main.mbt:193:  let args = @env.args()
+COUNT=1
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+COUNT=0
+```
+
+### 3.9 工作区
+
+```console
+$ git status --short
+?? .qoder/
+?? lib/cmd/gate/
+```
+
+提交后仅剩 `.qoder/`（未跟踪，非本任务产物）。
+
+## 4. Rubric 判定（R1-R12）
+
+| 项 | 判定 | 一行证据 |
+| --- | --- | --- |
+| R1 | pass | A-0.3 首行+`cells=366/floor=366`；A-6.2 首行逐字相同、剥 CR 命中 1；`--group=bogus` 实测 EXIT=2。 |
+| R2 | pass | 一轮完成，实际用时远低于 90 分钟；无回退轮次。 |
+| R3 | pass | 本文件 `docs/superpowers/plans/logs/T-36.log` 已落盘并纳入提交。 |
+| R4 | pass | 未修改任何库/数据文件、未改动任何 oracle 期望值；只新增命令行门禁包。 |
+| R5 | pass | 门禁只调用公开入口；公式实现未改动，公式层仍只吃计数层。 |
+| R6 | pass | 运行期零 I/O；唯一边界是裁决允许的 argv 读取（main.mbt）与 C exit（exit.mbt），无文件/网络/环境变量访问。 |
+| R7 | pass | 门禁唯一命令为 `moon run cmd/gate --target native`；0/1/2 实测与 AD-3 一致。 |
+| R8 | pass | 未新建字段表；`TextStats` 19 字段未改，门禁按单元格表逐项调用。 |
+| R9 | pass | 只派发 24 个 `[ALIGN]` 形态；31 个 `[EXT]` 调用形态没有实现、没有期望值。 |
+| R10 | pass | `@gate_data.total_cells()`=366；selfcheck/all 自报 `cells=366`，低于 366 的路径 EXIT=2。 |
+| R11 | pass | 门禁不含 `pt` 单元格；`lang` 组 66 = 11 支持语种 × 6，`errors` 组 12 = 2 失败语种 × 6。 |
+| R12 | pass | `EError` 只判「是否抛出」，不比对失败文本；诊断行只输出期望/实际形状，未把产品增强文本写入口径。 |
+
+## 5. 偏差与说明
+
+- 无契约偏差。两点实现口径已在任务允许范围内：
+  1. `--group=bogus`、未知参数、未实现特性打印首行 + 诊断后 EXIT=2，
+     不再打印自报行（此时没有有效的 group/inject 可自报）；验收只要求
+     首行仍打印，已满足。
+  2. 冻结下限检查放在求值与自报之后，因此截短表也能先看到完整报告，
+     再以 EXIT=2 结束；下限始终作用于 `total_cells()`，与所选分组无关。
+- `--inject=0` 按「n != 0 未实现」的口径接受，并如实报告 `inject=0`。
+- `simplify`/「改进」：无。门禁只读取 L3 表，不推导、不修补、不替换期望值。
+
+## 6. 复核修复（round 2）
+
+日期：2026-10-22。复核发现两处 Important 契约缺口，本轮一并修复；退出码
+语义不变（0/1/2），未触碰任何 oracle 期望值，也未实现 T-37 的失败记录
+十六进制补位与 T-38 的 `--inject` 范围。
+
+1. **自报行恒为第二行**：`run_gate` 将失败诊断缓冲进
+   `Array[String]`，求值结束后先打印 `cells=... passed=...`，再逐行打印
+   `FAIL ...`；`print_failure` 改为返回字符串的 `failure_line`。
+2. **`EList` 真正按集合比较**：`same_word_set` 删除「长度必须相等」的
+   前置条件，改为双向成员判定；顺序与重复元素不影响结果，大小写仍敏感。
+3. **未知样本 id 硬失败**：`sample_text` 返回 `String?`；未知 id 使
+   `evaluate_cell` 调用 `gate_fail("unknown sample id: ...")`，EXIT=2，
+   不再用空文本求值而假通过。
+4. **零单元格选择硬失败**：已知分组（含 `all`/`selfcheck`）选中 0 个
+   单元格时 `gate_fail("group ... selected no cells")`，EXIT=2；
+   `data` 仍由 T-41 存根拒绝。
+
+### 6.1 全绿验收（修复后重跑）
+
+```console
+$ cd lib && moon run cmd/gate --target native --group=selfcheck
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=selfcheck inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native
+moon run cmd/gate --target native
+cells=366 passed=366 floor=366 group=all inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=count
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+# variant 40/40, formula 64/64, degenerate 96/96, lang 66/66, errors 12/12
+# 均 EXIT=0（逐条实测见本轮终端记录）
+
+$ moon check --target native
+Finished. moon: no work to do
+EXIT=0
+$ moon test --target native
+Total tests: 145, passed: 145, failed: 0.
+EXIT=0
+```
+
+### 6.2 仓库外临时副本故障注入（`F:\moonbit比赛\_t36_scratch`，已丢弃）
+
+```console
+$ moon run cmd/gate --target native --group=count   # 改一处 EList 期望词
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=multiple_paragraphs_newlines shape=difficult_words_list lang=en_US expected=list:[sentences,terminator,paragraph,longest] actual=list:[paragraph,longer,sentences,terminator]
+EXIT=1
+
+$ moon run cmd/gate --target native --group=count   # 期望表重复一个词
+moon run cmd/gate --target native
+cells=88 passed=88 floor=366 group=count inject=0
+EXIT=0
+
+$ moon run cmd/gate --target native --group=count   # 同一词改大小写 Longer
+moon run cmd/gate --target native
+cells=88 passed=87 floor=366 group=count inject=0
+FAIL sample_id=multiple_paragraphs_newlines shape=difficult_words_list lang=en_US expected=list:[sentences,terminator,paragraph,Longer] actual=list:[paragraph,longer,sentences,terminator]
+EXIT=1
+
+$ moon run cmd/gate --target native --group=count   # 样本 id 改为 unknown_sample
+moon run cmd/gate --target native
+gate: unknown sample id: unknown_sample
+EXIT=2
+
+$ moon run cmd/gate --target native --group=errors  # 该组 12 格改为 degenerate
+moon run cmd/gate --target native
+gate: group errors selected no cells
+EXIT=2
+```
+
+### 6.3 静态白名单（修复后）
+
+```console
+$ grep -rnE 'extern[[:space:]]+"' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/exit.mbt:15:extern "c" fn gate_native_exit(code : Int32) = "exit"
+COUNT=1
+
+$ grep -rn '@env\.' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+./lib/cmd/gate/main.mbt:206:  let args = @env.args()
+COUNT=1
+
+$ grep -rnE '@fs\b|read_file|write_file|open_file|http|socket' --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+COUNT=0
+```
+
+`pkg.generated.mbti` 无变化（改动均为包内私有函数）。提交后工作区仅剩
+未跟踪的 `.qoder/`。

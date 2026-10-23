@@ -1,0 +1,133 @@
+# T-19 `monosyllabcount` 日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`b4775cb feat(count): implement polysyllabcount`
+- 契约：PRD-A FR-09；spec §4.3.1 第 7 行、§4.3.3、§4.5.1；上游
+  `_count_monosyllable_words.py:24`
+- 期望值来源环境：上游本地检出 `textstat 0.7.13`
+  （`textstat/textstat`，CPython `3.12.10`，`pyphen 0.17.2`、cmudict 语料）；
+  oracle `docs/facts/oracle_smoke.json`
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、
+  `moon run cmd/gate`（`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 77/77 EXIT=0；`.mbti` 仅新增
+  `monosyllabcount`；S1 命中 0）
+
+---
+
+## 1. 改动面（2 个新文件 + 1 个生成文件）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/monosyllabcount.mbt` | 新增：公共入口 `monosyllabcount` | 41 | `81a56ad6cea56880ed166ff8485db2127135cc1c9979dfbec5b4054282919124` |
+| `lib/monosyllabcount_test.mbt` | 新增：3 条黑盒测试（11 样本、词级 sanity、零词失败语义） | 103 | `876a285b38149ca8b7a3838b99fe75df52d9634c6b73d0e8378e0c9b83d9548f` |
+| `lib/pkg.generated.mbti` | 生成：仅新增一行 `monosyllabcount` | 60 | `15272fe23dbb71aee8b115b03e660db9bebdad37d54997e7edb004b4b9d33acc` |
+
+未新增依赖、未新增目录、未改动 `data/`、`gate/data/`；提交路径与 brief 清单一致。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `monosyllabcount(text, lang = "en_US")`
+
+签名：`pub fn monosyllabcount(text : String, lang~ : String = "en_US") -> Int32 raise TextstatError`
+（`.mbti` 规范为 `String, lang? : String -> Int raise TextstatError`；本工具链
+`Int32` 与 `Int` 同型，`moon fmt` 选择 `Int32`）。
+
+上游整体为：
+
+```python
+return len([w for w in list_words(text) if count_syllables(w, lang) == 1])
+```
+
+1. **分词用默认开关**：`list_words(text)`（`lowercase=false`、去标点、连字符与
+   缩写均不拆）。`count_syllables(w, lang)` 把 `w` 当文本重新分词且
+   `lowercase=True`，所以音节查找实际是小写。本移植的
+   `syllables_for_word(word, lang)` 在发音表（`data` 包 `to_lower`）与断字引擎
+   （`HyphDict::positions` 内 `to_lower`）内部完成小写，故直接传入原词、**不新增
+   任何大小写处理**；`Extraordinary`/`EXTRAORDINARY` 均与上游一致。
+2. **逐词判定**：`syllables_for_word(word, lang) == 1` 即计数 +1；是先查发音表、
+   未命中用断字位置 + 1（T-16/T-17 同一两层解析）。谓词与 T-18 的唯一差异：
+   `>= 3` 换成 `== 1`。**不是 `<= 1`**：零音节词在上游不被计数，等值判定逐字
+   保留。
+3. **语种按词解析**：`syllables_for_word` 内调用 `resolve_dict(lang)`，正是上游
+   `count_syllables` 内构造 `get_cmudict`/`get_pyphen` 的位置。**入口不预解析
+   语种**，这是与 `syllable_count` 的关键差异。
+4. **零词永不解析语种**：上游列表推导对零个词不会调用 `count_syllables`，因此
+   `""`、纯空白、纯标点在不受支持语种下**返回 0 而不抛**。本移植逐词循环同样
+   不触发 `resolve_dict`，已用本地上游实测并写进测试。
+5. **失败通道**：有词且语种不受支持时，上游抛 `KeyError: None`；本移植抛
+   `UnsupportedLanguage(原样代码)`，无静默回退（spec §4.5.1）。
+6. 纯函数，无 I/O；返回 `Int32`（`TextStats.monosyllabcount` 的计数类型，
+   PRD-A 10.3）。
+
+### 2.2 大小写细节的上游验证
+
+`list_words(text)` 不小写，但 `count_syllables(w, lang)` 内再次
+`list_words(w, lowercase=True)`。实测上游 `en_US`：
+
+- `extraordinary simple cat` → 1（五音节与二音节均不计数，仅 `cat`）
+- `Extraordinary simple cat` → 1
+- `EXTRAORDINARY SIMPLE CAT` → 1
+- `simple cat` → 1
+- `the cat sat` → 3
+- `The cat sat on the mat.` → 6
+- `a cat` → 2
+
+后两条大写用例确认了「首层保留大小写、音节层内部小写」的路径；本移植未加额外
+大小写归一，测试已固定。
+
+## 3. 测试（3 条，74 → 77）
+
+| 组 | 断言 |
+| --- | --- |
+| 11 个 oracle 样本 | `en_US` 下 6 / 42 / 24 / 6 / 21 / 16 / 2 / 0 / 0 / 0 / 16（按 oracle 样本顺序），另断言省略 `lang` 时默认 `en_US`（6） |
+| 词级 sanity | `the cat sat` 3、`extraordinary simple cat` 1、`Extraordinary simple cat` 1、`EXTRAORDINARY SIMPLE CAT` 1、`simple cat` 1 |
+| 零词/失败 | `""` 在 ar/xx_YY 下 0；`"   \n\t "`、`" .? "` 在 ar 下 0；`hello world`+ar、`The cat sat on the mat.`+xx_YY 抛 `UnsupportedLanguage(原样代码)` |
+
+期望值核对：
+
+- 11 个样本文本与 `oracle_smoke.json` **逐字节相等**：脚本解析测试文件中的样本
+  数组后与 JSON 对比，11/11 文本与 11/11 值一致（`numbers_and_symbols` 的
+  `\u{68}` 只是源码级转义，运行时字节相同）。
+- 样本数组与 T-18 测试文件的样本数组逐行比对：只有期望值数字行不同，11 个
+  文本行完全相同（同一套冻结字节）。
+- 其余 11 条断言逐条用本地上游 `set_lang(...)` 重算：5 条词级值、4 条零词值
+  （含 `"   \n\t "` 与 `xx_YY` 空串）、2 条非零词故障（上游 `KeyError`），全部
+  一致。`the cat sat` → 3 为本任务新增期望，已实测上游确认。
+- 零词返回 0 是上游列表推导的真实行为，不是「把失败改成 0」：有词输入仍抛
+  `UnsupportedLanguage`（已固定）。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date         # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 77, passed: 77, failed: 0.            # EXIT=0；T-18 后 74 + 本任务 3
+
+$ moon info && moon fmt                            # EXIT=0
+$ git diff lib/pkg.generated.mbti
++pub fn monosyllabcount(String, lang? : String) -> Int raise TextstatError
+# 仅此一行新增（diff 显示 2 行：新增行 + 空行）；无其他接口变化
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lib/monosyllabcount.mbt lib/monosyllabcount_test.mbt lib/pkg.generated.mbti
+# 无输出，EXIT=1（S1 零命中）
+```
+
+`git status` 仅 `.qoder/`（环境目录）与本任务改动；无其他修改。
+
+## 5. 备注 / 风险
+
+1. **零词不解析语种是有意保真**：与 `syllable_count` 的入口 `resolve_dict` 不同，
+   这里复刻上游「列表推导为空则永不调用 `count_syllables`」，因此空串/空白/标点
+   在 ar 下为 0。T-35 的语种矩阵若覆盖该字段，应沿用此语义。
+2. 语种矩阵与失败文案由 T-35 处理；门禁（`--group=count` A-2.1）按计划推迟到
+   T-36，本任务的直接断言为等价证据。
+3. 未实现其他指标（T-20 起）。
+4. 每词重复一次 `resolve_dict` Map 查找，与 T-17/T-18 相同，成本相对发音表/断字可忽略。

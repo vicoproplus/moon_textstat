@@ -2,10 +2,74 @@
 package "vicoproplus/moon_textstat"
 
 // Values
+pub fn analyze(String, lang? : String) -> TextStats raise TextstatError
+
+pub fn automated_readability_index(String) -> Double
+
+pub fn char_count(String, ignore_spaces? : Bool) -> Int
+
+pub fn coleman_liau_index(String) -> Double
+
+pub fn dale_chall_readability_score(String, lang? : String) -> Double raise TextstatError
+
+pub fn difficult_words(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Int raise TextstatError
+
+pub fn difficult_words_list(String, lang? : String, syllable_threshold? : Int, unique? : Bool) -> Array[String] raise TextstatError
+
+pub fn flesch_kincaid_grade(String, lang? : String) -> Double raise TextstatError
+
+pub fn flesch_reading_ease(String, lang? : String) -> Double raise TextstatError
+
+pub fn gunning_fog(String, lang? : String) -> Double raise TextstatError
+
+pub fn letter_count(String) -> Int
+
+pub fn lexicon_count(String, removepunct? : Bool, split_contractions? : Bool, split_hyphens? : Bool) -> Int
+
+pub fn linsear_write_formula(String, lang? : String, strict_lower? : Bool, strict_upper? : Bool) -> Double raise TextstatError
+
+pub fn long_word_count(String, threshold? : Int) -> Int
+
+pub fn monosyllabcount(String, lang? : String) -> Int raise TextstatError
+
+pub fn polysyllabcount(String, lang? : String) -> Int raise TextstatError
+
+pub fn reading_time(String, ms_per_char? : Double) -> Double
+
+pub fn sentence_count(String) -> Int
+
+pub fn smog_index(String, lang? : String) -> Double raise TextstatError
+
+pub fn syllable_count(String, lang? : String) -> Int raise TextstatError
 
 // Errors
+pub suberror TextstatError {
+  UnsupportedLanguage(String)
+  MetricFailure(String)
+}
 
 // Types and methods
+pub(all) struct TextStats {
+  char_count : Int
+  letter_count : Int
+  lexicon_count : Int
+  sentence_count : Int
+  syllable_count : Int
+  polysyllabcount : Int
+  monosyllabcount : Int
+  difficult_words : Int
+  difficult_words_list : Array[String]
+  long_word_count : Int
+  reading_time : Double
+  flesch_reading_ease : Double
+  flesch_kincaid_grade : Double
+  gunning_fog : Double
+  smog_index : Double
+  automated_readability_index : Double
+  coleman_liau_index : Double
+  linsear_write_formula : Double
+  dale_chall_readability_score : Double
+}
 
 // Type aliases
 

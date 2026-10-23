@@ -1,0 +1,32 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/gate/data"
+
+// Values
+pub fn all_cells() -> Array[Cell]
+
+pub fn cells_for_group(String) -> Array[Cell]
+
+pub fn total_cells() -> Int
+
+// Errors
+
+// Types and methods
+pub(all) struct Cell {
+  sample_id : String
+  shape : String
+  lang : String
+  group : String
+  expected : Expected
+  source : String
+}
+
+pub(all) enum Expected {
+  EInt(Int)
+  EDouble(UInt64)
+  EList(Array[String])
+  EError(String)
+}
+
+// Type aliases
+
+// Traits

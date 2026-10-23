@@ -1,0 +1,178 @@
+# T-25 — 语种常量表与语种根解析
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`f73af0d docs(plans): record B1 batch review and gates`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-24；spec §4.5.1、§4.5.3、§4.4 约束 1；design D-14/D-15；
+上游 `backend/utils/constants.py:15-65`、`_get_lang_root.py`、
+`_get_lang_cfg.py:22-30`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 105/105 EXIT=0（T-24 后 101 + 本任务 4）；`.mbti` 无变化；
+> S1 0 命中；T-21 的阈值探针原样保留并通过。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/lang_config.mbt` | 新增：`LangConfig`、`lang_config`、`english_lang_config`、迁入的 `difficult_threshold_for_root` | 144 | `396815c91f2f55943ba3ebc715d54d2a32d1db0211089238a4717a5ef55ac0ea` |
+| `lib/lang_config_wbtest.mbt` | 新增：4 条白盒测试（九根、继承、根解析、未知根回退） | 169 | `fa837a5391e81accfb93384e7bf87ea99ff94a1d7f9dbc486ba650deb9d82432` |
+| `lib/difficult_words.mbt` | 修改：删除原 `difficult_threshold_for_root`（−24 行），其余不动 | 189 | — |
+
+`lib/pkg.generated.mbti` 无变化：`LangConfig` 为 `priv struct`，三个函数均为包内
+私有，公共面没有新增或改动。
+
+### 1.2 `LangConfig`
+
+```moonbit
+priv struct LangConfig {
+  fre_base : Double
+  fre_sentence_length : Double
+  fre_syll_per_word : Double
+  syllable_threshold : Int32
+}
+```
+
+上游是「部分行 + 读取时逐键回退英语」；本结构保存**回退已经应用**的完整行，
+公式侧读到的永远是具体值。三种部分形态在构造处显形：
+
+- `de/es/fr/it/nl/ru` 只写三个 FRE 常量，阈值读 `english.syllable_threshold`（3）；
+- `pl` 只写 `syllable_threshold = 4`，三个 FRE 常量逐字段读英语行——这正是
+  §4.5.3 里 `pl_PL` 的 FRE 与 `en_US` 相同的原因；
+- `hu` 四个键全写（阈值 5）。
+
+`priv` 是 `missing_priv` lint 的要求（类型不出现在公共签名里），同时保证
+`.mbti` 不新增符号。所有常量按上游字面量书写，未做等价变形（§4.4 约束 1）。
+
+### 1.3 `lang_config(lang)`
+
+- 键 = `lang_root(lang)`（既有 helper，`syllables.mbt:12`）：仅按首个 `_` 截断，
+  不小写、不把 `-` 改写为 `_`。
+- 九个根精确匹配；其余根静默取英语整行（`pt` 常量回退但断字字典仍是葡语，
+  spec §4.5.1 特例；`ar`/`xx_YY` 的失败属于断字层，D-14）。
+- 不打印、不记录任何告警（上游对缺失常量行本身无告警）。
+- 绝不用于选断字字典（spec §4.5.1、D-15）。
+
+### 1.4 `difficult_threshold_for_root`（迁入并改接）
+
+原实现是 `match root { "pl" => 4; "hu" => 5; _ => 3 }`，现在改为：
+
+```moonbit
+fn difficult_threshold_for_root(root : String) -> Int32 {
+  lang_config(root).syllable_threshold
+}
+```
+
+函数从 `difficult_words.mbt` 迁到 `lang_config.mbt`，输入仍是**根**
+（T-21 的白盒探针与 `count_difficult_words` 的 `lang_root(lang)` 调用点均不变）。
+值域不变：en 3 / pl 4 / hu 5 / 其余 3。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+```console
+$ cd textstat && python - <<'PY'
+import sys, warnings
+warnings.simplefilter('ignore')
+from textstat.backend.utils.constants import LANG_CONFIGS
+from textstat.backend.utils._get_lang_cfg import get_lang_cfg
+from textstat.backend.utils._get_lang_root import get_lang_root
+keys = ['fre_base','fre_sentence_length','fre_syll_per_word','syllable_threshold']
+print('keys:', sorted(LANG_CONFIGS.keys()))
+for root in ['en','de','es','fr','it','nl','pl','ru','hu']:
+    print('resolved', root, [get_lang_cfg(root,k) for k in keys])
+for code in ['en_US','en_GB','de_DE','es_ES','fr_FR','it_IT','nl_NL','pl_PL',
+             'ru_RU','hu_HU','ar','xx_YY','pt','en-US','EN']:
+    print('code', code, '->', repr(get_lang_root(code)),
+          [get_lang_cfg(code,k) for k in keys])
+PY
+keys: ['de', 'en', 'es', 'fr', 'hu', 'it', 'nl', 'pl', 'ru']
+resolved en [206.835, 1.015, 84.6, 3]
+resolved de [180, 1, 58.5, 3]
+resolved es [206.84, 1.02, 60.0, 3]
+resolved fr [207, 1.015, 73.6, 3]
+resolved it [217, 1.3, 60.0, 3]
+resolved nl [206.835, 0.93, 77, 3]
+resolved pl [206.835, 1.015, 84.6, 4]
+resolved ru [206.835, 1.3, 60.1, 3]
+resolved hu [206.835, 1.015, 58.5, 5]
+code en_US -> 'en' [206.835, 1.015, 84.6, 3]
+code en_GB -> 'en' [206.835, 1.015, 84.6, 3]
+code de_DE -> 'de' [180, 1, 58.5, 3]
+code es_ES -> 'es' [206.84, 1.02, 60.0, 3]
+code fr_FR -> 'fr' [207, 1.015, 73.6, 3]
+code it_IT -> 'it' [217, 1.3, 60.0, 3]
+code nl_NL -> 'nl' [206.835, 0.93, 77, 3]
+code pl_PL -> 'pl' [206.835, 1.015, 84.6, 4]
+code ru_RU -> 'ru' [206.835, 1.3, 60.1, 3]
+code hu_HU -> 'hu' [206.835, 1.015, 58.5, 5]
+code ar -> 'ar' [206.835, 1.015, 84.6, 3]
+code xx_YY -> 'xx' [206.835, 1.015, 84.6, 3]
+code pt -> 'pt' [206.835, 1.015, 84.6, 3]
+code en-US -> 'en-US' [206.835, 1.015, 84.6, 3]
+code EN -> 'EN' [206.835, 1.015, 84.6, 3]
+```
+
+`en-US` 与 `EN` 的根分别是 `en-US` / `EN`，表里无此键 → 英语行；这与
+`lang_root` 的「原始字符串、不归一化」一致。测试里把 `en-US` 放进未知根组，
+固定「`-` 不改写」这一点。
+
+## 3. 测试（`lib/lang_config_wbtest.mbt`，4 条，101 → 105）
+
+| 测试 | 断言 |
+| --- | --- |
+| `lang_config exposes the nine roots with their upstream rows` | 表驱动九行：`(root, fre_base, fre_sentence_length, fre_syll_per_word, syllable_threshold)` = 上表 resolved 值；逐行再经 `difficult_threshold_for_root(root)` 取阈值，且表长恰为 9 |
+| `partial rows inherit the English keys per key` | `pl` 三个 FRE 常量 == en、阈值 4；`de/es/fr/it/nl/ru` 阈值 == en 的 3（helper 与 `lang_config` 双路）；`hu` 四个值全部为自身值（206.835 / 1.015 / 58.5 / 5） |
+| `lang_config resolves regional codes through their root` | `en_US`/`en_GB`→en、`de_DE`→de、`es_ES`→es、`fr_FR`→fr、`it_IT`→it、`nl_NL`→nl、`pl_PL`→pl、`ru_RU`→ru、`hu_HU`→hu：区域码与根的四个值逐一相等 |
+| `unknown roots fall back to the English row silently` | `ar`、`xx_YY`、`pt`（+ `en-US`）四个值与英语行相等、阈值 3；`difficult_threshold_for_root(lang_root(code))` 同为 3 |
+
+T-21 的 `difficult_threshold_for_root follows the upstream config table` 原样
+保留（en/pl/hu/es/de/xx + `lang_root("pl_PL")`/`lang_root("hu_HU")` 探针）。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 1 task, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 105, passed: 105, failed: 0.         # EXIT=0
+
+$ moon build --target native
+Finished. moon: no work to do                     # EXIT=0
+
+$ moon info && moon fmt && moon fmt --check       # EXIT=0
+$ git diff -- lib/pkg.generated.mbti               # 无输出（接口未变）
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/lang_config.mbt lib/lang_config_wbtest.mbt lib/difficult_words.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ git status --porcelain
+ M lib/difficult_words.mbt
+?? .qoder/
+?? lib/lang_config.mbt
+?? lib/lang_config_wbtest.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；`--group=lang`（A-4.1）与 §4.5.3 语种矩阵由 T-36/T-52
+复验。本任务的等价证据是 §2 的上游逐值实测与 4 条测试。
+
+## 6. 偏差与备注
+
+1. **实现由本代理直接完成**（无独立实现者子代理派发），按 T-24 的同一口径
+   自检；审查留给任务审查环节。
+2. `difficult_threshold_for_root` 现在内部再走一次 `lang_root`。对文档承诺的
+   **根**输入是幂等操作，五个值不变（T-21 探针通过）；若有人违反契约传完整
+   代码（如 `"pl_PL"`），旧实现给 3、新实现给 4——新行为才是上游
+   `get_lang_cfg` 语义，但该输入不在契约内，故不视为行为变更。
+3. 未知根测试比 brief 多一个 `en-US`：用于固定「`-` 不归一化」（D-15 的
+   同一条原始字符串规则），不属于 `pt` 验收项。
+4. 三个 FRE 常量目前只被测试与 `syllable_threshold` 之外的读者（T-26+）使用；
+   本任务不实现任何公式。

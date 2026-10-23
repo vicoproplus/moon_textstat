@@ -1,0 +1,147 @@
+# T-16 发音表与音节两层日志
+
+- 执行时间：2026-10-21（本地）
+- 主机：Windows 10.0.19045 x64，Git-for-Windows bash
+- 仓库根：`F:/moonbit比赛/moon_textstat`
+- 模块根：`F:/moonbit比赛/moon_textstat/lib`
+- 分支：`sdd/moon-textstat-core`
+- 工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标
+- 起始提交：`215410b fix(count): fail explicitly on unknown dictionaries and pin parser quirks`
+- 契约：PRD-A FR-07；spec §4.9（FE1）、§4.5.3；design D-1/D-12；上游
+  `_count_syllables.py:23-34`、`_get_lang_root.py:4-20`、`_get_cmudict.py:21-28`
+- 期望值来源环境：`pyphen 0.17.2`、`nltk 3.10.3`（cmudict 语料）、上游本地检出
+  `textstat 0.7.13`（`textstat/textstat`），CPython `3.12.10`
+- 未执行：`git add -A`、`moon upgrade`、`moon add`、`moon publish`、`moon run cmd/gate`
+  （`cmd/gate` 在 T-36 才建立）
+- **结论：PASS**（check 零警告 EXIT=0；test 68/68 EXIT=0；`.mbti` 零变化；S1 命中 0）
+
+---
+
+## 1. 改动面（2 个新文件，闭集）
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/syllables.mbt` | 新增：`lang_root` + `syllables_for_word`（发音优先、断字回退） | 64 | `60e757e05567d580a4ece18dbf8315b195483a21491c3da7f593ccff06f0216e` |
+| `lib/syllables_wbtest.mbt` | 新增：6 条白盒测试（两层、语种根、失败通道、语种探针合计） | 112 | `a6132cea486df697b14f720a3f011af540dccbef438810b17b2eb3d6382a1b2e` |
+
+其余文件零改动。未实现 `syllable_count`（T-17）、未新增公共函数、未导出任何
+辅助函数（`.mbti` 逐字节不变，见 §4）。未新增依赖、未新增目录。
+
+## 2. 实现（与上游逐条对应）
+
+### 2.1 `lang_root`（`get_lang_root`，`_get_lang_root.py:4-20`）
+
+- `split_once("_")` 取第一个 `_` 之前的部分；无 `_` 时返回原串。
+- **不做任何归一化**（不小写、不把 `-` 映射为 `_`），因为上游对调用方原串分割：
+  `"en-US"` 的根是 `en-US`（≠ `en`），`"EN"` 的根是 `EN`（≠ `en`），二者都会
+  跳过发音层。实测上游：`en-US` 的 `readability` = 4（纯断字），`en_US` = 5
+  （发音表命中）；`EN` 的 `extraordinary` = 3（en_GB 断字），`en` = 5（补充表）。
+  两处差异已写进测试，防止「顺手归一化」改变可观察值。
+
+### 2.2 `syllables_for_word`（`_count_syllables.py:23-34`）
+
+1. **先** `resolve_dict(lang)`：不支持语种在计数前即失败，对应上游在逐词循环前
+   构造 `Pyphen(lang=...)`；`ar`/`xx_YY`/`de`/`pt` 抛 `UnsupportedLanguage`。
+2. `lang_root(lang) == "en"` 时用**已解析的字典代码**查
+   `@data.pronunciation_syllable_count(word, dict_lang)`，命中即返回（CMU 首选
+   发音中带重音数字的音素数）。命中优先于断字：en_GB `extraordinary` = 5
+   （断字回退 3）、en_US `readability` = 5（断字回退 4）。
+3. 其余（非 `en` 根、以及被裁剪表删掉的英语词）：`hyphenation_positions(word,
+   dict_lang).length() + 1`。回退是 oracle 语义（D-12 只删「发音值 = 回退值」的
+   键），**不可关闭**（§4.9/FE1）；代码中没有任何开关或启发式分支。
+
+与上游的等价性细节：
+
+- 上游 `cmu_dict[word][0]` 在 `cmu_dict is None` 时抛 `TypeError`、未登录词抛
+  `KeyError`，两者都落入断字回退；本实现用 `lang_root` 判 `None`、用 `Option`
+  判未登录，两条路径的结果一致。
+- `word` 的前置条件是**已小写**（T-17 传 `list_words(..., lowercase=true)` 的输出）。
+  实现不做额外 `to_lower`：`@data.pronunciation_syllable_count` 内部对 ASCII 小写、
+  断字引擎匹配前也对 ASCII 小写，故大写 ASCII 输入与上游一致；只有非 ASCII 大写
+  会偏离，且不在契约内。此点已在函数文档里写成前置条件，避免额外变换掩盖契约。
+- `moon fmt` 把返回标注规范成 `Int32`：本工具链中 `Int` 为 32 位、与 `Int32` 同型
+  （`data` 包源码写 `Int32?`，生成的 `.mbti` 显示 `Int?`；测试中与 `Int` 字面量
+  直接比较通过）。语义不变。
+
+### 2.3 lint 抑制
+
+- `syllables_for_word` 目前只被 wbtest 调用，`moon check` 会报 `unused_value`；
+  为满足「零警告」临时加 `#warnings("-unused_value")`，T-17 落地后删除。
+- `hyphenation.mbt` 中 `hyphenate_positions` 的抑制**保留**：音节层需要把已解析的
+  字典代码同时交给发音表和断字引擎，因此消费的是 `hyphenation_positions`，而不是
+  会再次解析语言的 `hyphenate_positions`；后者仍只被测试使用，不属于「已被非测试
+  代码消费」，故不删除、不改动 `hyphenation.mbt`。
+
+## 3. 测试（6 条）
+
+期望值全部用上游代码实测（`count_syllables` 的逐词语义 + `oracle_smoke.json`）：
+
+| 组 | 断言 |
+| --- | --- |
+| en_US | `extraordinary` 5、`readability` 5（主表命中；en_US 断字为 4）、`international` 5、`documentation` 5、`wellknown` 2（回退 [4]+1）、`the` 1 |
+| en_GB | `extraordinary` 5（主表无、补充表有；en_GB 断字为 3）、`readability` 5、`wellknown` 1（回退 []+1） |
+| `en` | 解析为 en_GB：`extraordinary` 5、`readability` 5、`wellknown` 1、`the` 1 |
+| 非英语 | de_DE：`extraordinary` 6、`international` 6、`documentation` 6（CMU 为 5，证明不查表）；es / es_ES：`extraordinario` 6 |
+| 失败通道 | `ar`/`xx_YY`/`de`/`pt` → `UnsupportedLanguage(原样代码)` |
+| 语种根 | `en`→`en`、`en_US`→`en`、`de_DE`→`de`、`en-US`→`en-US`、`EN_us`→`EN`、`EN-us`→`EN-us`；`en-US` 的 `readability` 4、`EN` 的 `extraordinary` 3 |
+| 探针合计 | `list_words("The extraordinary readability of international documentation.", lowercase=true)` 逐词求和：`en`/`en_US`/`en_GB` = 22，`de_DE` = 25 |
+
+探针合计的期望值来源：oracle `lang_probes.<code>.syllable_count`。
+`de_DE` 的 oracle 值是 **25**（不是 22）；本次用上游重算复核为 25
+（`the`1 + `extraordinary`6 + `readability`5 + `of`1 + `international`6 +
+`documentation`6），与 oracle 一致后才写入断言。`es_ES` 的 23 亦复核一致，但按
+brief 只把 `de_DE` 的合计加入测试。
+
+探针句覆盖两层的混用：`readability` 命中主表（5），`extraordinary` 在 en_GB 下命中
+补充表（5），其余四词走回退；因此 22 不是「只走一层」的巧合。
+
+上游复核命令（仓库根，使用本地检出的上游源码）：
+
+```console
+$ python -c "
+import sys; sys.path.insert(0, 'textstat')
+from textstat.backend.counts._count_syllables import count_syllables
+from textstat.backend.utils._get_cmudict import get_cmudict
+from textstat.backend.utils._get_pyphen import get_pyphen
+t='The extraordinary readability of international documentation.'
+for lang in ['en','en_US','en_GB','de_DE','es_ES','fr_FR','it_IT','nl_NL','pl_PL','ru_RU','hu_HU']:
+    print(lang, count_syllables(t, lang))
+"
+en 22 / en_US 22 / en_GB 22 / de_DE 25 / es_ES 23 / fr_FR 23 /
+it_IT 22 / nl_NL 26 / pl_PL 22 / ru_RU 6 / hu_HU 23
+```
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 68, passed: 68, failed: 0.           # EXIT=0；T-15 后 62 + 本任务 6
+
+$ moon info && moon fmt                            # EXIT=0；.mbti 零变化（无新增公共面）
+$ git diff --quiet -- 'lib/*.mbti' 'lib/data/*.mbti'; echo $?
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    lib/syllables.mbt lib/syllables_wbtest.mbt
+# 无输出，EXIT=1（S1-1 零命中）
+$ awk '{ if (length($0) > m) m = length($0) } END { print m }' \
+    lib/syllables.mbt lib/syllables_wbtest.mbt
+80                                                 # S1-2：远小于 65,535
+$ grep -c '^files' lib/moon.mod
+0                                                  # S1-4 不适用变化，复检通过
+```
+
+- S1-3（`DO NOT EDIT` 生成标记）不适用于本任务：未改动 `data/`、`gate/data/`。
+- `git status` 仅 `.qoder/`（环境目录）与本任务新增文件；无其他改动。
+- 门禁验收（`--group=count` A-2.1、`--group=lang` 英语组三行 A-4.1）按计划
+  推迟到 T-36/T-35；T-35/T-36 的门禁用例将以本层的合计值 22/25 为期望来源。
+
+## 5. 未做 / 边界
+
+- 未实现 `syllable_count`（T-17）、未实现 `polysyllabcount`/`monosyllabcount`
+  （T-18/T-19）、未新增任何公共导出。
+- 未改动发音表数据、断字引擎与其抑制；未新增依赖。
+- `pt` 仍为显式失败（R-33：非验收项；其上游字典 `hyph_pt_BR.dic` 未内嵌）。

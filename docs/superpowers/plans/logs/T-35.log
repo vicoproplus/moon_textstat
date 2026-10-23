@@ -1,0 +1,229 @@
+# T-35 — 语种矩阵与失败通道
+
+日期：2026-10-22。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`9a34347 feat(api): add analyze returning the 19-field value object`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-24/FR-27/FR-28；spec §4.5.3（14 行矩阵）、§4.5.4（失败语义 vs
+失败文本）、§4.5.1；A-4.1/A-4.2/A-4.4/A-5.2/A-5.4；design D-14/FE2/FE3；
+上游 `_get_pyphen.py:22`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 145/145 EXIT=0（T-34 后 140 + 本任务 5）；`.mbti` 只新增
+> `MetricFailure(String)` 一行；S1 检索式零命中；门禁顺延至 T-36（不宣称
+> 门禁等价）。
+
+## 1. 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/hyphenation.mbt` | 修改：`TextstatError` 增 `MetricFailure(String)`；新增 `metric_failure_message`、`with_metric_failure` | 490 | `f48307356b55d1c81993adf925c767ddee5ea205996ed4e8cae3237c0b39d52a` |
+| `lib/syllable_count.mbt` | 修改：拆出 `syllable_count_low`（抛 `UnsupportedLanguage`），公开入口包 `MetricFailure` | 61 | `db748b3bd31b5245a96c3053cc3c82530168e8791adb586ae99f14522f17ec9c` |
+| `lib/averages.mbt` | 修改：`syllables_per_word` 改调 `syllable_count_low` | 155 | `b10711d248bf7b7d50692a81410d3f22b3d41f44b158e4c47d9ebfcae852181a` |
+| `lib/polysyllabcount.mbt` | 修改：拆出 `count_polysyllable_words`，公开入口包装 | 54 | `0f891ba236292044ba273b94be934806682a15f39fbfca36dfccd0ebf298d648` |
+| `lib/monosyllabcount.mbt` | 修改：拆出 `count_monosyllable_words`，公开入口包装 | 54 | `0573d69f3c664ec25a69496592f3793ff7ae16d5b90c7f44f274f96d900602a4` |
+| `lib/difficult_words.mbt` | 修改：公开 `difficult_words` 包装 | 192 | `aec8475ee27476d9af173d9739795bfe5f4d1075149bce78815dbaa3ee9aeda1` |
+| `lib/difficult_words_list.mbt` | 修改：公开 `difficult_words_list` 包装 | 41 | `c7128e71500c980b67d113e5c1a16c1718df5b64b661133561332b278b1949bc` |
+| `lib/flesch_reading_ease.mbt` | 修改：公开入口包装 | 53 | `fabaab6966259d0f94c6b39f05eab323bbb07d0af1b26eed8d6db98eb846a053` |
+| `lib/flesch_kincaid_grade.mbt` | 修改：公开入口包装 | 61 | `e8d9d8f1b75ec1806f7b4e96a9362092306e6032fe1273c8ba28b91dcf94668c` |
+| `lib/gunning_fog.mbt` | 修改：公开入口包装 | 71 | `f7259b492ad2d7312140e6d2129f0f24292c43af9a834e625869b4a8c4179772` |
+| `lib/smog_index.mbt` | 修改：改调 `count_polysyllable_words`，公开入口包装 | 67 | `c3d808c39ffdb98925626ab6140277ce200100c758446023c2b25ad287a0acf3` |
+| `lib/linsear_write_formula.mbt` | 修改：拆出 `linsear_write_formula_low`，公开入口包装 | 166 | `e9952d81244476c130ab426ff0e113117c57fda2383dd6120f8d2e8b7001aec9` |
+| `lib/dale_chall_readability_score.mbt` | 修改：公开入口包装 | 79 | `ca8721e1a88888e55a7f66913b6b86109a94d7b3d7c7502b782828e470a707c5` |
+| `lib/analyze.mbt` | 修改：仅文档（内层 `MetricFailure` 原样传播） | 91 | `14219a7a982b0e35fd4203a962b086cf8b3405a1c327c749b6df7c9cc24b80cb` |
+| `lib/lang_matrix_test.mbt` | 新增：4 条矩阵/失败/空串/`pt` 文档测试 | 160 | `86096b9b0d8fb642fc369cb51077b531cd0d0e51f35c6732aa33c87c6743a9ed` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：错误面新增 1 行 | 87 | `857ea9407df7f72c80f4285a6bb932ffc7348ed73a7a8632aec416d7e387fd42` |
+
+既有测试同步更新（仅改失败断言，不改 oracle 数值）：`analyze_test.mbt`、
+`dale_chall_readability_score_test.mbt`、`difficult_words_test.mbt`（两处）、
+`difficult_words_list_test.mbt`、`flesch_kincaid_grade_test.mbt`、
+`flesch_reading_ease_test.mbt`、`gunning_fog_test.mbt`、
+`monosyllabcount_test.mbt`、`polysyllabcount_test.mbt`、`smog_index_test.mbt`、
+`syllable_count_test.mbt`（两处）；`linsear_write_formula_test.mbt` 新增 1 条
+失败文本测试。白盒 `difficult_words_wbtest.mbt`、`hyphenation_wbtest.mbt`
+（两处）、`syllables_wbtest.mbt` 只补 `_ => None` 的穷尽分支，仍捕获低层
+`UnsupportedLanguage`。
+
+`lib/moon.pkg`、`lib/types.mbt`、`lib/data/`、`lib/gate/` 未改。
+
+## 2. Part A — 语种矩阵
+
+探针文本（与 oracle 同文）：
+`The extraordinary readability of international documentation.`
+
+`lib/lang_matrix_test.mbt` 的 `language matrix: 11 codes x 6 fields match the
+oracle` 一次覆盖 11 个代码 × 6 个 `[ALIGN]` 字段，数值逐格取自
+`docs/facts/oracle_smoke.json` 的 `lang_probes`：
+
+| 代码 | 音节 | FRE | Fog | 难词 | 多音节 | 单音节 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `en` | 22 | -109.45499999999998 | 29.06666666666667 | 4 | 4 | 2 |
+| `en_US` | 22 | -109.45499999999998 | 29.06666666666667 | 4 | 4 | 2 |
+| `en_GB` | 22 | -109.45499999999998 | 29.06666666666667 | 4 | 4 | 2 |
+| `de_DE` | 25 | -69.75000000000003 | 29.06666666666667 | 4 | 4 | 2 |
+| `es_ES` | 23 | -29.28 | 22.400000000000002 | 3 | 4 | 2 |
+| `fr_FR` | 23 | -81.22333333333333 | 29.06666666666667 | 4 | 4 | 2 |
+| `it_IT` | 22 | -10.800000000000011 | 29.06666666666667 | 4 | 4 | 2 |
+| `nl_NL` | 26 | -132.41166666666663 | 29.06666666666667 | 4 | 4 | 2 |
+| `pl_PL` | 22 | -109.45499999999998 | 29.06666666666667 | 4 | 4 | 2 |
+| `ru_RU` | 6 | 138.935 | 2.4000000000000004 | 0 | 0 | 6 |
+| `hu_HU` | 23 | -23.504999999999995 | 22.400000000000002 | 4 | 4 | 2 |
+
+- **FE2 静默回退的证据已在这 11 行内**：`pl_PL` 的 FRE 等于 `en_US`
+  （`-109.45499999999998`，常量继承英语），但音节数为波兰语字典结果；
+  `de_DE`/`fr_FR` 的难词数为 4，与英语易读词表回退一致；`es_ES` 为 3，
+  因为其自有词表含 `international`。
+- **12 个失败单元格**：`ar`/`xx_YY` × 6 字段全部为显式失败（A-5.2），见 §3。
+- **`pt` 非验收项（A-4.4）**：不进入矩阵表；`lang_matrix_test.mbt` 里的一条
+  `documentation only` 测试记录其混合行为——常量与易读词表回退英语（在
+  全易读句上 `gunning_fog(...pt)` 与 `en_US` 逐位相同、`difficult_words` 为
+  0），但断字字典解析为未嵌入的 `hyph_pt_BR.dic`，任何非易读词都在字典层
+  失败。不构造任何葡萄牙语期望值，366 下限不变。
+
+## 3. Part B — 增强失败文本（A-5.4）
+
+### 3.1 错误面
+
+```moonbit
+pub suberror TextstatError {
+  UnsupportedLanguage(String)   // 低层：resolve_dict/断字内部，仅供白盒
+  MetricFailure(String)         // 产品面：三项文本，公开边界唯一可见
+}
+```
+
+`metric_failure_message(metric, lang)` 生成：
+
+```text
+<metric> failed for language '<lang>': no hyphenation dictionary for '<lang>'
+```
+
+实跑样例（`syllable_count("hello", lang="ar")`，临时探针已删除）：
+
+```text
+syllable_count failed for language 'ar': no hyphenation dictionary for 'ar'
+```
+
+三项齐备：指标名 `syllable_count`、语种代码 `ar`、原因
+`no hyphenation dictionary for 'ar'`。该文本**有意增强**，不与上游
+`KeyError: None` 对比，也不进入门禁对拍口径（R-17/§4.5.4）。
+
+### 3.2 公开边界映射
+
+`with_metric_failure(metric, body)` 只捕获 `UnsupportedLanguage` 并转成
+`MetricFailure`，其余错误原样重抛。每个公开入口用自己的指标名包装：
+
+| 公开入口 | 指标名 | 低层路径 |
+| --- | --- | --- |
+| `syllable_count` | `syllable_count` | `syllable_count_low` → `resolve_dict` |
+| `polysyllabcount` | `polysyllabcount` | `count_polysyllable_words` |
+| `monosyllabcount` | `monosyllabcount` | `count_monosyllable_words` |
+| `difficult_words` | `difficult_words` | `count_difficult_words` |
+| `difficult_words_list` | `difficult_words_list` | `list_difficult_words` |
+| `flesch_reading_ease` | `flesch_reading_ease` | `syllables_per_word` → `syllable_count_low` |
+| `flesch_kincaid_grade` | `flesch_kincaid_grade` | 同上 |
+| `gunning_fog` | `gunning_fog` | `count_difficult_words` |
+| `smog_index` | `smog_index` | `count_polysyllable_words` |
+| `linsear_write_formula` | `linsear_write_formula` | `syllables_for_word` |
+| `dale_chall_readability_score` | `dale_chall_readability_score` | `count_difficult_words` |
+| `analyze` | **不包装** | 第 5 字段 `syllable_count` 的 `MetricFailure` 原样传播，文本同样含三项 |
+
+低层 `UnsupportedLanguage` 仍只从包内函数（`resolve_dict`、
+`hyphenation_positions`、`syllables_for_word`、`count_difficult_words`、
+`list_difficult_words`、`syllable_count_low` 等）抛出，白盒测试继续捕获它。
+
+### 3.3 空串例外
+
+`syllable_count("", "ar")` 在解析字典前返回 0（上游 `if not text: return 0`
+的顺序），因此包装层不会触发；`ar`/`xx_YY` 的空串六字段保持 0/0.0。
+非空文本（包括 `" "`、`" .? "`）仍显式失败。新增测试专门钉住这组零值。
+
+## 4. 测试
+
+`moon test --target native`：**145 passed / 0 failed**（EXIT=0）。T-34 的
+140 条全部保留并通过，仅更新失败断言；本任务新增 5 条：
+
+1. `language matrix: 11 codes x 6 fields match the oracle`（66 个数值断言）；
+2. `language matrix: ar and xx_YY fail all six fields`（12 个失败单元格，
+   每格检查指标名/语种/原因三项）；
+3. `language matrix: unsupported languages keep the empty-string zeros`；
+4. `documentation only: pt falls back to English but has no dictionary`；
+5. `unsupported languages raise MetricFailure with the metric name`
+   （`linsear_write_formula` 的公开边界包装）。
+
+既有失败测试的断言由「捕获 `Some(code)` 并比较代码」改为「捕获
+`MetricFailure(message)` 并检查三项文本」，不比较上游文本、不比较完整句子。
+
+## 5. 验证记录
+
+### 5.1 编译与测试
+
+```console
+$ cd lib && moon check --target native; echo $?
+Finished. moon: no work to do
+0
+$ moon test --target native; echo $?
+Total tests: 145, passed: 145, failed: 0.
+0
+$ moon info; echo $?
+0
+$ moon fmt --check; echo $?
+0
+```
+
+`moon check` 零警告（changed-file 编译与最终检查均无 warning 行）。
+
+### 5.2 `.mbti`
+
+```console
+$ git diff -- lib/pkg.generated.mbti
++  MetricFailure(String)
+```
+
+只有错误面新增一行；函数签名、结构体与公开函数集合未变。
+
+### 5.3 静态门 S1
+
+```console
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' --exclude-dir=_build --exclude-dir=target --exclude-dir=.mooncakes .
+# 无输出（EXIT=1，零命中）
+$ awk '{ if (length($0) > m) m = length($0) } END { print "MAX_LINE=" m }' <改动文件>
+MAX_LINE=87
+$ grep -rn 'DO NOT EDIT' data/ gate/data/ | wc -l
+5
+$ grep -c '^files' moon.mod
+0            # grep EXIT=1，无 files 键
+```
+
+改动源码无 I/O、无 FFI、无环境读取；生成物标记数量与 T-34 相同（本次未改
+`data/`、`gate/data/`）。
+
+### 5.4 工作树
+
+```console
+$ git status --porcelain
+ M lib/...（15 个源码/接口文件 + 15 个测试文件，见 §1）
+?? .qoder/
+?? lib/lang_matrix_test.mbt
+```
+
+`.qoder/` 为本地 IDE 配置，未加入索引；`lib/_build/` 被忽略。
+
+## 6. 门禁顺延
+
+`cmd/gate` 尚未建立（T-36）。本任务只把 11×6 数值矩阵、12 个失败单元格与
+失败文本三项固定在包测试里；A-4.1/A-4.2/A-5.2/A-5.4 的门禁口径由
+T-36/T-52 复验。**本任务不宣称门禁等价**，也不构造 `pt` 单元格。
+
+## 7. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. `analyze` 按任务说明不重新包装：首个音节指标 `syllable_count` 的
+   `MetricFailure` 已含三项，重新包装只会需要解析文本或改变指标名。
+3. `syllables_per_word` 从调用公开 `syllable_count` 改为调用低层
+   `syllable_count_low`，否则 FRE/FK 的错误文本会写成 `syllable_count`；
+   数值路径完全不变（145 条测试含既有 oracle 断言）。
+4. `smog_index` 同样改调低层 `count_polysyllable_words`，以保证指标名为
+   `smog_index`；计数实现逐行未变。
+5. `lang` 载荷保持调用方原始拼写（`UnsupportedLanguage(lang)`），因此
+   `EN-us` 这类失败文本也引用原始大小写/分隔符，与 spec §4.5.1 的
+   「不归一化」一致。

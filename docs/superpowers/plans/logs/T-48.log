@@ -1,0 +1,115 @@
+# T-48 — 依赖树
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-32、G-05；spec §4.7 A-8.1。
+
+> 结论：**PASS**。路径依赖消费方的 `moon tree` 只有两行——demo 模块本身与
+> `vicoproplus/moon_textstat`（本地 `lib/`），无 Python / nltk / pyphen /
+> 任何第三方运行期依赖。这是**运行期依赖树**证据，不是注册表安装证据
+> （A-7.1 仍为 `[LOCAL_DEAD_LINK]`，见 T-43）。
+
+## 1. 临时消费方模块（仓库外，任务完成后删除）
+
+`F:/moonbit比赛/_t48_scratch/moon.work`：
+
+```
+members = [
+  "demo",
+  "../moon_textstat/lib",
+]
+```
+
+`F:/moonbit比赛/_t48_scratch/demo/moon.mod`：
+
+```
+name = "t48/demo"
+
+version = "0.1.0"
+
+preferred_target = "native"
+
+import {
+  "vicoproplus/moon_textstat@0.1.0",
+}
+```
+
+`F:/moonbit比赛/_t48_scratch/demo/cmd/readme/moon.pkg`：
+
+```
+import {
+  "vicoproplus/moon_textstat",
+}
+
+pkgtype(kind: "executable")
+```
+
+`cmd/readme/main.mbt` = `lib/README.mbt.md:45-56`（````moonbit nocheck` 围栏内的
+代码）逐字复制，去掉围栏行。字节校验：
+
+```
+$ sed -n '45,56p' lib/README.mbt.md > /tmp/fence.txt
+$ diff -u /tmp/fence.txt demo/cmd/readme/main.mbt   # 无输出
+IDENTICAL
+$ sha256sum demo/cmd/readme/main.mbt
+8a75dc7f4797c16d34035f3c6a759370e3c9770efa100df1d4fe66876ea1fb3d
+```
+
+这就是 T-43 记录的同一套配方（`moon.mod` 新格式弃用 `path`；`moon add` 无路径
+语法；用 `moon.work` 把本地目录挂成成员），本次复现无偏差。
+
+## 2. `moon tree` 原始输出（A-8.1 判据）
+
+```
+$ cd F:/moonbit比赛/_t48_scratch/demo
+$ moon tree
+t48/demo@0.1.0 (local F:\moonbit比赛\_t48_scratch\demo) [workspace member]:
+└─ vicoproplus/moon_textstat -> vicoproplus/moon_textstat@0.1.0 (local F:\moonbit比赛\moon_textstat\lib) [workspace member]
+EXIT=0
+```
+
+树里只有两个节点：demo（自身）与 `vicoproplus/moon_textstat`。
+`(local …\lib)` 说明解析走本地路径，不是注册表。
+
+过滤检查（大小写不敏感）：
+
+```
+$ grep -Ei "python|nltk|pyphen" /tmp/tree.txt
+(无匹配)
+```
+
+## 3. 交叉证据：依赖确实没有第三方运行时
+
+- `lib/moon.mod` 的 `import` 块是注释里的示例（第 7-10 行），**实际为空**：
+  库模块零依赖。
+- 库包的 `cmd/gate/moon.pkg` 只依赖 `moonbitlang/core/{bench,encoding/utf8,env}`
+  与库自身包；`core/*` 是标准库，不是外部运行时。
+- Python/nltk/pyphen 只出现在保真说明里（README §Fidelity、T-43 §5 的 oracle
+  对照），从未作为 MoonBit 依赖存在——`moon tree` 证明运行期不加载它们。
+
+## 4. 判定
+
+- A-8.1（依赖树只列 `vicoproplus/moon_textstat`，无 Python/nltk/Pyphen）：
+  **PASS**，证据为第 2 节原始树 + 第 3 节零 import。
+- 未修改 `lib/` 任何文件；临时模块 `F:/moonbit比赛/_t48_scratch` 已删除。
+- 残留：本证据是**路径依赖**的依赖树；注册表安装路径（`moon add`）仍未验证，
+  A-7.1 状态不变。
+
+## 5. Rubric
+
+| 项 | 判定 | 证据 |
+| --- | --- | --- |
+| R1 依赖树只列 `vicoproplus/moon_textstat`，无 Python/nltk/Pyphen | pass | §2 原始树仅 2 节点；`grep -Ei "python|nltk|pyphen"` 无匹配；§3 `lib/moon.mod` 零 import |
+| R2 命令 ≤ 5 条 / 轮次 ≤ 2；15 分钟 | pass | 本轮命令：`moon tree`（1 次）+ 1 次 `grep` 校验，单轮完成，约 3 分钟 |
+| R3 日志 `docs/superpowers/plans/logs/T-48.log` | pass | 本文件 |
+| R4 保真优先，不改变任一 oracle 单元格 | na | 本任务只读：未改 `lib/` 任何源码或期望值 |
+| R5 公式层只吃计数层 | na | 只读验证任务，未触及公式实现 |
+| R6 运行期零 I/O；`extern "js"`/FFI 禁止 | pass | **库包**（`lib/*.mbt`、`lib/data/**`、`lib/gate/data/**`）零 `extern`、零 `@env`；全部 FFI 只在 `cmd/gate` 可执行包，且属两条已记录的用户裁决白名单：`cmd/gate/exit.mbt` 1 处 `extern "c"`（exit shim，T-36）、`cmd/gate/records.mbt` 4 处 `extern "c"`（`fopen`/`fwrite`/`fclose`/`mkdir`，门禁失败记录写盘）+ 2 处 `@env.`（`main.mbt` argv、`records.mbt` `@env.now`）。`grep -rn 'extern "c"' --include=*.mbt lib/ | grep -v _build` = 5 行；`grep -rn '@env\.' … ` = 2 行。库 import 为空 |
+| R7 门禁唯一命令 | na | 本任务不跑门禁（T-43 已记录 `--group=formula` EXIT=0） |
+| R8 字段契约唯一权威 | na | 未新建字段表 |
+| R9 `[EXT]` 31 个 callable 不实现 | na | 未实现任何 callable |
+| R10 冻结下限 366 单元格 | na | 未增删单元格 |
+| R11 `pt` 不是验收项 | na | 未涉及 |
+| R12 失败文本不参与对拍 | na | 未涉及失败路径 |
+
+Coverage: judged 12 / 12。

@@ -1,0 +1,193 @@
+# T-26 — Flesch 阅读容易度
+
+日期：2026-10-21。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+起始提交：`b624021 feat(lang): add the nine-root constant table with English inheritance`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`，native 目标。
+契约：PRD-A FR-16；spec §4.4 表第 1 行与约束 1；上游
+`backend/metrics/_flesch_reading_ease.py:11-37`、`_words_per_sentence.py`、
+`_syllables_per_word.py`。
+
+> 结论：PASS。`moon check --target native` 零警告 EXIT=0；`moon test
+> --target native` 108/108 EXIT=0（T-25 后 105 + 本任务 3）；`.mbti` 只新增
+> `flesch_reading_ease`；S1 零命中；11 个样本值与 11 个语种探针全部按位相等
+> （`==`，非容差）。
+
+## 1. 实现
+
+### 1.1 改动面
+
+| 文件 | 角色 | 行数 | SHA-256 |
+| --- | --- | --- | --- |
+| `lib/averages.mbt` | 新增：包内私有 `words_per_sentence`、`syllables_per_word` | 62 | `cd6568bbbb3f8138d8e1e496aa743e84948da34bfddd2407933e14a266e0373f` |
+| `lib/flesch_reading_ease.mbt` | 新增：公开 `flesch_reading_ease` | 49 | `ee33eed6a4e417abaf8ac33cc63c9afac823c12ed840f815e06bddc76717b645` |
+| `lib/flesch_reading_ease_test.mbt` | 新增：3 条黑盒测试 | 130 | `c59ec55b6ae703db3de7e3fcdecf7acaa60ecfd22c6d31ad4c599f7abd0e6f7e` |
+| `lib/pkg.generated.mbti` | `moon info` 生成：新增 `flesch_reading_ease` 一行 | — | — |
+
+### 1.2 `lib/averages.mbt`（公式层只吃计数层）
+
+```moonbit
+fn words_per_sentence(text : String) -> Double {
+  let words = lexicon_count(text)
+  let sentences = sentence_count(text)
+  if sentences == 0 { 0.0 } else { words.to_double() / sentences.to_double() }
+}
+
+fn syllables_per_word(text : String, lang : String) -> Double raise TextstatError {
+  let syllables = syllable_count(text, lang~)
+  let words = lexicon_count(text)
+  if words == 0 { 0.0 } else { syllables.to_double() / words.to_double() }
+}
+```
+
+- 逐字对应上游 `count_words / count_sentences` 与
+  `count_syllables / count_words`；`count_words` = `lexicon_count(text)`
+  （默认参数），`count_sentences` = `sentence_count(text)`。本文件不调用
+  `list_words`，不自行分词（spec §2.1 约束 2）。
+- Python `int / int` 的真除法：两个计数都 < 2^53，先各自精确转 `Double` 再除，
+  与被正确舍入的 Python 结果逐位一致。
+- **求值顺序**：`syllables_per_word` 先算分子 `syllable_count`，再取词数并判零。
+  这是上游 `try: count_syllables(text, lang) / count_words(text)` 的顺序，语言
+  失败不会被零分母守卫吞掉。零分母只在词数为 0 时出现：空串，以及空白 / 纯
+  标点这类分词后无词的非空文本；后者在受支持语种下得 0.0，在 `ar`/`xx_YY`
+  下仍先抛语言失败（§3 实测）。
+
+### 1.3 `lib/flesch_reading_ease.mbt`
+
+```moonbit
+pub fn flesch_reading_ease(
+  text : String,
+  lang~ : String = "en_US",
+) -> Double raise TextstatError {
+  let sl = words_per_sentence(text)
+  let spw = syllables_per_word(text, lang)
+  if sl == 0.0 || spw == 0.0 { return 0.0 }
+  let cfg = lang_config(lang)
+  cfg.fre_base - cfg.fre_sentence_length * sl - cfg.fre_syll_per_word * spw
+}
+```
+
+- 表达式即上游三行 `return`，Python 左结合 → `(base − a·sl) − b·spw`；未做任何
+  代数化简（§4.4 约束 1）。常量取自 T-25 的 `lang_config`（`lang_root` 解析 +
+  英语回退已在其中完成）。
+- 零分支在取常量表之前返回 0.0，与上游 `if sentence_length == 0 or syllables
+  == 0: return 0.0` 的位置一致（上游虽在函数开头取 `lang_root`，但该调用无失败
+  面，故无可观察差异）。
+- 失败通道：`syllables_per_word` 的 `syllable_count` 在守卫之前执行，非空文本
+  + 不支持语种 → `UnsupportedLanguage` 原样上抛；空串对任何语种都返回 0.0。
+- 默认 `lang = "en_US"`。
+
+## 2. 上游实测（vendored `textstat 0.7.13`，CPython 3.12.10）
+
+### 2.1 空串与失败通道
+
+```console
+$ cd textstat && python - <<'PY'
+import warnings; warnings.simplefilter('ignore')
+from textstat.backend.metrics._flesch_reading_ease import flesch_reading_ease as f
+for t in ['', '   ', ' .? ', 'hello']:
+    for lang in ['en_US','ar']:
+        try: print(repr(t), lang, repr(f(t, lang)))
+        except Exception as e: print(repr(t), lang, type(e).__name__)
+PY
+'' en_US 0.0
+'' ar 0.0
+'   ' en_US 0.0
+'   ' ar KeyError
+' .? ' en_US 0.0
+' .? ' ar KeyError
+'hello' en_US 36.62000000000003
+'hello' ar KeyError
+```
+
+即：**空串对 `ar` 不失败**（`count_syllables("")` 在语言解析前返回 0，随后
+`0/0` 落到守卫），而空白 / 纯标点 / 有词文本对 `ar` 都在分子处抛
+`KeyError: None`。卫护不压制语言失败这一点由测试固定。
+
+### 2.2 结合顺序确有可观察差异
+
+用上游计数对 11 个样本复算两种结合式：
+
+```console
+$ cd textstat && python - <<'PY'
+... a = base - ca*sl - cb*spw；b = base - (ca*sl + cb*spw) ...
+PY
+short_simple_sentence           116.14500000000001 == 116.14500000000001
+long_multi_sentence_paragraph   20.732363636363658 == 20.732363636363658
+abbreviations_and_initials      89.70051075268819  == 89.70051075268819
+hyphenated_words                9.101617647058845  == 9.101617647058845
+numbers_and_symbols             84.26261904761905  != 84.26261904761907   ← 差 1 ulp
+multiple_paragraphs_newlines    60.35400000000001  == 60.35400000000001
+very_short_under_5_words        120.20500000000001 == 120.20500000000001
+empty/whitespace/punctuation    0.0                == 0.0
+spanish_text                    48.244022988505776 == 48.244022988505776
+```
+
+`numbers_and_symbols` 在 `base − (a·sl + b·spw)` 下是 `84.26261904761907`（与
+oracle 的 `84.26261904761905` 差 1 ulp），因此「逐字复刻、不得化简」在样本内
+可观察；实现保持左结合，该行按位命中。
+
+### 2.3 期望值位模式核对
+
+`docs/facts/oracle_smoke.json` 的 11 个 `samples[].results.flesch_reading_ease`
+与 11 个 `lang_probes.<code>.flesch_reading_ease` 数值逐一用
+`struct.pack('>d', …)` 与写入测试的字面量比较：全部相同（`ALL True`、
+`PROBES True`）。字面量与 oracle 是同一批 IEEE-754 位模式，故断言用 `==`。
+
+## 3. 测试（`lib/flesch_reading_ease_test.mbt`，3 条，105 → 108）
+
+| 测试 | 断言 |
+| --- | --- |
+| `flesch_reading_ease matches the 11 frozen oracle samples` | 11 行 `(text, expected)` 全部 `assert_eq`：`116.14500000000001, 20.732363636363658, 89.70051075268819, 9.101617647058845, 84.26261904761905, 60.35400000000001, 120.20500000000001, 0.0, 0.0, 0.0, 48.244022988505776`；样本序即 oracle 序；末尾再断言省略 `lang` 时的默认值 |
+| `language probes match the oracle` | 探针句 11 行：`en/en_US/en_GB -109.45499999999998`、`de_DE -69.75000000000003`、`es_ES -29.28`、`fr_FR -81.22333333333333`、`it_IT -10.800000000000011`、`nl_NL -132.41166666666663`、`pl_PL -109.45499999999998`、`ru_RU 138.935`、`hu_HU -23.504999999999995` |
+| `unsupported languages raise and the empty string stays zero` | `ar`/`xx_YY`：空串 → 0.0；探针句、`"hello"`、`" "`、`" .? "` → `UnsupportedLanguage(code)`，code 为调用方原始拼写 |
+
+样本文本与 oracle 逐字节相同；`numbers_and_symbols` 中 URL scheme 的首字母按
+既有惯例写作 `\u{68}`，运行期文本不变，S1 检索式无命中。
+
+## 4. 验收
+
+```console
+$ cd lib && moon check --target native
+Finished. moon: ran 3 tasks, now up to date        # 零警告，EXIT=0
+
+$ moon test --target native
+Total tests: 108, passed: 108, failed: 0.          # EXIT=0；T-25 base 105 + 3
+
+$ moon build --target native
+Finished. moon: no work to do                      # EXIT=0
+
+$ moon info && moon fmt && moon fmt --check        # EXIT=0
+$ git diff -- lib/pkg.generated.mbti
++pub fn flesch_reading_ease(String, lang? : String) -> Double raise TextstatError
+# 仅此一行（含空行），无其他符号变化
+
+$ grep -rn "#warnings" lib/*.mbt | grep -vE "_wbtest\.mbt|_test\.mbt" | wc -l
+0
+
+$ grep -rnE 'extern[[:space:]]+"|@env\.|@fs\b|read_file|write_file|open_file|http|socket' \
+    --include='*.mbt' lib/averages.mbt lib/flesch_reading_ease.mbt lib/flesch_reading_ease_test.mbt
+# 无输出（grep EXIT=1，S1 零命中）
+
+$ awk long-line check: max 603 字节（测试文件单行）< 65,535
+$ git status --porcelain
+ M lib/pkg.generated.mbti
+?? .qoder/
+?? lib/averages.mbt
+?? lib/flesch_reading_ease.mbt
+?? lib/flesch_reading_ease_test.mbt
+```
+
+## 5. 门禁顺延
+
+`cmd/gate` 在 T-36 建立；A-3.1 的 `--group=formula` 由 T-36/T-52 复验。本任务
+的等价证据是 §2 的上游实测（含失败通道与结合顺序）与 §3 的 22 个数值断言。
+
+## 6. 偏差与备注
+
+1. 实现由本代理直接完成（无独立实现者子代理派发），审查留给任务审查环节。
+2. `averages.mbt` 的两个 helper 为包内 `fn`（`.mbti` 不出现）；后续公式任务
+   （T-27 FK、T-28 Fog 等）可直接复用，无需重复实现平均量。
+3. 新增 3 条测试而非 brief 未限定的条数：样本、语种探针、失败/空串各一条，
+   均为可追溯到 `oracle_smoke.json` 的断言；无合成期望值。
+4. 未新增对 `pt` 的断言（A-4.4 非验收，R-33 裁决 b）；`pt` 的常量回退已由
+   T-25 的白盒测试覆盖。

@@ -1,0 +1,168 @@
+# T-50 — js 次选后端（A-10.1）
+
+日期：2026-10-23。分支 `sdd/moon-textstat-core`。模块根 `lib/`。
+工具链：`moon 0.1.20261012 (748b63c 2026-10-12)`；`moonc v0.10.15+943464bfa`；native 为契约后端。
+契约：PRD-A 兼容性 NFR (a)；spec §4.6、§4.7 A-10.1；AD §3.5；设计 TB2。
+
+> 结论：**未执行（precondition unmet）**。PATH 上唯一的 `node` 是 bun 垫片
+> （`C:\Users\Administrator\.bunpm\bin\node.cmd`），且该垫片指向一个**不存在的路径**
+> （`D:\nvm4w\nodejs\bun`，`D:\nvm4w` 整个目录都不存在）。这正是 AD §3.5 / TB2
+> 警告的"bun 替身 node"情形，js 后端的结果会失去意义。系统内未找到任何真实
+> `node.exe`。按 brief，A-10.1 标"未执行"，**不阻塞门禁结论**。
+>
+> 另需记录：`moon test --target js` 的实际退出码是 **255**（不是 0 也不是 2）。
+> 这不是测试失败——见 §4 的旁证：同一份生成的 js 用 bun 直接跑，35/35 全绿。
+
+## 1. PATH 与 node 解析（原始输出）
+
+```
+$ which node
+C:\Users\Administrator\.bunpm\bin\node.cmd
+
+$ node --version
+The system cannot find the path specified.
+
+$ node -e "console.log(process.execPath)"
+The system cannot find the path specified.
+
+$ where node
+C:\Users\Administrator\.bunpm\bin\node.cmd
+
+$ powershell -NoProfile -Command "Get-Command node -All | Select-Object -ExpandProperty Source"
+C:\Users\Administrator\.bunpm\bin\node.cmd
+
+$ cat "C:/Users/Administrator/.bunpm/bin/node.cmd"
+@echo off
+"D:\nvm4w\nodejs\bun" %*
+
+$ ls "D:/nvm4w/nodejs"
+ls: cannot access 'D:/nvm4w/nodejs': No such file or directory
+
+$ ls "D:/nvm4w"
+ls: cannot access 'D:/nvm4w': No such file or directory
+```
+
+PATH 命中项（`echo "$PATH" | tr ';' '\n' | nl`，1-based）：
+
+```
+35  C:\Users\Administrator\.bunpm\bin      <-- bun 垫片，提供唯一的 node
+40  D:\nvm                                  <-- 不存在（nvm 未安装/已卸载）
+42  D:\nvm4w\nodejs                         <-- 不存在（垫片目标，已损坏）
+44  C:\Users\Administrator\.bun\bin        <-- bun.exe 本体（1.4.3），非 node
+```
+
+`bunpm` 出现在 PATH 第 **35** 条。`node` 确实解析到 bun 相关垫片（`.bunpm`），
+**不满足 AD §3.5 的前置条件**。
+
+真实 node 的排查（全部缺失）：
+
+```
+C:/Program Files/nodejs/node.exe                  absent
+C:/Program Files (x86)/nodejs/node.exe            absent
+C:/Users/Administrator/AppData/Roaming/nvm        absent
+C:/Users/Administrator/AppData/Local/Volta        absent
+C:/Users/Administrator/.volta                     absent
+C:/Users/Administrator/AppData/Roaming/fnm        absent
+C:/Users/Administrator/scoop/apps/nodejs/current/node.exe   absent
+```
+
+## 2. `moon test --target js`（原始输出 + EXIT）
+
+```
+$ cd lib && moon test --target js; echo EXIT=$?
+The system cannot find the path specified.
+Error: failed to run test for target Js
+
+Caused by:
+    Failed to run the test: F:\moonbit比赛\moon_textstat\lib\_build\js\debug\test\cmd\gate\gate.whitebox_test.js
+    The test executable exited with exit code: 1
+
+EXIT=255
+```
+
+两次运行同结果（第二次仅确认非偶发，未重复记录）：
+
+```
+$ cd lib && moon test --target js > out 2>&1; echo EXIT=$?
+EXIT=255
+```
+
+## 3. moon 实际使用的解释器（`-v`）
+
+```
+$ cd lib && moon test --target js -v
+C:/Users/Administrator/.bunpm/bin/node.cmd --enable-source-maps ./_build/js/debug/test/cmd/gate/gate.whitebox_test.js '{"package":"...","file_and_index":[...]}'
+The system cannot find the path specified.
+Error: failed to run test for target Js
+...
+```
+
+即：moon 解析到的 "node" 就是那个坏掉的 bun 垫片；`--enable-source-maps` 这个
+node 专有开关即便换到 bun 也不会被接受，所以**不能**用改 PATH 指向 bun 来"凑出"
+一个 js 绿——那正是 TB2 禁止的替代。
+
+## 4. 旁证：js 产物本身没有缺陷（这是诊断，不是验收）
+
+用 `bun.exe` 按 moon 的同一 argv 直接跑同一份产物：
+
+```
+$ bun --enable-source-maps ./_build/js/debug/test/cmd/gate/gate.whitebox_test.js '<moon 的 argv>'
+BUN_EXIT=0
+35 条 "type":"result"，无 fail/error/panic（sha256/field_index/data_checks/bench 四个 wbtest，各 10/11/7/7）
+```
+
+不加 argv 时 bun 会报 `TypeError: undefined is not an object (evaluating 'tests.length')`——
+这是 `parse_args()` 在 `process.argv.length <= 2` 时**隐式返回 undefined** 的既有
+driver 行为，不是本仓库的业务代码问题。
+
+因此 §2 的 255 **不是真实测试失败**，而是"node 解释器不可用"的环境失败。
+
+**这条结论的适用范围（终评 fix wave 限定，2026-10-23）**：上述 35 条结果来自
+`cmd/gate/gate.whitebox_test.js` —— **180 个测试里只有 35 个跑在 js 上，即门禁的
+四个白盒测试文件**（sha256 10 + field_index 11 + data_checks 7 + bench 7）。
+库本身的测试（`lib/*_test.mbt`、`lib/*_wbtest.mbt` 以及 `lib/gate/data/l3_test.mbt`
+中的其余 145 个）在 js 后端上**没有跑过**。
+所以「35/35 通过 ⇒ 255 是环境问题、不是缺陷」这个判断只对**门禁白盒测试面**成立，
+对库的测试面**没有建立**。要把它推广到整个库，需要装好真实 `node.exe` 后跑完整的
+`moon test --target js`。
+
+## 5. 分类
+
+| 观察 | 判定 |
+| --- | --- |
+| `which node` → `.bunpm\bin\node.cmd` | bun 垫片（TB2 命中） |
+| 垫片目标 `D:\nvm4w\nodejs\bun` | 不存在 → 垫片失效 |
+| 真实 node.exe | 系统内未找到 → **node absent** |
+| `moon test --target js` EXIT | **255**（环境失败，非 0/非 2） |
+| 生成 js 在 bun 下运行 | 门禁白盒测试 35/35 通过 → **门禁**产物在该面内无缺陷（库测试面未跑，见 §4 末段） |
+| 是否有真实测试失败 | **门禁白盒测试面：没有**（js 上只跑了这 4 个 wbtest 文件；库的 145 个测试未在 js 上运行，无从判断） |
+
+精确归类：**node absent / bun shim broken**。不是 moonrun 缺失，也不是真实测试失败。
+
+## 6. native 基线（同期）
+
+```
+$ cd lib && moon test --target native | tail -3
+field index: fields=19/19 cells=366 counter=9 score=9 word_list=1
+Total tests: 179, passed: 179, failed: 0.
+```
+
+native 179/179 绿；js 侧因解释器缺失无法取到可比总数（brief 说 native 可能因其他
+worker 提交而小幅漂移，此处记录所见值即为 179）。
+
+## 7. 验收对照（A-10.1）
+
+- EXIT=0？否。
+- EXIT=2？否（实际 255）。
+- 环境是否满足前置条件（真 node、`.bunpm\bin` 不在 PATH）？**否**。
+
+→ 触发 brief 的兜底条款：标 **"未执行"**，**不阻塞门禁结论**。
+门禁唯一命令仍是 `moon run cmd/gate --target native`（AD-3），本任务不改变它。
+
+## 8. Verdict
+
+`未执行 (precondition unmet)`
+
+备注（不得被后续引用为"js 已通过"）：A-10.1 在 js 目标上仍**未被实测**。若日后
+装上真实 node 并把它排到 `.bunpm\bin` 之前，本日志可原地重跑补证；届时须确认
+输出总数与 native 179 是否一致。
