@@ -217,3 +217,65 @@ EXIT=255
 judged: 12 / 12（pass 4 / na 7 / fail 0；R1-R3 为 Acceptance，R4-R12 为全局约束与覆盖项）。
 
 VERDICT: PASS
+
+## 6. T-54 发布后状态变更（2026-10-23 追加）
+
+`moon publish` 已执行（`HEAD 2414de1`，`moon publish` EXIT=0，`Server status: 200 OK`），
+完整原始输出见 `docs/superpowers/plans/logs/T-54.log`。本节记录本文件 §1/§3.1/§3.2
+中 A-7.1 与 A-7.2 的状态变更；**A-7.3 / A-10.2 状态不变**。
+
+### 6.1 A-7.1 — 安装即运行：**已回填**
+
+证据（仓库外空模块 `F:/moonbit比赛/_t54_demo/demo`，真实注册表依赖：
+`import { "vicoproplus/moon_textstat@0.1.0" }`）：
+
+```console
+$ moon add vicoproplus/moon_textstat@0.1.0
+Registry index updated successfully
+Symbols updated successfully
+ADD=0
+
+$ moon run cmd/main --target native
+116.14500000000001
+-1.4499999999999993
+2.4000000000000004
+3.1291
+-4.300000000000001
+-4.299999999999997
+2
+0.2976
+RUN2=0
+```
+
+八个公式值与 `lib/README.mbt.md` 的示例逐字一致；`moon tree` 显示
+`vicoproplus/moon_textstat -> vicoproplus/moon_textstat@0.1.0`（注册表包，非路径依赖）。
+触发条件「首次 `moon publish` 成功且注册表可 `moon add`」已满足。
+
+### 6.2 A-7.2 — 发布元数据齐备：**已回填**
+
+```console
+$ cd lib && moon view vicoproplus/moon_textstat; echo EXIT=$?
+vicoproplus/moon_textstat@0.1.0
+Description: Readability metrics for MoonBit — text counts plus the eight textstat formulas, with all data embedded (no runtime I/O).
+License: MIT AND MPL-1.1 AND LGPL-2.1-or-later
+Repository: https://gitcode.com/vicoproplus/moon_textstat
+Published: 2026-10-23T05:17:33.765127+00:00
+Downloads: 1
+Latest: 0.1.0
+Versions: 1 (use --versions to list)
+EXIT=0
+```
+
+版本 / 许可证 / 仓库地址三项齐备，且许可证为 `lib/moon.mod` 的三条款 SPDX 表达式。
+
+### 6.3 未变更的行
+
+- **A-7.3**（注册表页面渲染）：仍 unresolved，责任单元 B。本轮回填**只**覆盖 API 侧
+  元数据（`moon view`），未打开 `mooncakes.io` 网页核对中文章节渲染。
+- **A-10.2 / A-10.1**（wasm / js）：仍 unresolved（`moonrun` 加载失败 E-3 未解）。
+
+### 6.4 收口计数（更新 §4）
+
+- 已回填：**4 条** —— A-1.4、A-1.5、**A-7.1**、**A-7.2**。
+- 仍 unresolved：**2 条** —— A-7.3（单元 B）、A-10.2。
+- 算术：4 + 2 = 6 个行 id。§4 的「2 已回填 + 4 unresolved」由本节取代。
