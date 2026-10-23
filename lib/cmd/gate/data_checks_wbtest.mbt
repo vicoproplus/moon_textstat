@@ -132,7 +132,7 @@ test "a missing table is recorded as a JSON string" {
 }
 
 ///|
-/// On the delivered data every check passes: 30 checks, no failure record.
+/// On the delivered data every check passes: 34 checks, no failure record.
 test "the delivered data passes every identity check" {
   let (records, passed) = run_data_checks()
   assert_eq(records.length(), 0)

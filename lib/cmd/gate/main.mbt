@@ -12,8 +12,9 @@ const FROZEN_FLOOR : Int32 = 366
 /// The parsed command line. The argument set is closed (AD section 6).
 ///
 /// `inject` is 0 when absent or explicitly `--inject=0`. A nonzero value is
-/// only meaningful for `--group=selfcheck`, where it is a 1-based index into
-/// the selected cells (AD section 6: `--inject=<n>` only takes effect there).
+/// only meaningful for `--group=selfcheck` and `--group=zh`, where it is a
+/// 1-based index into that group's selected cells (AD section 6: those are the
+/// two groups `--inject=<n>` takes effect on).
 struct GateConfig {
   group : String
   bench : Bool
@@ -69,7 +70,8 @@ fn is_known_group(value : String) -> Bool {
     | "degenerate"
     | "errors"
     | "data"
-    | "selfcheck" => true
+    | "selfcheck"
+    | "zh" => true
     _ => false
   }
 }
@@ -200,7 +202,7 @@ fn report_line(
 ///    is no mismatch to record and the promise's precondition is absent. 2
 ///    remains a usage error. See `bench.mbt`.
 ///
-/// 3. **`--group=data` reports its 30 data checks against the floor**
+/// 3. **`--group=data` reports its 34 data checks against the floor**
 ///    (AD section 6, as above). Same reasoning and the same floor enforcement
 ///    as item 1; the detailed rationale is on `run_data_group`.
 ///
@@ -251,9 +253,9 @@ fn enforce_floor(loaded : Int32) -> Unit {
 ///
 /// **Registered deviation from AD section 6** (item 3 of the register above).
 /// AD section 6 reads literally as "`cells >= floor`, else EXIT=2", and a
-/// `--group=data` run reports `cells=30 floor=366`. The literal reading cannot
+/// `--group=data` run reports `cells=34 floor=366`. The literal reading cannot
 /// apply to this group: `cells` here is the number of data checks performed
-/// (bounded by the pinned tables, 30), not the number of L3 alignment cells,
+/// (bounded by the pinned tables, 34), not the number of L3 alignment cells,
 /// so a comparison of the two counts is a category error. What the floor
 /// protects — "never pass on an empty or truncated seed stack" (AD section
 /// 3.3, A-6.3) — is still enforced, on `@gate_data.total_cells()`, by
@@ -265,16 +267,16 @@ fn enforce_floor(loaded : Int32) -> Unit {
 ///
 /// The output order is the same as on the cell path: report line → floor →
 /// records → exit code. The `DATA_CHECK_COUNT` self-check (the data group must
-/// actually perform all 30 pinned checks, so a vacuous selection can never
+/// actually perform all 34 pinned checks, so a vacuous selection can never
 /// pass) runs after the floor, immediately before the records, so a table
 /// below the floor leaves no `.jsonl` behind here either.
 ///
 /// `--inject=<n>` is not accepted here: the perturbation switch is defined
-/// for `--group=selfcheck` only (AD section 6), and no data check may be
-/// perturbed into a false failure.
+/// for `--group=selfcheck` and `--group=zh` only (AD section 6), and no data
+/// check may be perturbed into a false failure.
 fn run_data_group(config : GateConfig) -> Unit {
   if config.inject != 0 {
-    gate_fail("--inject=<n> is only valid with --group=selfcheck")
+    gate_fail("--inject=<n> is only valid with --group=selfcheck or --group=zh")
   }
   let (records, passed) = run_data_checks()
   let cells = passed + records.length()
@@ -309,7 +311,7 @@ fn run_data_group(config : GateConfig) -> Unit {
 ///
 /// Importing the `data` package (`moon.pkg` line 9) makes the L2 tables build
 /// at package initialization on every gate run, including `--bench`: the
-/// pronunciation maps, the ten pattern tables and the two easy-word lists are
+/// pronunciation maps, the twelve pattern tables and the two easy-word lists are
 /// parsed eagerly, once, before `main` runs. That work is untimed and
 /// precedes any sampling or cell evaluation, so it is outside the A-9 budget
 /// and outside every reported count.
@@ -363,6 +365,10 @@ fn run_gate(config : GateConfig) -> Unit {
     run_data_group(config)
     return
   }
+  if config.group == "zh" {
+    run_zh_group(config)
+    return
+  }
   let cells = select_cells(config.group)
   if cells.length() == 0 {
     gate_fail("group " + config.group + " selected no cells")
@@ -370,7 +376,9 @@ fn run_gate(config : GateConfig) -> Unit {
   let mut inject_target : (Int32, @gate_data.Cell)? = None
   if config.inject != 0 {
     if config.group != "selfcheck" {
-      gate_fail("--inject=<n> is only valid with --group=selfcheck")
+      gate_fail(
+        "--inject=<n> is only valid with --group=selfcheck or --group=zh",
+      )
     }
     let index = config.inject - 1
     if index < 0 || index >= cells.length() {

@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/gate/zh"
+
+// Values
+pub fn all_cells() -> Array[Cell]
+
+pub fn case_text(String) -> String?
+
+pub fn total_cells() -> Int
+
+// Errors
+
+// Types and methods
+pub(all) struct Case {
+  id : String
+  text : String
+}
+
+pub(all) struct Cell {
+  sample_id : String
+  metric : String
+  lang : String
+  fixture : String
+  expected : Expected
+}
+
+pub(all) enum Expected {
+  EInt(Int)
+  EDouble(UInt64)
+  EList(Array[String])
+}
+
+// Type aliases
+
+// Traits

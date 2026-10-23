@@ -10,15 +10,17 @@ this directory, `license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"` in
 moon.mod). The MIT license covers the module's own code only. The
 third-party data embedded in this module is NOT MIT: the hyphenation
 patterns are under the Mozilla Public License 1.1 (file-level) and, for
-`hyph_de_DE.dic`, the GNU Lesser General Public License 2.0 or later
-(with the underlying TeX tables under the LaTeX Project Public License);
-the English pronunciation table is under Carnegie Mellon University's
-BSD-2-Clause-style terms. Those terms govern that data, and they travel
-with it: the complete MPL 1.1 text is reproduced in Appendix A, the
-complete LGPL 2.1 text in Appendix B, the CMUdict disclaimer and funding
-acknowledgement in section 2, and the `hyph_de_DE.dic` header verbatim in
-section 3. A recipient of this package therefore needs nothing from the
-source repository in order to satisfy any of those notices.
+`hyph_de_DE.dic` and `hyph_de_AT.dic`, the GNU Lesser General Public
+License 2.0 or later (with the underlying TeX tables under the LaTeX
+Project Public License); the English pronunciation table is under Carnegie
+Mellon University's BSD-2-Clause-style terms. Those terms govern that data,
+and they travel with it: the complete MPL 1.1 text is reproduced in
+Appendix A, the complete LGPL 2.1 text in Appendix B, the CMUdict
+disclaimer and funding acknowledgement in section 2, and the
+`hyph_de_DE.dic` header — together with the two lines in which
+`hyph_de_AT.dic` differs from it — verbatim in section 3. A recipient of
+this package therefore needs nothing from the source repository in order
+to satisfy any of those notices.
 
 This module embeds, at compile time, data derived from three upstream
 sources. Nothing is read from disk or the network at run time. The
@@ -115,15 +117,22 @@ literals), so condition 1 applies: the copyright notice, conditions and
 disclaimer above accompany the redistributed data.
 
 --------------------------------------------------------------------------------
-3. Pyphen hyphenation dictionaries — MPL 1.1 per file, except de_DE
+3. Pyphen hyphenation dictionaries — MPL 1.1 per file, except de_DE and de_AT
 --------------------------------------------------------------------------------
 
-Ten hyphenation pattern files are embedded, taken byte-for-byte from Pyphen
+Twelve hyphenation pattern files are embedded, taken byte-for-byte from Pyphen
 0.17.2 (`pyphen/dictionaries/`), vendored at `vendor/upstream/pyphen/`:
 
-    hyph_en_US.dic  hyph_en_GB.dic  hyph_de_DE.dic  hyph_es.dic
-    hyph_fr.dic     hyph_it_IT.dic  hyph_nl_NL.dic  hyph_pl_PL.dic
-    hyph_ru_RU.dic  hyph_hu_HU.dic
+    hyph_en_US.dic  hyph_en_GB.dic  hyph_de_DE.dic  hyph_de_AT.dic
+    hyph_es.dic     hyph_fr.dic     hyph_it_IT.dic  hyph_nl_NL.dic
+    hyph_pl_PL.dic  hyph_ru_RU.dic  hyph_hu_HU.dic  hyph_pt_BR.dic
+
+Ten of the twelve are redistributed under the **Mozilla Public License 1.1**
+(the nine headerless files plus `hyph_hu_HU.dic`, elected from its own
+tri-license block); the remaining two — `hyph_de_DE.dic` and
+`hyph_de_AT.dic` — under the **GNU Lesser General Public License 2.0 or
+later**. That is the split `moon.mod`'s `MIT AND MPL-1.1 AND
+LGPL-2.1-or-later` records.
 
 Pyphen's package-level license statement (recorded verbatim, with the path of
 the file it was read from, at `docs/facts/syllable-strategy-evidence.md:273-295`):
@@ -141,9 +150,10 @@ Per-file basis:
   1.1/GPL 2.0/LGPL 2.1"). This module redistributes it under the **Mozilla
   Public License 1.1**, elected from that block.
 
-* The eight files without a license header (`hyph_en_US.dic`,
+* The nine files without a license header (`hyph_en_US.dic`,
   `hyph_en_GB.dic`, `hyph_es.dic`, `hyph_fr.dic`, `hyph_it_IT.dic`,
-  `hyph_nl_NL.dic`, `hyph_pl_PL.dic`, `hyph_ru_RU.dic`) are redistributed
+  `hyph_nl_NL.dic`, `hyph_pl_PL.dic`, `hyph_ru_RU.dic`, `hyph_pt_BR.dic`)
+  are redistributed
   under the **Mozilla Public License 1.1**, elected from the package-level
   "GPL, LGPL and/or MPL" statement quoted above. Their content is otherwise
   unmodified; the only transformation applied is decoding the declared
@@ -157,7 +167,10 @@ Per-file basis:
   are under the LaTeX Project Public License. This module therefore
   redistributes `hyph_de_DE.dic` under the **LGPL 2.0 or later**, not under
   MPL 1.1. The complete LGPL 2.1 text is Appendix B. See the open item in
-  `docs/superpowers/plans/logs/T-45.log`.
+  `docs/superpowers/plans/logs/T-45.log`. As with the LPPL origin named in
+  that header, this record names the `dehyphn.tex` source without claiming
+  LPPL compliance: the LPPL analysis was never performed
+  (`docs/superpowers/plans/logs/T-54-license-ruling.md` §「仍未解决」 item 3).
 
   The header is ISO8859-1-encoded upstream; it is reproduced here verbatim,
   decoded to UTF-8 (the only change is the character set — line 1, the
@@ -186,13 +199,28 @@ Per-file basis:
     #           revised conversion: Daniel Naber <naber@danielnaber.de>                #
     #           improvements: Karl Zeiler <karl.zeiler@t-online.de>                    #
 
+* `hyph_de_AT.dic` carries the same header as `hyph_de_DE.dic` and differs
+  from it in exactly two comment lines: line 3 names `hyph_de_AT.dic`
+  instead of `hyph_de_DE.dic`, and line 6 says `Language: German (de AT)`
+  instead of `(de DE)`. The license paragraph (lines 17-18) is word-for-word
+  the OpenOffice.org **LGPL 2 or later** election, and the origin paragraph
+  (lines 12-15) names the same `dehyphn.tex` TeX tables under the LaTeX
+  Project Public License. This module therefore redistributes
+  `hyph_de_AT.dic` under the **LGPL 2.0 or later**, not under MPL 1.1, for
+  the same reason and with the same "named, not cleared" LPPL caveat as
+  `de_DE`. Its header is not reproduced a second time: it is the block
+  quoted above with those two lines substituted.
+
 MPL 1.1 requires that the source code of the covered files be available.
 Source is available: the Pyphen project at <https://github.com/Kozea/Pyphen>
 (release 0.17.2, the version these bytes were taken from), and the pattern
 files' own origins — the LibreOffice dictionaries repository for the
 package-level set, `huhyphn` (Nagy Bence) for `hyph_hu_HU.dic`, and
-`dehyphn.tex` via CTAN for `hyph_de_DE.dic`. The exact bytes shipped here are
-identified by size and SHA-256 in
+`dehyphn.tex` via CTAN for `hyph_de_DE.dic` and `hyph_de_AT.dic`.
+`hyph_pt_BR.dic` declares no origin in its header (it has none: the file is
+the encoding tag `UTF-8` followed by 1,246 pattern lines), so its only
+recorded provenance is the Pyphen release named above. The exact bytes
+shipped here are identified by size and SHA-256 in
 `docs/superpowers/plans/logs/T-04.log` §2 and in
 `docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md`
 §1.2 ("已实测并固化的数据身份", line 58), so a recipient can verify the
@@ -706,8 +734,8 @@ Source: <https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt>, fetched
 20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95.
 Reproduced verbatim (indented by four spaces); no wording changed. The only
 change is that trailing spaces on otherwise-blank lines are dropped. This is
-the license the `hyph_de_DE.dic` header elects ("LGPL 2 or later"); the
-canonical rendering is
+the license the `hyph_de_DE.dic` and `hyph_de_AT.dic` headers elect
+("LGPL 2 or later"); the canonical rendering is
 <https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>.
 
                       GNU LESSER GENERAL PUBLIC LICENSE

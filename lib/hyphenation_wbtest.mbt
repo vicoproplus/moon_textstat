@@ -52,6 +52,35 @@ test "de_DE positions match pyphen" {
 }
 
 ///|
+/// `de` and `pt` resolve to `de_AT` / `pt_BR` (upstream's sorted-file winners,
+/// `pyphen/__init__.py:33-41`), so the short name must produce the same
+/// positions as its dictionary. `de_AT` is compared against `de_DE` because
+/// upstream's three German files share their pattern text byte for byte
+/// (only the two header comment lines differ); `pt_BR` differs from every
+/// other embedded table, which is why upstream's `pt` counts 24 syllables on
+/// the probe sentence against `en_US`'s 22.
+test "de and pt positions match pyphen" {
+  assert_eq([3, 6, 10], try! hyphenate_positions("Silbentrennung", "de"))
+  assert_eq(
+    try! hyphenate_positions("Silbentrennung", "de_AT"),
+    try! hyphenate_positions("Silbentrennung", "de_DE"),
+  )
+  assert_eq(
+    try! hyphenate_positions("aktionärsausschüsse", "de"),
+    try! hyphenate_positions("aktionärsausschüsse", "de_AT"),
+  )
+  assert_eq([2, 5, 7, 9], try! hyphenate_positions("extraordinary", "pt"))
+  assert_eq(
+    [2, 5, 7, 9, 10],
+    try! hyphenate_positions("internacional", "pt_BR"),
+  )
+  assert_eq(
+    try! hyphenate_positions("hiphenização", "pt"),
+    try! hyphenate_positions("hiphenização", "pt_BR"),
+  )
+}
+
+///|
 test "es positions match pyphen" {
   assert_eq([2, 5, 7, 9, 11], try! hyphenate_positions("extraordinario", "es"))
   assert_eq([3, 6], try! hyphenate_positions("buitengewoon", "es"))
@@ -119,7 +148,20 @@ test "language resolution keeps upstream short-name fallback" {
   assert_eq("en_GB", resolve_dict("en"))
   assert_eq("en_US", resolve_dict("EN-us"))
   assert_eq("en_US", resolve_dict("en_US"))
+  // Upstream's sorted-file winners for the two prefixes this port now covers
+  // in full: `hyph_de_AT.dic` sorts before `hyph_de_DE.dic`, `hyph_pt_BR.dic`
+  // before `hyph_pt_PT.dic` (`pyphen/__init__.py:33-41`).
+  assert_eq("de_AT", resolve_dict("de"))
+  assert_eq("pt_BR", resolve_dict("pt"))
+  // `de_CH`/`pt_PT` have their own upstream files, which are not embedded;
+  // the port's truncation lands on the prefix winner (documented on
+  // `resolve_dict`). Both German files share their pattern text, so `de_CH`
+  // is faithful; `pt_PT` is the one known approximation.
+  assert_eq("de_AT", resolve_dict("de_CH"))
+  assert_eq("pt_BR", resolve_dict("pt_PT"))
   assert_eq("de_DE", resolve_dict("de_DE"))
+  assert_eq("de_AT", resolve_dict("de_AT"))
+  assert_eq("pt_BR", resolve_dict("pt_BR"))
   assert_eq("es", resolve_dict("es_ES"))
   assert_eq("fr", resolve_dict("fr_FR"))
   let none : Array[Int32] = []
@@ -130,10 +172,12 @@ test "language resolution keeps upstream short-name fallback" {
 }
 
 ///|
-/// The five remaining short names select their canonical file, exactly like
+/// The remaining short names select their canonical file, exactly like
 /// upstream's sorted-file winners (design D-15). Each pair is compared on one
 /// native word, and the short-name result is also pinned literally so the
-/// equality cannot pass vacuously.
+/// equality cannot pass vacuously. `it`, `nl`, `pl`, `ru` and `hu` are single
+/// files upstream; `de`/`pt` are covered by the resolution test above and
+/// their positions by the `de and pt positions` test.
 test "short names resolve to their full dictionaries" {
   assert_eq("it_IT", resolve_dict("it"))
   assert_eq("nl_NL", resolve_dict("nl"))
@@ -187,10 +231,10 @@ test "unresolved dictionary codes fail instead of yielding no positions" {
 
 ///|
 /// No embedded dictionary means an explicit typed failure, never a silent
-/// fallback. `de` and `pt` are upstream short names for dictionaries that are
-/// not embedded (de_AT / pt_BR), so borrowing de_DE would be an invention.
+/// fallback: `ar`, `xx_YY` and `sv_SE` have upstream dictionaries this port
+/// does not embed, and borrowing any other file would be an invention.
 test "unsupported language codes raise UnsupportedLanguage" {
-  let unsupported : Array[String] = ["de", "pt", "ar", "xx_YY"]
+  let unsupported : Array[String] = ["ar", "xx_YY", "sv_SE"]
   for lang in unsupported {
     let raised : String? = try {
       let _ = hyphenate_positions("hyphenation", lang)

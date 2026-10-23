@@ -27,13 +27,19 @@ whose optional arguments carry the same defaults as `analyze`.
 
 ## Installation
 
-**Not yet published to the registry**, so `moon add vicoproplus/moon_textstat`
-404s today. Use a path dependency instead: a `moon.work` beside your module
-with `members = ["demo", "../moon_textstat/lib"]`, and in `demo/moon.mod` the
-versioned `import { "vicoproplus/moon_textstat@0.1.0" }`. The `moon add` form
-is the future install path, once published.
+```
+moon add vicoproplus/moon_textstat
+```
 
-Then import the module from a package's `moon.pkg`:
+That writes `import { "vicoproplus/moon_textstat@0.1.0", }` into your
+`moon.mod` and is the normal install path.
+
+For local development against a checkout, use a path dependency instead: a
+`moon.work` beside your module with `members = ["demo", "../moon_textstat/lib"]`,
+and in `demo/moon.mod` the versioned
+`import { "vicoproplus/moon_textstat@0.1.0" }`.
+
+Either way, import the module from a package's `moon.pkg`:
 
 ```
 import {
@@ -58,6 +64,15 @@ fn main {
 }
 ```
 
+To run it, the package holding `main` must be an executable: its `moon.pkg`
+needs `pkgtype(kind: "executable")` as the first line (a bare `import` block
+is not a main package, and `moon run .` fails with "`.` is not a main
+package"). `lib/cmd/gate/moon.pkg` in this repository declares itself the same
+way. The block is marked `nocheck` because `moon fmt` rewrites a bare
+`moonbit` fence in this file back to `nocheck`, and nothing in this repository
+compiles README code blocks; the eight printed values were verified by running
+the block verbatim in an executable package.
+
 `analyze` raises `TextstatError`; use `try!` where a failure is impossible
 (English input, no unsupported language) and `try … catch` elsewhere.
 
@@ -67,14 +82,19 @@ fn main {
 hyphenation dictionary and the easy-word list (an `en` or `es` list, otherwise
 the English one); the readability constants are keyed by the nine roots `de`,
 `en`, `es`, `fr`, `hu`, `it`, `nl`, `pl`, `ru`, with per-key fallback to the
-English row. Ten dictionary codes are embedded: `en_US`, `en_GB`, `de_DE`,
-`es`, `fr`, `it_IT`, `nl_NL`, `pl_PL`, `ru_RU`, `hu_HU`, plus the short
-aliases `en` (→ `en_GB`, upstream's short-name winner), `es`, `fr`, `it`,
-`nl`, `pl`, `ru`, `hu`. Codes are case-insensitive and `-` equals `_`
-(`EN-us` works). `de` and `pt` raise
-`TextstatError::MetricFailure`, because upstream maps them to `de_AT`/`pt_BR`,
-which are not embedded. The low-level `TextstatError::UnsupportedLanguage`
-carries the raw code; the public entries wrap it into `MetricFailure`.
+English row. Twelve dictionary codes are embedded: `en_US`, `en_GB`, `de_DE`,
+`es`, `fr`, `it_IT`, `nl_NL`, `pl_PL`, `ru_RU`, `hu_HU`, `de_AT`, `pt_BR`,
+plus the short aliases `en` (→ `en_GB`), `de` (→ `de_AT`), `pt` (→ `pt_BR`) —
+each is upstream's short-name winner — and `es`, `fr`, `it`, `nl`, `pl`, `ru`,
+`hu`. Codes are case-insensitive and `-` equals `_` (`EN-us` works). A code
+with no embedded dictionary (`ar`, `xx_YY`, `sv_SE`…) raises
+`TextstatError::MetricFailure` instead of borrowing a neighbouring file. Two
+regional codes do fall back by truncation, because upstream gives them their
+own un-embedded files: `de_CH` resolves to `de_AT` (the two upstream German
+files share their pattern text, so this is exact) and `pt_PT` to `pt_BR` (an
+approximation that no frozen value exercises). The low-level
+`TextstatError::UnsupportedLanguage` carries the raw code; the public entries
+wrap it into `MetricFailure`.
 
 ## Fidelity
 
@@ -90,9 +110,72 @@ moon run cmd/gate --target native
 Exit code 0 means every cell matches, 1 means a mismatch, 2 means the
 environment or the build failed.
 
+## Chinese metrics
+
+Chinese text is measured per character, by a separate entry: `@zh.analyze_zh`
+returns the twelve `zh_` fields of PRD-B 10.3 in one call. It takes no `lang`
+argument and reads no language setting, so the same text yields the same
+numbers under any code. It lives in the `zh` subpackage, because `TextStats`
+carries only the nineteen English fields; merging the two value objects is a
+later stage of PRD-B FR-07 and needs a change to `TextStats` that this version
+does not make.
+
+```moonbit nocheck
+///|
+fn main {
+  let stats = @zh.analyze_zh(
+    "春天来了。我们一起去公园看花，那里的樱花开得特别漂亮。这里的春天真好啊。",
+  )
+  println(stats.zh_sentence_count) // 3
+  println(stats.zh_sentence_length_mean) // 11
+  println(stats.zh_sentence_length_sum) // 33
+  println(stats.zh_sentence_bucket_1_10) // 2
+  println(stats.zh_sentence_bucket_11_20) // 0
+  println(stats.zh_sentence_bucket_21_40) // 1
+  println(stats.zh_sentence_bucket_41_plus) // 0
+  println(stats.zh_han_char_total) // 32
+  println(stats.zh_han_char_distinct) // 27
+  println(stats.zh_common_char_matched) // 27
+  println(stats.zh_common_char_coverage) // 1
+  println(stats.zh_uncovered_char_list) // []
+}
+```
+
+The same twelve field names are the gate's Chinese group; run
+`moon run cmd/gate --target native --group=zh` from the module root to check
+all 192 of its cells (16 cases × 12 fields).
+
+### What these numbers are, and are not
+
+1. **No difficulty rating.** The fields are surface statistics: sentence
+   counts, sentence lengths and a character-coverage ratio. There is no
+   difficulty score, no grade level and no mapping onto the English formulas —
+   Chinese has no widely accepted readability formula, and inventing one would
+   be a research claim rather than a measurement.
+2. **Table source and coverage.** Coverage is measured against the 3,500
+   level-1 characters of the Table of General Standard Chinese Characters
+   (《通用规范汉字表》, Ministry of Education, 2013-06-01), transcribed by the
+   MIT-licensed npm package `togscc` 1.3.1 and cross-checked between two
+   independent distribution channels. Only level 1 is bundled, so a level-2 or
+   level-3 character (`龘`, `爨`, `齉`…) counts as uncovered even though it is a
+   real, common-enough character — coverage answers "how much of this text is
+   written with the 3,500 most frequent characters", not "how hard is it".
+3. **Measured per character.** Sentence length counts code points, not
+   whitespace-separated words: an inner comma counts as one character, the
+   terminator that ends the sentence does not, and a run of Latin text counts
+   one character per letter. Splitting a Chinese paragraph into words is a
+   different problem (segmentation needs a dictionary and a model), and it
+   would make the numbers depend on the segmenter rather than on the input.
+
+The definitions are in the spec
+(`docs/superpowers/specs/202610201517-moon-textstat-移植-中文基线-spec.md`
+§4.3–§4.5) and every field can be recomputed by hand from them.
+
 ## Scope
 
-The Chinese-specific metrics of textstat (`chinese_*`, the `zh` language
-support) are **out of scope for this module version**: `TextStats`
-intentionally carries no Chinese-extension field, and no function or data
-table covers them.
+This module covers the English readability metrics of textstat 0.7.13 plus
+the Chinese baseline described above. It does not port textstat's other
+language-specific surfaces (`chinese_*` does not exist upstream; the
+`resources/` directory holds only `en` and `es`), does not rate Chinese
+difficulty, and does not merge the Chinese fields into `TextStats` in this
+version.

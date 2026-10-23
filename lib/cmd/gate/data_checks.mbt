@@ -4,7 +4,7 @@
 /// AD section 6 lists `data` as "the data-identity spot-check subset", and the
 /// brief asks for entry counts and row-set hashes over the bundled L2 data:
 /// the trimmed CMU pronunciation table, the en_GB pronunciation supplement,
-/// the ten hyphenation pattern dictionaries and the two easy-word lists.
+/// the twelve hyphenation pattern dictionaries and the two easy-word lists.
 ///
 /// The checks are pure and read-only. They read `@data.data_stats()`, which
 /// the `data` package measures from the parsed tables during initialization;
@@ -65,16 +65,21 @@ const DATA_PRONUNCIATION_SUPPLEMENT_ROWS_SHA256 : String = "cb35f14b7241ea8c789a
 
 ///|
 /// The pinned pattern-line count of every hyphenation dictionary, in the data
-/// order `en_US, en_GB, de_DE, es, fr, it_IT, nl_NL, pl_PL, ru_RU, hu_HU`.
+/// order `en_US, en_GB, de_DE, es, fr, it_IT, nl_NL, pl_PL, ru_RU, hu_HU,
+/// de_AT, pt_BR`.
 ///
-/// Provenance: `tools/l2_manifest.json` — `pinned.pattern_lines` for the nine
-/// AD-pinned dictionaries, and `sources["pyphen/hyph_en_GB"].pattern_lines`
-/// (14,057) for `en_GB`, which AD section 1.3 did not pin and which the
-/// manifest marks as "measured, not AD-pinned". The manifest is the
-/// generator's identity record, so the gate restates `en_GB` exactly as it
-/// restates the nine AD-pinned values: without it a truncated `en_GB` table
-/// would pass unnoticed, and the `en_GB` fallback would silently answer with
-/// a different dictionary.
+/// Provenance: `tools/l2_manifest.json` — `pinned.pattern_lines` for the
+/// eleven AD-pinned dictionaries, and
+/// `sources["pyphen/hyph_en_GB"].pattern_lines` (14,057) for `en_GB`, which AD
+/// section 1.3 did not pin and which the manifest marks as "measured, not
+/// AD-pinned". The manifest is the generator's identity record, so the gate
+/// restates `en_GB` exactly as it restates the eleven AD-pinned values:
+/// without it a truncated `en_GB` table would pass unnoticed, and the `en_GB`
+/// fallback would silently answer with a different dictionary.
+///
+/// `de_AT` and `pt_BR` are the dictionaries upstream's short names `de` and
+/// `pt` resolve to (`pyphen/__init__.py:33-41`). They are **outside** the
+/// frozen oracle: they add no L3 cell and leave the 366 floor untouched.
 let data_pinned_pattern_lines : Array[(String, Int32)] = [
   ("en_US", 11125),
   ("en_GB", 14057),
@@ -86,6 +91,8 @@ let data_pinned_pattern_lines : Array[(String, Int32)] = [
   ("pl_PL", 4823),
   ("ru_RU", 3874),
   ("hu_HU", 102204),
+  ("de_AT", 77847),
+  ("pt_BR", 1246),
 ]
 
 ///|
@@ -213,10 +220,10 @@ const DATA_COVERAGE_LANG : String = "*"
 ///
 /// The count is fixed by the pinned tables, not by the data package, so the
 /// reported cell count of a `--group=data` run is the same on every run:
-/// 4 pronunciation checks, 5 easy-word checks, 20 pattern checks (a
-/// presence check and a line-count check per dictionary) and 2 coverage
-/// checks (one per table family).
-const DATA_CHECK_COUNT : Int32 = 30
+/// 4 pronunciation checks, 5 easy-word checks, 24 pattern checks (a
+/// presence check and a line-count check per dictionary, twelve dictionaries)
+/// and 2 coverage checks (one per table family).
+const DATA_CHECK_COUNT : Int32 = 34
 
 ///|
 /// Append the checks of one pinned table family: for every pinned key a
@@ -310,7 +317,7 @@ fn check_table(
 ///    embedded payload (see the constants above);
 /// 2. the easy-word checks of the two pinned roots (5 checks: presence and
 ///    count per root, plus the root-set coverage);
-/// 3. the pattern checks of every pinned dictionary code (21 checks:
+/// 3. the pattern checks of every pinned dictionary code (25 checks:
 ///    presence and line count per dictionary, plus the code-set coverage) —
 ///    an unknown code fails its checks, it is never skipped;
 /// 4. coverage in both directions: every pinned key must be present in the

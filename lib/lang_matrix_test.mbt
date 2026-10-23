@@ -17,8 +17,9 @@
 /// three, because its own list contains `international`.
 ///
 /// `ar` and `xx_YY` are not in this test: they have no numeric row and are
-/// covered by the failure test below (A-5.2). `pt` is documentation only and is
-/// likewise absent here (A-4.4).
+/// covered by the failure test below (A-5.2). `pt` and `de` are documentation
+/// only and are likewise absent here (A-4.4); their own tests below pin the
+/// upstream-measured numbers.
 test "language matrix: 11 codes x 6 fields match the oracle" {
   let probe = "The extraordinary readability of international documentation."
   let rows : Array[(String, Int32, Double, Double, Int32, Int32, Int32)] = [
@@ -140,9 +141,13 @@ test "language matrix: unsupported languages keep the empty-string zeros" {
 /// readers: the language constants and the easy-word list silently fall back to
 /// English, so an all-easy English sentence scores exactly as under `en_US`
 /// without touching a dictionary; the hyphenation dictionary, however, is
-/// resolved to `hyph_pt_BR.dic`, which is not embedded, so any non-easy word
-/// fails at the dictionary layer. No expected Portuguese number is asserted.
-test "documentation only: pt falls back to English but has no dictionary" {
+/// `hyph_pt_BR.dic` (upstream's `pt` winner, `pyphen/__init__.py:33-41`), which
+/// is embedded, so the probe now yields a real Portuguese-dictionary number.
+///
+/// The expected values are upstream measurements, not port output:
+/// `cd textstat && python -c "import textstat,warnings;warnings.simplefilter('ignore');t='The extraordinary readability of international documentation.';textstat.set_lang('pt');print(textstat.syllable_count(t),repr(textstat.flesch_reading_ease(t)))"`
+/// → `24 -137.65499999999997`.
+test "documentation only: pt uses the Portuguese dictionary with English constants" {
   let all_easy = "the cat sat on the mat"
   // FE2: constants and easy words fall back to English. Gunning Fog's
   // all-easy path never asks for a syllable, so this value is observable.
@@ -151,10 +156,38 @@ test "documentation only: pt falls back to English but has no dictionary" {
     @moon_textstat.gunning_fog(all_easy, lang="pt"),
   )
   assert_eq(0, @moon_textstat.difficult_words(all_easy, lang="pt"))
-  // FE3: hyph_pt_BR.dic is outside the embedded set, so the probe fails.
+  // The dictionary is Portuguese now, and the constants are English, so the
+  // number differs from `en_US` (22 / -109.45499999999998).
   let probe = "The extraordinary readability of international documentation."
-  let message = capture_metric_failure(() => {
-    @moon_textstat.syllable_count(probe, lang="pt")
-  })
-  assert_true(message.contains("no hyphenation dictionary for 'pt'"))
+  assert_eq(24, @moon_textstat.syllable_count(probe, lang="pt"))
+  assert_eq(
+    -137.65499999999997,
+    @moon_textstat.flesch_reading_ease(probe, lang="pt"),
+  )
+  assert_eq(
+    @moon_textstat.syllable_count(probe, lang="pt"),
+    @moon_textstat.syllable_count(probe, lang="pt_BR"),
+  )
+}
+
+///|
+/// `de` is documentation only for the same reason (no oracle row, no gate
+/// cell), but it must not fail any more: upstream resolves it to
+/// `hyph_de_AT.dic`, whose pattern text is byte-identical to `hyph_de_DE.dic`
+/// (only two header comment lines differ), so `de` and `de_DE` agree.
+///
+/// Upstream measurement:
+/// `cd textstat && python -c "import textstat,warnings;warnings.simplefilter('ignore');t='The extraordinary readability of international documentation.';textstat.set_lang('de');print(textstat.syllable_count(t),repr(textstat.flesch_reading_ease(t)))"`
+/// → `25 -69.75000000000003`.
+test "documentation only: de resolves to de_AT and matches de_DE" {
+  let probe = "The extraordinary readability of international documentation."
+  assert_eq(25, @moon_textstat.syllable_count(probe, lang="de"))
+  assert_eq(
+    -69.75000000000003,
+    @moon_textstat.flesch_reading_ease(probe, lang="de"),
+  )
+  assert_eq(
+    @moon_textstat.syllable_count(probe, lang="de_DE"),
+    @moon_textstat.syllable_count(probe, lang="de"),
+  )
 }

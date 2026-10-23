@@ -27,6 +27,8 @@ type FieldValue
 
 type GateConfig
 
+type ZhFailure
+
 // Type aliases
 
 // Traits

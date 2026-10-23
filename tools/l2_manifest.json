@@ -30,12 +30,19 @@
       "nl_NL": 16256,
       "pl_PL": 4823,
       "ru_RU": 3874,
-      "hu_HU": 102204
+      "hu_HU": 102204,
+      "de_AT": 77847,
+      "pt_BR": 1246
     },
     "easy_word_entries": {
       "en": 2941,
       "es": 20000
-    }
+    },
+    "zh_table_bytes": 14000,
+    "zh_table_sha256": "79a6c710013cc86617d5db65871f59b2d67dee72415d380a2cc7145a51450fe4",
+    "zh_table_entries": 3500,
+    "zh_cells": 192,
+    "zh_cases": 16
   },
   "pronunciation": {
     "entries": 48202,
@@ -130,8 +137,43 @@
     "whitelist_source": {
       "path": "docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md",
       "section": "5",
-      "bytes": 46094,
-      "sha256": "97d34de85457a30dd6f505530b6eaf239534a1c56a2df24de2245a6ce8e5baa2"
+      "bytes": 54430,
+      "sha256": "34b685841767263d122f6b9b64c078c9a3e39f81cdf69186d2b4f6f89731776d"
+    }
+  },
+  "zh": {
+    "table": {
+      "path": "vendor/upstream/togscc/level1_3500.txt",
+      "bytes": 14000,
+      "sha256": "79a6c710013cc86617d5db65871f59b2d67dee72415d380a2cc7145a51450fe4",
+      "entries": 3500
+    },
+    "cells": 192,
+    "cases": 16,
+    "fields": [
+      "zh_sentence_count",
+      "zh_sentence_length_mean",
+      "zh_sentence_length_sum",
+      "zh_sentence_bucket_1_10",
+      "zh_sentence_bucket_11_20",
+      "zh_sentence_bucket_21_40",
+      "zh_sentence_bucket_41_plus",
+      "zh_han_char_total",
+      "zh_han_char_distinct",
+      "zh_common_char_matched",
+      "zh_common_char_coverage",
+      "zh_uncovered_char_list"
+    ],
+    "fixtures": {
+      "A": "",
+      "B": "人",
+      "C": "人龘"
+    },
+    "inlined": {
+      "payload_chars": 3503,
+      "chunks": 4,
+      "sorted_rows_bytes": 14000,
+      "sorted_rows_sha256": "14adaa8718b938aad1ae82a19f631c0a8abdebb9c46b8949b8e6c55d98378dd2"
     }
   },
   "sources": {
@@ -235,6 +277,26 @@
       "pinned_pattern_lines": 102204,
       "pattern_count_status": "AD-pinned"
     },
+    "pyphen/hyph_de_AT": {
+      "path": "vendor/upstream/pyphen/hyph_de_AT.dic",
+      "bytes": 1093611,
+      "sha256": "3e0b4687479d25099e37ebd946998c08fcccc12a0acf9380d8b19319a50b9f3a",
+      "declared_encoding": "ISO8859-1",
+      "pattern_lines": 77847,
+      "distinct_patterns": 66441,
+      "pinned_pattern_lines": 77847,
+      "pattern_count_status": "AD-pinned"
+    },
+    "pyphen/hyph_pt_BR": {
+      "path": "vendor/upstream/pyphen/hyph_pt_BR.dic",
+      "bytes": 11260,
+      "sha256": "a8eb1a64e4af4649c739211b397fa37b01f9d5774cf558fe3895fc3f26fd33a4",
+      "declared_encoding": "UTF-8",
+      "pattern_lines": 1246,
+      "distinct_patterns": 1246,
+      "pinned_pattern_lines": 1246,
+      "pattern_count_status": "AD-pinned"
+    },
     "cmudict": {
       "path": "vendor/upstream/cmudict/cmudict",
       "bytes": 3820830,
@@ -257,6 +319,17 @@
       "lf_sha256": "5db3b3c725558854f1f47f2ec19f68f5c7304bc77f2d29e2d9bda608bdb7625d",
       "entries": 20000,
       "pinned_entries": 20000
+    },
+    "togscc/level1_3500": {
+      "path": "vendor/upstream/togscc/level1_3500.txt",
+      "bytes": 14000,
+      "sha256": "79a6c710013cc86617d5db65871f59b2d67dee72415d380a2cc7145a51450fe4",
+      "entries": 3500,
+      "pinned_entries": 3500,
+      "pinned_bytes": 14000,
+      "pinned_sha256": "79a6c710013cc86617d5db65871f59b2d67dee72415d380a2cc7145a51450fe4",
+      "sorted_rows_bytes": 14000,
+      "sorted_rows_sha256": "14adaa8718b938aad1ae82a19f631c0a8abdebb9c46b8949b8e6c55d98378dd2"
     }
   },
   "outputs": {
@@ -269,11 +342,11 @@
       "max_line_columns": 1170
     },
     "lib/data/hyphenation_patterns_data.mbt": {
-      "bytes": 2728095,
-      "sha256": "8ad21aaaabb384e9fde24a123e02664fd8744260ff6e38832ec62f5d9c76096b",
-      "payload_chars": 2332678,
-      "chunks": 2351,
-      "source_lines": 2440,
+      "bytes": 3931269,
+      "sha256": "834c1cbe852bfe49458bb509304fa1624aff7ec247449caf725d05787cf25c79",
+      "payload_chars": 3433618,
+      "chunks": 3461,
+      "source_lines": 3566,
       "max_line_columns": 1201
     },
     "lib/data/pronunciation_data.mbt": {
@@ -300,10 +373,27 @@
       "source_lines": 2962,
       "max_line_columns": 128,
       "cells": 366
+    },
+    "lib/gate/zh/zh_cells_data.mbt": {
+      "bytes": 26858,
+      "sha256": "da373edf585c8b00c7734ccf741ee6bcba3eb3e72d00734cf979a5bf18fc6c0d",
+      "payload_chars": 8593,
+      "chunks": 192,
+      "source_lines": 1357,
+      "max_line_columns": 151,
+      "cells": 192
+    },
+    "lib/zh/zh_common_chars_data.mbt": {
+      "bytes": 11015,
+      "sha256": "84e15b049df6f4c74811f95c22d3fdaf2bf6a784e1916d87e330f51a09cb40b6",
+      "payload_chars": 3503,
+      "chunks": 4,
+      "source_lines": 16,
+      "max_line_columns": 882
     }
   },
   "verification": {
-    "l1_files_checked": 15,
+    "l1_files_checked": 17,
     "l1_mismatch": 0,
     "oracle_samples": 11,
     "oracle_samples_mismatch": 0,

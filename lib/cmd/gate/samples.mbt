@@ -98,3 +98,46 @@ fn bench_text() -> String {
   }
   text
 }
+
+///|
+/// The number of code points in the Chinese `--bench` sample (PRD-B 5.2: a
+/// "regular-length" Chinese manuscript of about 2,000 characters).
+const ZH_BENCH_TEXT_CHARS : Int32 = 2000
+
+///|
+/// The sentence repeated to build the Chinese `--bench` sample. It ends on a
+/// sentence boundary so the truncation below cuts inside a sentence rather
+/// than on a boundary, which keeps the last fragment a real one.
+const ZH_BENCH_SENTENCE : String = "中文可读性统计以字为计量单位，句长分布与常用字覆盖率都由输入与定义唯一决定。"
+
+///|
+/// Build the deterministic text of the Chinese `--bench` sample.
+///
+/// Same construction as `bench_text`, in code points: the sentence is
+/// repeated and cut at exactly `ZH_BENCH_TEXT_CHARS`, so every run measures
+/// the same 2,000-character text and the numbers are comparable across runs.
+/// The count is checked with `char_length()`, not `length()`: a Chinese
+/// character is one code point and one UTF-16 unit, but the check stays
+/// correct for any future non-BMP sample (spec DR-Z1).
+fn zh_bench_text() -> String {
+  let builder = StringBuilder()
+  let mut written = 0
+  while written < ZH_BENCH_TEXT_CHARS {
+    for ch in ZH_BENCH_SENTENCE {
+      if written < ZH_BENCH_TEXT_CHARS {
+        builder.write_char(ch)
+        written = written + 1
+      }
+    }
+  }
+  let text = builder.to_string()
+  if text.char_length() != ZH_BENCH_TEXT_CHARS {
+    gate_fail(
+      "zh bench text is " +
+      text.char_length().to_string() +
+      " code points, expected " +
+      ZH_BENCH_TEXT_CHARS.to_string(),
+    )
+  }
+  text
+}

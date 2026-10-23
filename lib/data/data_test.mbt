@@ -77,6 +77,8 @@ test "hyphenation patterns: all pinned languages have pinned line counts" {
     ("pl_PL", 4823),
     ("ru_RU", 3874),
     ("hu_HU", 102204),
+    ("de_AT", 77847),
+    ("pt_BR", 1246),
   ]
   for entry in pinned {
     let code = entry.0
@@ -84,6 +86,14 @@ test "hyphenation patterns: all pinned languages have pinned line counts" {
     assert_true(patterns is Some(_), msg="missing patterns for \{code}")
     assert_eq(patterns.unwrap().length(), entry.1)
   }
+}
+
+///|
+test "hyphenation patterns: the short-name winners are present" {
+  // `de` and `pt` resolve to these two upstream winners
+  // (`pyphen/__init__.py:33-41`), so they must be embedded.
+  assert_eq(@data.hyphenation_patterns("de_AT").unwrap().length(), 77847)
+  assert_eq(@data.hyphenation_patterns("pt_BR").unwrap().length(), 1246)
 }
 
 ///|
@@ -103,7 +113,8 @@ test "hyphenation patterns: decoded text and order are preserved" {
 
 ///|
 test "hyphenation patterns: unknown dictionary code returns None" {
-  assert_eq(@data.hyphenation_patterns("pt_BR"), None)
+  assert_eq(@data.hyphenation_patterns("pt_PT"), None)
+  assert_eq(@data.hyphenation_patterns("de_CH"), None)
   assert_eq(@data.hyphenation_patterns("EN_US"), None)
   assert_eq(@data.hyphenation_patterns(""), None)
 }
@@ -160,6 +171,8 @@ test "payload checksums: every character survives chunking and escaping" {
     ("pl_PL", 3124049),
     ("ru_RU", 14722652),
     ("hu_HU", 837894862),
+    ("de_AT", 104679910),
+    ("pt_BR", 844584),
   ]
   for entry in expected {
     let patterns = @data.hyphenation_patterns(entry.0).unwrap()
@@ -182,7 +195,7 @@ test "data_stats: pinned identity and field agreement" {
     stats.pronunciation_supplement_rows_checksum(),
     "cb35f14b7241ea8c789a8713809bb52e3ec77281a7dcb155459a19d4a6e75705",
   )
-  assert_eq(stats.pattern_languages().length(), 10)
+  assert_eq(stats.pattern_languages().length(), 12)
   assert_eq(stats.easy_word_roots().length(), 2)
   assert_eq(stats.pattern_counts[0].0, "en_US")
   assert_eq(stats.pattern_counts[1].0, "en_GB")
@@ -192,6 +205,8 @@ test "data_stats: pinned identity and field agreement" {
   assert_eq(stats.pattern_count("de_DE"), Some(77847))
   assert_eq(stats.pattern_count("hu_HU"), Some(102204))
   assert_eq(stats.pattern_count("en_GB"), Some(14057))
+  assert_eq(stats.pattern_count("de_AT"), Some(77847))
+  assert_eq(stats.pattern_count("pt_BR"), Some(1246))
   assert_eq(stats.pattern_count("xx"), None)
   assert_eq(stats.easy_word_count("en"), Some(2941))
   assert_eq(stats.easy_word_count("es"), Some(20000))

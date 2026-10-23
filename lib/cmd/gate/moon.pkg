@@ -6,5 +6,7 @@ import {
   "moonbitlang/core/env",
   "vicoproplus/moon_textstat",
   "vicoproplus/moon_textstat/gate/data" @gate_data,
+  "vicoproplus/moon_textstat/gate/zh" @gate_zh,
   "vicoproplus/moon_textstat/data",
+  "vicoproplus/moon_textstat/zh",
 }

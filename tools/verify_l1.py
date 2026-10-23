@@ -8,6 +8,7 @@ each pinned row against the file frozen under vendor/upstream/.
 Checks:
   * dictionaries   -> raw bytes (count + SHA-256)
   * word lists     -> raw bytes AND LF-normalized bytes
+  * character table-> raw bytes (count + SHA-256)
   * A1-2           -> no CR in any pinned file
 Exit 0 = all green, 1 = any mismatch/missing file.
 """
@@ -72,6 +73,8 @@ def local_path(name: str) -> tuple[Path, str, str | None]:
             raise SystemExit(f"unknown word-list language in AD row: {name!r}")
         form = "lf" if "LF" in name and "CRLF" not in name else "crlf"
         return VENDOR / "easy_words" / lang / "easy_words.txt", "wordlist", form
+    if "一级字表" in name:
+        return VENDOR / "togscc" / "level1_3500.txt", "characters", None
     raise SystemExit(f"unmapped AD logical name: {name!r}")
 
 
@@ -81,8 +84,18 @@ def digest(b: bytes) -> str:
 
 def main() -> int:
     rows = load_pinned_rows()
-    buckets: dict[str, list[str]] = {"dic": [], "cmudict": [], "wordlist": []}
-    checked: dict[str, int] = {"dic": 0, "cmudict": 0, "wordlist": 0}
+    buckets: dict[str, list[str]] = {
+        "dic": [],
+        "cmudict": [],
+        "wordlist": [],
+        "characters": [],
+    }
+    checked: dict[str, int] = {
+        "dic": 0,
+        "cmudict": 0,
+        "wordlist": 0,
+        "characters": 0,
+    }
     cr_bad: list[str] = []
 
     for row in rows:
@@ -113,9 +126,19 @@ def main() -> int:
         f"CMUDICT_CHECKED={checked['cmudict']} "
         f"CMUDICT_MISMATCH={len(buckets['cmudict'])} {buckets['cmudict']}"
     )
+    print(
+        f"CHARACTERS_CHECKED={checked['characters']} "
+        f"CHARACTERS_MISMATCH={len(buckets['characters'])} {buckets['characters']}"
+    )
     print(f"CR: {cr_bad}")
 
-    bad = len(buckets["dic"]) + len(buckets["wordlist"]) + len(buckets["cmudict"]) + len(cr_bad)
+    bad = (
+        len(buckets["dic"])
+        + len(buckets["wordlist"])
+        + len(buckets["cmudict"])
+        + len(buckets["characters"])
+        + len(cr_bad)
+    )
     return 1 if bad else 0
 
 

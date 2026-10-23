@@ -58,6 +58,7 @@ fn[T] with_metric_failure(
 /// table depends on the sorted file names, not on this list.
 let hyphenation_codes : Array[String] = [
   "en_US", "en_GB", "de_DE", "es", "fr", "it_IT", "nl_NL", "pl_PL", "ru_RU", "hu_HU",
+  "de_AT", "pt_BR",
 ]
 
 ///|
@@ -74,25 +75,29 @@ priv struct HyphDict {
 }
 
 ///|
-/// The ten dictionaries, built together as one top-level value.
+/// The twelve dictionaries, built together as one top-level value.
 ///
 /// Upstream caches one `HyphDict` per file in `hdcache` on first use
 /// (`pyphen/__init__.py:18-19,220-222`). MoonBit initializes top-level values
 /// on first use, so the first hyphenation lookup pays the one-time build of
-/// all ten dictionaries and every later lookup reuses them; see the T-15 log
-/// for the measured cost.
+/// all twelve dictionaries and every later lookup reuses them; see the T-15
+/// log for the measured cost.
 let hyphenation_dictionaries : Map[String, HyphDict] = build_hyphenation_dictionaries()
 
 ///|
 /// Language code (normalized to lower case) to canonical dictionary code.
 ///
 /// This is the equivalent of upstream's `LANGUAGES_LOWERCASE`
-/// (`pyphen/__init__.py:36-44`) restricted to the ten embedded files. Upstream
-/// registers a short alias for every file in sorted order, so the first file
-/// wins: `hyph_en_GB.dic` sorts before `hyph_en_US.dic`, hence `en` means
-/// en_GB (design D-15). `hyph_de_AT.dic` and `hyph_pt_BR.dic` are the upstream
-/// winners for `de` and `pt` but are not embedded, so those two short names
-/// must fail instead of silently borrowing `de_DE` or nothing (spec §4.5.1).
+/// (`pyphen/__init__.py:36-44`) restricted to the twelve embedded files.
+/// Upstream registers a short alias for every file in sorted order, so the
+/// first file wins: `hyph_en_GB.dic` sorts before `hyph_en_US.dic`, hence `en`
+/// means en_GB (design D-15). The same rule gives `de` → `de_AT`
+/// (`hyph_de_AT.dic` sorts before `hyph_de_DE.dic`) and `pt` → `pt_BR`, which
+/// is what upstream actually resolves: measured with
+/// `python -c "import pyphen;from pathlib import Path;print(Path(pyphen.LANGUAGES[pyphen.language_fallback(c)]).name)"`
+/// for `c` in `de`, `pt`, `en`, `it`, `nl`, `pl`, `ru`, `hu` →
+/// `hyph_de_AT.dic`, `hyph_pt_BR.dic`, `hyph_en_GB.dic`, `hyph_it_IT.dic`,
+/// `hyph_nl_NL.dic`, `hyph_pl_PL.dic`, `hyph_ru_RU.dic`, `hyph_hu_HU.dic`.
 let hyphenation_aliases : Map[String, String] = build_hyphenation_aliases()
 
 ///|
@@ -235,7 +240,7 @@ fn expand_hex_escapes(line : StringView) -> String {
 ///   `[1, 1]` at `start = 9`); `start` carries the shift, and positions depend
 ///   on it, so both are preserved (the German `...11...` lines exercise this);
 /// - Python's `\d` is Unicode-aware, while this scan accepts ASCII digits only.
-///   None of the ten embedded tables contains a non-ASCII digit (verified
+///   None of the twelve embedded tables contains a non-ASCII digit (verified
 ///   against pyphen over the vendored files), so the two agree on every
 ///   observable pattern.
 ///
@@ -418,13 +423,28 @@ fn hyphenation_positions(
 /// lowercased, and is looked up whole; on failure the last `_`-separated part
 /// is dropped and the shorter code is tried again. `en_US` therefore resolves
 /// to en_US, `EN-us` to en_US, `es_ES` to es, and bare `en` to en_GB because
-/// that is upstream's short-name winner (design D-15).
+/// that is upstream's short-name winner (design D-15). The same sorted-file
+/// rule resolves `de` to `de_AT` and `pt` to `pt_BR`.
 ///
 /// A code with no embedded dictionary raises `UnsupportedLanguage(requested)`
-/// with the raw caller spelling. In particular `de` and `pt` fail: upstream
-/// would pick `hyph_de_AT.dic` and `hyph_pt_BR.dic`, which are not embedded,
-/// and borrowing another file would change observable syllable counts
+/// with the raw caller spelling: `ar`, `xx_YY` and every other upstream
+/// language this port does not embed fail rather than borrowing another file
 /// (spec §4.5.1).
+///
+/// The one exception is the truncating side of the rule. Upstream resolves
+/// `de_CH` to its own `hyph_de_CH.dic` and `pt_PT` to its own
+/// `hyph_pt_PT.dic`; neither is embedded, and upstream's
+/// `language_fallback` never truncates past a region suffix it has, so the
+/// port keeps the port-side truncation and lands on the embedded winner of
+/// the prefix (`de_CH` → `de_AT`, `pt_PT` → `pt_BR`). For German this is
+/// exactly faithful: the decoded pattern lines of `hyph_de_AT.dic` and
+/// `hyph_de_CH.dic` are identical (77,847 lines each, SHA-256 of the joined
+/// text `089302e6d4bbfc9e75720b2b7063c97e0aff64f9d6903ff56f38ee82428b1522`
+/// for both), so every position agrees. For Portuguese the two files really
+/// differ (`hiphenização` gives [3, 5, 7, 9] under pt_BR and [5, 7, 9] under
+/// pt_PT), so `pt_PT` is the one known code where this port reports a
+/// neighbouring file's hyphenation; it is accepted because neither the oracle
+/// nor any frozen cell covers `pt_PT`.
 fn resolve_dict(lang : String) -> String raise TextstatError {
   let normalized = normalize_language_code(lang)
   let parts : Array[String] = []
@@ -460,25 +480,37 @@ fn normalize_language_code(lang : String) -> String {
 /// Build upstream's short-name aliases for the embedded files.
 ///
 /// `LANGUAGES` is filled by iterating the dictionary files in sorted order, so
-/// the first file of a language prefix wins the short alias:
-/// `hyph_en_GB.dic` before `hyph_en_US.dic` gives `en` → en_GB, while `es` and
-/// `fr` are their own short names. The winners for `de` (de_AT) and `pt`
-/// (pt_BR) are absent from the embedded set and are intentionally not
-/// registered.
+/// the first file of a language prefix wins the short alias
+/// (`pyphen/__init__.py:33-41`): `hyph_de_AT.dic` before `hyph_de_DE.dic` gives
+/// `de` → de_AT, `hyph_en_GB.dic` before `hyph_en_US.dic` gives `en` → en_GB,
+/// and `hyph_pt_BR.dic` before `hyph_pt_PT.dic` gives `pt` → pt_BR. `es` and
+/// `fr` are their own short names, and `it_IT`, `nl_NL`, `pl_PL`, `ru_RU`,
+/// `hu_HU` have no upstream sibling so the full code is the winner.
+///
+/// Every registration is guarded by "not already present" because upstream
+/// only registers the first file of a prefix: a later file must never
+/// overwrite the earlier winner. The embedded set therefore reproduces the
+/// upstream resolution for all nine short names it covers (measured, see
+/// `hyphenation_aliases` above).
 fn build_hyphenation_aliases() -> Map[String, String] {
   let aliases : Map[String, String] = Map([])
   for code in hyphenation_codes {
     aliases[code.to_lower()] = code
   }
+  // Upstream's winners for the prefixes the embedded set covers.  The codes
+  // are already sorted so that the first entry of a prefix is the upstream
+  // winner; the guard below keeps a later entry from stealing it.
   let short_names : Array[(String, String)] = [
+    ("de", "de_AT"),
     ("en", "en_GB"),
     ("es", "es"),
     ("fr", "fr"),
+    ("hu", "hu_HU"),
     ("it", "it_IT"),
     ("nl", "nl_NL"),
     ("pl", "pl_PL"),
+    ("pt", "pt_BR"),
     ("ru", "ru_RU"),
-    ("hu", "hu_HU"),
   ]
   for entry in short_names {
     match aliases.get(entry.0) {

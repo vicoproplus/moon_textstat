@@ -51,8 +51,11 @@ test "non-English languages always use the hyphenation fallback" {
 }
 
 ///|
+/// An unembedded language fails before any counting: `ar`, `xx_YY` and `sv_SE`
+/// have upstream dictionaries this port does not embed, so borrowing another
+/// file would report the wrong syllables.
 test "unsupported languages raise UnsupportedLanguage before any counting" {
-  let unsupported : Array[String] = ["ar", "xx_YY", "de", "pt"]
+  let unsupported : Array[String] = ["ar", "xx_YY", "sv_SE"]
   for lang in unsupported {
     let raised : String? = try {
       let _ = syllables_for_word("the", lang)

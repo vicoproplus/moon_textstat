@@ -170,3 +170,77 @@ fn bench_sample_stats() -> @moon_textstat.TextStats {
     dale_chall_readability_score: 119.25,
   }
 }
+
+///|
+/// A-9.2 for the Chinese half of `--bench`: the signature has exactly one part
+/// per `ZhStats` field (12, PRD-B 10.3), and changing any single field changes
+/// the signature. Without the second assertion a field could be left out of
+/// the signature and drift between runs unnoticed.
+test "the zh bench signature covers all twelve fields" {
+  let baseline = zh_bench_sample_stats()
+  assert_eq(zh_signature(baseline).split(SIGNATURE_SEPARATOR).count(), 12)
+  let baseline_signature = zh_signature(baseline)
+  let variants : Array[@zh.ZhStats] = [
+    { ..baseline, zh_sentence_count: baseline.zh_sentence_count + 1, },
+    {
+      ..baseline,
+      zh_sentence_length_mean: baseline.zh_sentence_length_mean + 0.5,
+    },
+    { ..baseline, zh_sentence_length_sum: baseline.zh_sentence_length_sum + 1, },
+    {
+      ..baseline,
+      zh_sentence_bucket_1_10: baseline.zh_sentence_bucket_1_10 + 1,
+    },
+    {
+      ..baseline,
+      zh_sentence_bucket_11_20: baseline.zh_sentence_bucket_11_20 + 1,
+    },
+    {
+      ..baseline,
+      zh_sentence_bucket_21_40: baseline.zh_sentence_bucket_21_40 + 1,
+    },
+    {
+      ..baseline,
+      zh_sentence_bucket_41_plus: baseline.zh_sentence_bucket_41_plus + 1,
+    },
+    { ..baseline, zh_han_char_total: baseline.zh_han_char_total + 1, },
+    { ..baseline, zh_han_char_distinct: baseline.zh_han_char_distinct + 1, },
+    { ..baseline, zh_common_char_matched: baseline.zh_common_char_matched + 1, },
+    {
+      ..baseline,
+      zh_common_char_coverage: baseline.zh_common_char_coverage + 0.5,
+    },
+    { ..baseline, zh_uncovered_char_list: ["龘", "爨"], },
+  ]
+  assert_eq(variants.length(), 12)
+  for variant in variants {
+    assert_true(zh_signature(variant) != baseline_signature)
+  }
+}
+
+///|
+/// A baseline Chinese value object with twelve distinct values, so a variant
+/// changing one field cannot accidentally reproduce the baseline signature.
+fn zh_bench_sample_stats() -> @zh.ZhStats {
+  {
+    zh_sentence_count: 101,
+    zh_sentence_length_mean: 102.5,
+    zh_sentence_length_sum: 103,
+    zh_sentence_bucket_1_10: 104,
+    zh_sentence_bucket_11_20: 105,
+    zh_sentence_bucket_21_40: 106,
+    zh_sentence_bucket_41_plus: 107,
+    zh_han_char_total: 108,
+    zh_han_char_distinct: 109,
+    zh_common_char_matched: 110,
+    zh_common_char_coverage: 0.75,
+    zh_uncovered_char_list: ["龘"],
+  }
+}
+
+///|
+/// The Chinese bench text is exactly the 2,000 code points PRD-B names, so
+/// every run measures the same manuscript size.
+test "the zh bench text is 2000 code points" {
+  assert_eq(zh_bench_text().char_length(), ZH_BENCH_TEXT_CHARS)
+}

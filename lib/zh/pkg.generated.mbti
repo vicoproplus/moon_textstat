@@ -1,0 +1,27 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vicoproplus/moon_textstat/zh"
+
+// Values
+pub fn analyze_zh(String, common_chars? : String) -> ZhStats
+
+// Errors
+
+// Types and methods
+pub(all) struct ZhStats {
+  zh_sentence_count : Int
+  zh_sentence_length_mean : Double
+  zh_sentence_length_sum : Int
+  zh_sentence_bucket_1_10 : Int
+  zh_sentence_bucket_11_20 : Int
+  zh_sentence_bucket_21_40 : Int
+  zh_sentence_bucket_41_plus : Int
+  zh_han_char_total : Int
+  zh_han_char_distinct : Int
+  zh_common_char_matched : Int
+  zh_common_char_coverage : Double
+  zh_uncovered_char_list : Array[String]
+}
+
+// Type aliases
+
+// Traits

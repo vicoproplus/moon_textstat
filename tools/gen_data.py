@@ -3,7 +3,9 @@
 
 L2 inputs are frozen and live outside the MoonBit module (``vendor/upstream/``):
 
-* ``pyphen/hyph_*.dic``  -- hyphenation patterns (per-file declared encodings)
+* ``pyphen/hyph_*.dic``  -- hyphenation patterns (per-file declared encodings;
+  the twelve files are the ten AD-pinned tables plus ``en_GB`` and the two
+  upstream short-name winners ``de_AT`` / ``pt_BR``)
 * ``cmudict/cmudict``    -- CMU pronouncing dictionary
 * ``easy_words/{en,es}/easy_words.txt`` -- upstream easy-word lists
 
@@ -29,7 +31,7 @@ Usage::
 
 ``--check`` regenerates everything in memory and compares byte-for-byte with
 what is on disk, re-verifies the frozen L1 inputs against the pinned
-``(bytes, sha256)`` identities (raw and LF-normalized word lists, 15/15),
+``(bytes, sha256)`` identities (raw and LF-normalized word lists, 17/17),
 recomputes the syllable total of every oracle sample from the generated data
 plus the pyphen fallback, recomputes the syllable total of every language
 probe whose dictionary is vendored (11 probes, incl. ``en``/``en_GB`` through
@@ -86,11 +88,117 @@ L3_FILL_WIDTH = 90
 L3_INLINE_WIDTH = 82
 L3_LIST_INDENT = "      "
 
+
+# --------------------------------------------------------------------------
+# Chinese baseline (unit B): the level-1 common-character table and the
+# `--group=zh` expectation table.
+#
+# The character table is a plain L1 input (one character per line, table
+# order); its identity is pinned here exactly like the English L1 files, and
+# AD section 1.2 carries the same row.  The expectation table is generated
+# from the case list below: the cases (id, text, fixture, lang) are the
+# authoritative input (spec section 4.7.6), and the twelve values per case
+# are computed by the rules of spec sections 4.3-4.5 rather than copied, so
+# the definition has one source.  `PINNED_ZH_ROWS` is the independent
+# cross-check: it restates the 192 published cells and fails the build if the
+# formula and the spec table ever disagree.
+# --------------------------------------------------------------------------
+
+ZH_TABLE_REL = "vendor/upstream/togscc/level1_3500.txt"
+ZH_CHARS_OUT = "lib/zh/zh_common_chars_data.mbt"
+ZH_CELLS_OUT = "lib/gate/zh/zh_cells_data.mbt"
+PINNED_ZH_TABLE_BYTES = 14000
+PINNED_ZH_TABLE_SHA256 = (
+    "79a6c710013cc86617d5db65871f59b2d67dee72415d380a2cc7145a51450fe4"
+)
+PINNED_ZH_TABLE_ENTRIES = 3500
+PINNED_ZH_CELLS = 192
+PINNED_ZH_CASES = 16
+# Rows of the inlined character payload (3,500 characters / 4 = 875 per row).
+ZH_ROWS = 4
+
+
+# Sentence boundaries of spec section 4.3.1: seven characters, ASCII
+# terminators included (design D-Z1b).
+ZH_BOUNDARY_CHARS = "。！？.!?\n"
+
+# The twelve field names of PRD-B 10.3, in table order.
+ZH_FIELD_NAMES = [
+    "zh_sentence_count",
+    "zh_sentence_length_mean",
+    "zh_sentence_length_sum",
+    "zh_sentence_bucket_1_10",
+    "zh_sentence_bucket_11_20",
+    "zh_sentence_bucket_21_40",
+    "zh_sentence_bucket_41_plus",
+    "zh_han_char_total",
+    "zh_han_char_distinct",
+    "zh_common_char_matched",
+    "zh_common_char_coverage",
+    "zh_uncovered_char_list",
+]
+
+# Fixture codes of spec section 4.7.6.  `None` means the bundled level-1
+# table; a string is a caller-supplied table (design section 8.1 keeps that
+# form as the documented degraded path).
+ZH_FIXTURES = {"A": None, "B": "人", "C": "人龘"}
+
+# The sixteen cases of spec section 4.7.6, in table order.
+ZH_CASES = [
+    ("Z-01", "今天天气很好。我们去公园散步！你觉得怎么样？", "A", "zh_CN"),
+    ("Z-02", "真的吗？！好的。", "A", "zh_CN"),
+    ("Z-03", "第一行\n第二行", "A", "zh_CN"),
+    ("Z-04", "你好。", "A", "zh_CN"),
+    (
+        "Z-05",
+        "春天来了。我们一起去公园看花，那里的樱花开得特别漂亮。这里的春天真好啊。",
+        "A",
+        "zh_CN",
+    ),
+    ("Z-06", "我们一起去公园看花看了一天。", "A", "zh_CN"),
+    ("Z-07", "Hello world. 这是英文混排！", "A", "zh_CN"),
+    ("Z-08", "我们去公园看花，那里很美。", "A", "zh_CN"),
+    ("Z-09", "人人人。龘龘人", "B", "zh_CN"),
+    ("Z-10", "Hello world.", "A", "zh_CN"),
+    ("Z-11", "", "A", "zh_CN"),
+    ("Z-12", "   ", "A", "zh_CN"),
+    ("Z-13", "。。，。", "A", "zh_CN"),
+    ("Z-14", "人人人。龘龘人", "C", "zh_CN"),
+    ("Z-15", "今天天气很好。我们去公园散步！你觉得怎么样？", "A", "en_US"),
+    ("Z-16", "今天天气很好。我们去公园散步！你觉得怎么样？", "A", "xx_YY"),
+]
+
+# The published cells of spec section 4.7.6, used only as a cross-check of
+# the computed values: (n, sum, mean_bits, b1, b2, b3, b4, tot, dist, match,
+# cov_bits, uncovered).  Floats are pinned by bit pattern (AD-2).
+PINNED_ZH_ROWS = {
+    "Z-01": (3, 19, 0x4019555555555555, 3, 0, 0, 0, 19, 18, 18, 0x3FF0000000000000, []),
+    "Z-02": (2, 5, 0x4004000000000000, 2, 0, 0, 0, 5, 4, 4, 0x3FF0000000000000, []),
+    "Z-03": (2, 6, 0x4008000000000000, 2, 0, 0, 0, 6, 4, 4, 0x3FF0000000000000, []),
+    "Z-04": (1, 2, 0x4000000000000000, 1, 0, 0, 0, 2, 2, 2, 0x3FF0000000000000, []),
+    "Z-05": (3, 33, 0x4026000000000000, 2, 0, 1, 0, 32, 27, 27, 0x3FF0000000000000, []),
+    "Z-06": (1, 13, 0x402A000000000000, 0, 1, 0, 0, 13, 11, 11, 0x3FF0000000000000, []),
+    "Z-07": (2, 16, 0x4020000000000000, 2, 0, 0, 0, 6, 6, 6, 0x3FF0000000000000, []),
+    "Z-08": (1, 12, 0x4028000000000000, 0, 1, 0, 0, 11, 11, 11, 0x3FF0000000000000, []),
+    "Z-09": (2, 6, 0x4008000000000000, 2, 0, 0, 0, 6, 2, 1, 0x3FE0000000000000, ["龘"]),
+    "Z-10": (1, 10, 0x4024000000000000, 1, 0, 0, 0, 0, 0, 0, 0x0000000000000000, []),
+    "Z-11": (0, 0, 0x0000000000000000, 0, 0, 0, 0, 0, 0, 0, 0x0000000000000000, []),
+    "Z-12": (0, 0, 0x0000000000000000, 0, 0, 0, 0, 0, 0, 0, 0x0000000000000000, []),
+    "Z-13": (1, 1, 0x3FF0000000000000, 1, 0, 0, 0, 0, 0, 0, 0x0000000000000000, []),
+    "Z-14": (2, 6, 0x4008000000000000, 2, 0, 0, 0, 6, 2, 2, 0x3FF0000000000000, []),
+    "Z-15": (3, 19, 0x4019555555555555, 3, 0, 0, 0, 19, 18, 18, 0x3FF0000000000000, []),
+    "Z-16": (3, 19, 0x4019555555555555, 3, 0, 0, 0, 19, 18, 18, 0x3FF0000000000000, []),
+}
+
+
 CMUDICT_REL = "vendor/upstream/cmudict/cmudict"
 
-# Nine pinned pattern tables (AD-1 section 1.3) plus en_GB, which the data API
-# must serve because upstream ``en`` resolves to hyph_en_GB.dic.  en_GB's
-# pattern-line count is recorded but not pinned by AD-1 (only its raw bytes are).
+# Eleven pinned pattern tables (AD-1 section 1.3) plus en_GB, which the data
+# API must serve because upstream ``en`` resolves to hyph_en_GB.dic, plus the
+# two short-name winners ``de`` and ``pt`` resolve to upstream
+# (``hyph_de_AT.dic`` / ``hyph_pt_BR.dic``, ``pyphen/__init__.py:33-41``).
+# en_GB's pattern-line count is recorded but not pinned by AD-1 (only its raw
+# bytes are).
 PATTERN_LANGS = [
     "en_US",
     "en_GB",
@@ -102,6 +210,8 @@ PATTERN_LANGS = [
     "pl_PL",
     "ru_RU",
     "hu_HU",
+    "de_AT",
+    "pt_BR",
 ]
 PINNED_PATTERN_LINES = {
     "en_US": 11125,
@@ -113,6 +223,8 @@ PINNED_PATTERN_LINES = {
     "pl_PL": 4823,
     "ru_RU": 3874,
     "hu_HU": 102204,
+    "de_AT": 77847,
+    "pt_BR": 1246,
 }
 PINNED_PRONUNCIATION_ENTRIES = 48202
 PINNED_PRONUNCIATION_TSV_BYTES = 515949
@@ -146,7 +258,7 @@ PYPHEN_IGNORED = (
 )
 
 # AD-1 section 1.2 identities for every frozen input this generator reads
-# (ten dictionaries incl. en_GB, cmudict, and the two CRLF word-list files).
+# (twelve dictionaries incl. en_GB, cmudict, and the two CRLF word-list files).
 L1_PINS = {
     "vendor/upstream/pyphen/hyph_en_US.dic": (
         106414,
@@ -159,6 +271,14 @@ L1_PINS = {
     "vendor/upstream/pyphen/hyph_de_DE.dic": (
         1093611,
         "2e2f5ffea6bc53f67ffe8c076921c7b1b34a2ec2b9ec57a4608374bb65a1a1e1",
+    ),
+    "vendor/upstream/pyphen/hyph_de_AT.dic": (
+        1093611,
+        "3e0b4687479d25099e37ebd946998c08fcccc12a0acf9380d8b19319a50b9f3a",
+    ),
+    "vendor/upstream/pyphen/hyph_pt_BR.dic": (
+        11260,
+        "a8eb1a64e4af4649c739211b397fa37b01f9d5774cf558fe3895fc3f26fd33a4",
     ),
     "vendor/upstream/pyphen/hyph_es.dic": (
         5699,
@@ -204,7 +324,7 @@ L1_PINS = {
 
 # AD-1 section 1.2 also pins the LF-normalized form of both word lists
 # (identical to the upstream git blobs).  These are additional identities on
-# the same two files; together with L1_PINS they make A1-1 15/15.
+# the same two files; together with L1_PINS they make A1-1 17/17.
 L1_LF_PINS = {
     "vendor/upstream/easy_words/en/easy_words.txt": (
         18637,
@@ -1018,6 +1138,7 @@ class GeneratedData:
         self.probe_rows: list[tuple[str, int, int, bool]] = []
         self.probe_skips: list[tuple[str, str, bool]] = []
         self.l3 = None
+        self.zh = None
         self.failures: list[str] = []
 
     @property
@@ -1180,6 +1301,9 @@ def build() -> GeneratedData:
 
     # --- L3 alignment cells (independent of the L1/L2 payload) -----------
     data.l3 = build_l3()
+
+    # --- Chinese baseline (independent of the L1/L2 payload and the L3 table)
+    data.zh = build_zh()
     return data
 
 
@@ -1404,6 +1528,240 @@ def render_easy_words(data: GeneratedData) -> tuple[str, dict]:
     return render_file(header, arrays, trailer)
 
 
+def zh_common_char_table() -> list[str]:
+    """Read the level-1 table: 3,500 characters, one per line, table order."""
+    raw = read_bytes(ZH_TABLE_REL)
+    if len(raw) != PINNED_ZH_TABLE_BYTES or sha256_hex(raw) != PINNED_ZH_TABLE_SHA256:
+        raise GenError(
+            "%s: bytes=%d sha256=%s, pinned bytes=%d sha256=%s"
+            % (
+                ZH_TABLE_REL,
+                len(raw),
+                sha256_hex(raw),
+                PINNED_ZH_TABLE_BYTES,
+                PINNED_ZH_TABLE_SHA256,
+            )
+        )
+    text = raw.decode("utf-8")
+    chars = [line for line in text.split("\n") if line]
+    if len(chars) != PINNED_ZH_TABLE_ENTRIES:
+        raise GenError(
+            "%s: %d characters, pinned %d"
+            % (ZH_TABLE_REL, len(chars), PINNED_ZH_TABLE_ENTRIES)
+        )
+    if len(set(chars)) != len(chars):
+        raise GenError("%s: the table repeats a character" % ZH_TABLE_REL)
+    return chars
+
+
+def zh_payload(chars: list[str]) -> str:
+    """The inlined payload: the characters cut into ``ZH_ROWS`` rows.
+
+    Four rows of 875 characters each keep every literal far below the
+    single-line column limit (DR-R5 / AD DR-R3) and give the inlined form an
+    identity of its own: 3,500 characters plus three separating newlines is
+    3,503 characters / 10,503 UTF-8 bytes. The separators are not table
+    characters; the loader in `lib/zh/zh_common_chars.mbt` skips them.
+    """
+    text = "".join(chars)
+    width = len(text) // ZH_ROWS
+    return "\n".join(text[i * width : (i + 1) * width] for i in range(ZH_ROWS))
+
+
+def render_zh_common_chars(zh: ZhData) -> tuple[str, dict]:
+    """Render the inlined level-1 table of ``lib/zh/``."""
+    payload = zh.payload
+    header = [
+        "// L2 Chinese common-character table: the level-1 3,500 characters of",
+        "// the Table of General Standard Chinese Characters (2013-06-01), in",
+        "// table order (stroke order, not code-point order), in %d rows." % ZH_ROWS,
+        "// Source: %s" % ZH_TABLE_REL,
+        "// Entries: %d; payload characters: %d; payload bytes: %d."
+        % (len(zh.chars), len(payload), len(payload.encode("utf-8"))),
+    ]
+    return render_file(
+        header,
+        [("raw_zh_common_chars", payload, "level-1 characters, table order")],
+        [],
+    )
+
+
+def zh_sentence_lengths(text: str) -> list[int]:
+    """Sentence lengths of ``text`` (spec §4.3.2, §4.3.3).
+
+    Kept in step with ``lib/zh/zh_split.mbt`` by ``PINNED_ZH_ROWS``: a
+    disagreement between the two implementations fails the build here, before
+    any MoonBit source is written.
+    """
+    lengths: list[int] = []
+    current = 0
+    for ch in text:
+        if ch in ZH_BOUNDARY_CHARS:
+            if current > 0:
+                lengths.append(current)
+            current = 0
+        elif not ch.isspace():
+            current += 1
+    if current > 0:
+        lengths.append(current)
+    return lengths
+
+
+def zh_han_chars(text: str) -> list[str]:
+    """Distinct Han characters of ``text`` in first-appearance order."""
+    seen: set[str] = set()
+    order: list[str] = []
+    for ch in text:
+        if 0x4E00 <= ord(ch) <= 0x9FFF and ch not in seen:
+            seen.add(ch)
+            order.append(ch)
+    return order
+
+
+def double_bits(value: float) -> int:
+    """IEEE-754 bit pattern of ``value`` (AD-2: floats compare by bits)."""
+    return struct.unpack("<Q", struct.pack("<d", value))[0]
+
+
+def zh_values(
+    text: str, fixture: set[str]
+) -> tuple[int, int, int, int, int, int, int, int, int, int, int, list[str]]:
+    """Compute the twelve values of one case from the spec's definitions."""
+    lengths = zh_sentence_lengths(text)
+    count = len(lengths)
+    total_length = sum(lengths)
+    mean = 0.0 if count == 0 else total_length / count
+    bucket_1_10 = sum(1 for length in lengths if length <= 10)
+    bucket_11_20 = sum(1 for length in lengths if 11 <= length <= 20)
+    bucket_21_40 = sum(1 for length in lengths if 21 <= length <= 40)
+    bucket_41_plus = sum(1 for length in lengths if length >= 41)
+    han_total = sum(1 for ch in text if 0x4E00 <= ord(ch) <= 0x9FFF)
+    order = zh_han_chars(text)
+    distinct = len(order)
+    matched = sum(1 for ch in order if ch in fixture)
+    coverage = 0.0 if distinct == 0 else matched / distinct
+    uncovered = [ch for ch in order if ch not in fixture]
+    return (
+        count,
+        total_length,
+        double_bits(mean),
+        bucket_1_10,
+        bucket_11_20,
+        bucket_21_40,
+        bucket_41_plus,
+        han_total,
+        distinct,
+        matched,
+        double_bits(coverage),
+        uncovered,
+    )
+
+
+class ZhCell:
+    """One Chinese gate cell: one field of one case (spec §4.7.6)."""
+
+    def __init__(
+        self,
+        case_id: str,
+        lang: str,
+        fixture: str,
+        metric: str,
+        kind: str,
+        value,
+    ) -> None:
+        # The `zh-` prefix keeps a Chinese failure record distinguishable from
+        # an English sample id in the shared `_gate/` log (spec §4.7.3).
+        self.sample_id = "zh-" + case_id
+        self.lang = lang
+        self.fixture = fixture
+        self.metric = metric
+        self.kind = kind
+        self.value = value
+
+
+class ZhData:
+    def __init__(self) -> None:
+        self.chars: list[str] = []
+        self.cells: list[ZhCell] = []
+        self.table_bytes = 0
+        self.table_sha256 = ""
+        self.payload = ""
+        self.payload_chars = 0
+        self.chunks = 0
+        self.sorted_rows_sha256 = ""
+
+
+def build_zh() -> ZhData:
+    """Build the character table and the 192 expectation cells."""
+    zh = ZhData()
+    zh.chars = zh_common_char_table()
+    raw = read_bytes(ZH_TABLE_REL)
+    zh.table_bytes = len(raw)
+    zh.table_sha256 = sha256_hex(raw)
+    zh.payload = zh_payload(zh.chars)
+    zh.payload_chars = len(zh.payload)
+    # AD section 1.3 identity of the inlined form: the SHA-256 of the sorted
+    # line set of the L1 file (the payload is the same characters in the same
+    # order, so the sorted line set is the cross-machine form of that table).
+    zh.sorted_rows_sha256 = sha256_hex(
+        ("\n".join(sorted(zh.chars)) + "\n").encode("utf-8")
+    )
+    zh.chunks = len(chunk_text(zh.payload))
+
+    full_table = set(zh.chars)
+    for case_id, text, fixture_code, lang in ZH_CASES:
+        if fixture_code not in ZH_FIXTURES:
+            raise GenError("zh case %s: unknown fixture %r" % (case_id, fixture_code))
+        fixture_text = ZH_FIXTURES[fixture_code]
+        fixture = full_table if fixture_text is None else set(fixture_text)
+        values = zh_values(text, fixture)
+        pinned = PINNED_ZH_ROWS[case_id]
+        if values != pinned:
+            raise GenError(
+                "zh case %s: computed %r, pinned %r" % (case_id, values, pinned)
+            )
+        (
+            count,
+            total_length,
+            mean_bits,
+            bucket_1_10,
+            bucket_11_20,
+            bucket_21_40,
+            bucket_41_plus,
+            han_total,
+            distinct,
+            matched,
+            coverage_bits,
+            uncovered,
+        ) = values
+        for field, kind, value in [
+            ("zh_sentence_count", "int", count),
+            ("zh_sentence_length_mean", "double", mean_bits),
+            ("zh_sentence_length_sum", "int", total_length),
+            ("zh_sentence_bucket_1_10", "int", bucket_1_10),
+            ("zh_sentence_bucket_11_20", "int", bucket_11_20),
+            ("zh_sentence_bucket_21_40", "int", bucket_21_40),
+            ("zh_sentence_bucket_41_plus", "int", bucket_41_plus),
+            ("zh_han_char_total", "int", han_total),
+            ("zh_han_char_distinct", "int", distinct),
+            ("zh_common_char_matched", "int", matched),
+            ("zh_common_char_coverage", "double", coverage_bits),
+            ("zh_uncovered_char_list", "list", uncovered),
+        ]:
+            zh.cells.append(
+                ZhCell(case_id, lang, fixture_text or "", field, kind, value)
+            )
+    if len(zh.cells) != PINNED_ZH_CELLS:
+        raise GenError(
+            "zh: %d cells, pinned %d" % (len(zh.cells), PINNED_ZH_CELLS)
+        )
+    if len(ZH_CASES) != PINNED_ZH_CASES:
+        raise GenError(
+            "zh: %d cases, pinned %d" % (len(ZH_CASES), PINNED_ZH_CASES)
+        )
+    return zh
+
+
 def l3_expected_lines(cell: L3Cell) -> tuple[list[str], int]:
     """Emit the ``expected:`` field lines for one cell and its literal size.
 
@@ -1507,6 +1865,60 @@ def render_l3(l3: L3Data) -> tuple[str, dict]:
     return content, {"payload_chars": payload_chars, "chunks": len(l3.cells)}
 
 
+def zh_expected_literal(cell: ZhCell) -> str:
+    """The `expected:` value of one Chinese cell."""
+    if cell.kind == "int":
+        return "EInt(%d)" % cell.value
+    if cell.kind == "double":
+        return "EDouble(0x%016X)" % cell.value
+    if cell.kind == "list":
+        if not cell.value:
+            return "EList([])"
+        literals = [moon_string_literal(item)[0] for item in cell.value]
+        return "EList([%s])" % ", ".join(literals)
+    raise GenError("zh cell %s: unknown value kind %r" % (cell.sample_id, cell.kind))
+
+
+def render_zh_cells(zh: ZhData) -> tuple[str, dict]:
+    """Render the `--group=zh` expectation table: one struct per cell."""
+    header = [
+        "// Chinese gate expectation table (spec §4.7.6): 16 cases x 12 fields.",
+        "// The values come from the definitions of spec §4.3-§4.5 and are",
+        "// cross-checked against the published cells before emission; the case",
+        "// texts and the bundled table identity are in `lib/gate/zh/zh_cases.mbt`",
+        "// and `lib/zh/zh_common_chars_data.mbt`.",
+        "// A cell never enters `lib/gate/data/`: the English field index would",
+        "// reject the twelfth field name (design D-Z6).",
+        "// Table: %s bytes=%d sha256=%s payload_chars=%d"
+        % (ZH_TABLE_REL, zh.table_bytes, zh.table_sha256, zh.payload_chars),
+    ]
+    lines = [MARKER]
+    lines.extend(header)
+    lines.append("")
+    lines.append("///|")
+    lines.append("let raw_zh_cells : Array[Cell] = [")
+    payload_chars = 0
+    for cell in zh.cells:
+        sample, sample_chars = moon_string_literal(cell.sample_id)
+        metric, metric_chars = moon_string_literal(cell.metric)
+        lang, lang_chars = moon_string_literal(cell.lang)
+        fixture, fixture_chars = moon_string_literal(cell.fixture)
+        expected = zh_expected_literal(cell)
+        payload_chars += (
+            sample_chars + metric_chars + lang_chars + fixture_chars + len(expected)
+        )
+        lines.append("  {")
+        lines.append("    sample_id: %s," % sample)
+        lines.append("    metric: %s," % metric)
+        lines.append("    lang: %s," % lang)
+        lines.append("    fixture: %s," % fixture)
+        lines.append("    expected: %s," % expected)
+        lines.append("  },")
+    lines.append("]")
+    content = "\n".join(lines) + "\n"
+    return content, {"payload_chars": payload_chars, "chunks": len(zh.cells)}
+
+
 # --------------------------------------------------------------------------
 # Validation, manifest, write / check
 # --------------------------------------------------------------------------
@@ -1548,6 +1960,10 @@ def build_outputs(data: GeneratedData) -> dict[str, tuple[str, dict]]:
     outputs["lib/data/easy_words_data.mbt"] = (content, info)
     content, info = render_l3(data.l3)
     outputs[L3_OUT] = (content, info)
+    content, info = render_zh_common_chars(data.zh)
+    outputs[ZH_CHARS_OUT] = (content, info)
+    content, info = render_zh_cells(data.zh)
+    outputs[ZH_CELLS_OUT] = (content, info)
     return outputs
 
 
@@ -1589,6 +2005,18 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
             "pinned_entries": PINNED_EASY_ENTRIES[root],
         }
 
+    sources["togscc/level1_3500"] = {
+        "path": ZH_TABLE_REL,
+        "bytes": data.zh.table_bytes,
+        "sha256": data.zh.table_sha256,
+        "entries": len(data.zh.chars),
+        "pinned_entries": PINNED_ZH_TABLE_ENTRIES,
+        "pinned_bytes": PINNED_ZH_TABLE_BYTES,
+        "pinned_sha256": PINNED_ZH_TABLE_SHA256,
+        "sorted_rows_bytes": len(("\n".join(sorted(data.zh.chars)) + "\n").encode("utf-8")),
+        "sorted_rows_sha256": data.zh.sorted_rows_sha256,
+    }
+
     output_entries = {}
     for rel_path in sorted(outputs):
         content, info = outputs[rel_path]
@@ -1604,6 +2032,8 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
         output_entries[rel_path] = entry
         if rel_path == L3_OUT:
             entry["cells"] = len(data.l3.cells)
+        if rel_path == ZH_CELLS_OUT:
+            entry["cells"] = len(data.zh.cells)
 
     manifest = {
         "schema": 2,
@@ -1626,6 +2056,11 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
             ),
             "pattern_lines": PINNED_PATTERN_LINES,
             "easy_word_entries": PINNED_EASY_ENTRIES,
+            "zh_table_bytes": PINNED_ZH_TABLE_BYTES,
+            "zh_table_sha256": PINNED_ZH_TABLE_SHA256,
+            "zh_table_entries": PINNED_ZH_TABLE_ENTRIES,
+            "zh_cells": PINNED_ZH_CELLS,
+            "zh_cases": PINNED_ZH_CASES,
         },
         "pronunciation": {
             "entries": data.pronunciation_entries,
@@ -1687,6 +2122,29 @@ def make_manifest(data: GeneratedData, outputs: dict[str, tuple[str, dict]]) -> 
                 "section": "5",
                 "bytes": data.l3.ad_bytes,
                 "sha256": data.l3.ad_sha256,
+            },
+        },
+        "zh": {
+            "table": {
+                "path": ZH_TABLE_REL,
+                "bytes": data.zh.table_bytes,
+                "sha256": data.zh.table_sha256,
+                "entries": len(data.zh.chars),
+            },
+            "cells": len(data.zh.cells),
+            "cases": len(ZH_CASES),
+            "fields": list(ZH_FIELD_NAMES),
+            "fixtures": {
+                code: ("" if text is None else text)
+                for code, text in sorted(ZH_FIXTURES.items())
+            },
+            "inlined": {
+                "payload_chars": data.zh.payload_chars,
+                "chunks": data.zh.chunks,
+                "sorted_rows_bytes": len(
+                    ("\n".join(sorted(data.zh.chars)) + "\n").encode("utf-8")
+                ),
+                "sorted_rows_sha256": data.zh.sorted_rows_sha256,
             },
         },
         "sources": sources,
@@ -1830,6 +2288,21 @@ def print_report(data: GeneratedData) -> None:
             "L3_ORACLE bytes=%d sha256=%s"
             % (l3.oracle_bytes, l3.oracle_sha256)
         )
+    if data.zh is not None:
+        zh = data.zh
+        print(
+            "ZH_TABLE bytes=%d entries=%d sha256=%s"
+            % (zh.table_bytes, len(zh.chars), zh.table_sha256)
+        )
+        print(
+            "ZH_INLINED payload_chars=%d chunks=%d sorted_rows_sha256=%s"
+            % (
+                zh.payload_chars,
+                zh.chunks,
+                zh.sorted_rows_sha256,
+            )
+        )
+        print("ZH_CELLS=%d ZH_CASES=%d" % (len(zh.cells), len(ZH_CASES)))
 
 
 def write_outputs(outputs: dict[str, tuple[str, dict]], manifest: str) -> None:

@@ -31,6 +31,11 @@ const BENCH_RUNS : Int32 = 100
 const BENCH_MEDIAN_BUDGET_MS : Double = 50.0
 
 ///|
+/// The PRD-B performance budget: the median of the 100 timed `analyze_zh`
+/// calls must be at most 30 ms (PRD-B 5.2, US-03).
+const ZH_BENCH_MEDIAN_BUDGET_MS : Double = 30.0
+
+///|
 /// Microseconds per millisecond, matching the unit of
 /// `@bench.monotonic_clock_end`.
 const MICROSECONDS_PER_MILLISECOND : Double = 1000.0
@@ -186,6 +191,14 @@ fn bench_stable(
 /// Exit code: 0 when `median_ms <= 50.0` and `stable`, otherwise 1. The
 /// report line carries `runs=100 median_ms=<3 decimals> stable=<bool>
 /// warmup_ms=<3 decimals>`.
+///
+/// A second report line covers the Chinese entry (`--group=zh` has no timing
+/// of its own: `--bench` and `--group` are mutually exclusive, AD section 6).
+/// It follows the same shape, with the 30 ms budget of PRD-B's performance
+/// requirement, and the run exits 1 when either line misses its budget. The
+/// Chinese text is 2,000 code points of prose, the size PRD-B names; its
+/// signature is the twelve `zh_` fields, so a run whose values drift is
+/// unstable even when every call is fast (design D-Z8).
 fn run_bench() -> Unit {
   let text = bench_text()
   let warmup_start = @bench.monotonic_clock_start()
@@ -236,9 +249,85 @@ fn run_bench() -> Unit {
     " warmup_ms=" +
     format_ms(warmup_ms),
   )
-  if stable && median_ms <= BENCH_MEDIAN_BUDGET_MS {
+  let zh_stable = run_zh_bench()
+  if stable && median_ms <= BENCH_MEDIAN_BUDGET_MS && zh_stable {
     exit_with_code(0)
   } else {
     exit_with_code(1)
   }
+}
+
+///|
+/// The Chinese half of `--bench`: 100 timed `analyze_zh` calls over a 2,000
+/// code-point text, reported on its own line with the 30 ms budget.
+///
+/// Returns the stability verdict, which the caller folds into the exit code.
+/// The signature covers all twelve fields, so a value that drifts between runs
+/// is caught even though every call stays fast; a raise cannot happen here
+/// (`analyze_zh` has no failure channel), so there is no `None` branch.
+fn run_zh_bench() -> Bool {
+  let text = zh_bench_text()
+  let warmup_start = @bench.monotonic_clock_start()
+  let _warmup = @zh.analyze_zh(text)
+  let warmup_ms = @bench.monotonic_clock_end(warmup_start) /
+    MICROSECONDS_PER_MILLISECOND
+  let samples : Array[Double] = []
+  let mut mismatches = 0
+  let mut reference : String? = None
+  for _ in 0..<BENCH_RUNS {
+    let start = @bench.monotonic_clock_start()
+    let stats = @zh.analyze_zh(text)
+    let elapsed_ms = @bench.monotonic_clock_end(start) /
+      MICROSECONDS_PER_MILLISECOND
+    samples.push(elapsed_ms)
+    let signature = zh_signature(stats)
+    match reference {
+      Some(first) => if first != signature { mismatches = mismatches + 1 }
+      None => reference = Some(signature)
+    }
+  }
+  let has_reference = match reference {
+    Some(_) => true
+    None => false
+  }
+  let stable = mismatches == 0 && has_reference
+  let median_ms = median_of(samples)
+  println(
+    "bench-zh runs=" +
+    BENCH_RUNS.to_string() +
+    " median_ms=" +
+    format_ms(median_ms) +
+    " stable=" +
+    stable.to_string() +
+    " warmup_ms=" +
+    format_ms(warmup_ms),
+  )
+  stable && median_ms <= ZH_BENCH_MEDIAN_BUDGET_MS
+}
+
+///|
+/// The twelve parts of one Chinese result, one part per `ZhStats` field, in
+/// the field order of PRD-B 10.3.
+///
+/// Doubles travel as their IEEE-754 bit pattern, the same identity rule the
+/// English signature uses (AD section 2.2), so `-0.0` and `0.0` stay
+/// distinguishable. The uncovered list is one part holding its length and its
+/// characters, so both its membership and its order are covered.
+fn zh_signature(stats : @zh.ZhStats) -> String {
+  [
+    stats.zh_sentence_count.to_string(),
+    stats.zh_sentence_length_mean.reinterpret_as_uint64().to_string(),
+    stats.zh_sentence_length_sum.to_string(),
+    stats.zh_sentence_bucket_1_10.to_string(),
+    stats.zh_sentence_bucket_11_20.to_string(),
+    stats.zh_sentence_bucket_21_40.to_string(),
+    stats.zh_sentence_bucket_41_plus.to_string(),
+    stats.zh_han_char_total.to_string(),
+    stats.zh_han_char_distinct.to_string(),
+    stats.zh_common_char_matched.to_string(),
+    stats.zh_common_char_coverage.reinterpret_as_uint64().to_string(),
+    stats.zh_uncovered_char_list.length().to_string() +
+    "|" +
+    stats.zh_uncovered_char_list.join("|"),
+  ].join(SIGNATURE_SEPARATOR)
 }
