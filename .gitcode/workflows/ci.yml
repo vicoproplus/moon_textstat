@@ -1,0 +1,157 @@
+# ============================================================================
+# STATUS OF THIS FILE: UNVERIFIED -- PROVIDER NOT EXERCISED.
+#
+# Everything below is written against the GitCode (AtomGit) Pipeline
+# documentation, read on 2026-10-23 (URLs quoted inline). No run of this
+# workflow has ever been executed: the pipeline was not pushed, and GitCode's
+# hosted runners were not exercised from this machine. The only verified
+# artifacts are `scripts/ci.sh` (executed locally, green) and the local
+# `--inject=1` negative check (exit 1).
+#
+# Documentation-confirmed facts that drive the shape of this file:
+#   * workflow files live in `.gitcode/workflows/`, not `./workflows/` --
+#     "The directory for storing AtomGit Action workflow files is
+#      `.gitcode/workflows/`, not `./workflows/`. An incorrect directory path
+#      will cause the pipeline to fail recognition and trigger."
+#     https://docs.gitcode.com/en/docs/help/home/org_project/pipeline/quick-start
+#   * the dialect is GitHub-Actions-compatible at the top level (`name` / `on` /
+#     `jobs` / `runs-on` / `steps` / `uses` / `run`), with `${{ ... }}`
+#     expressions and `ATOMGIT_*` workflow commands.
+#     https://docs.gitcode.com/en/docs/help/home/org_project/pipeline/examples/python-ci
+#
+# Doc ambiguities that could not be resolved without a real run (called out
+# inline where they matter):
+#   * `uses: checkout` (bare) is what the python-ci and PR examples use; the
+#     intro page instead shows `uses: checkout-action@0.0.1`. Both spellings
+#     are named at the checkout step.
+#   * the working directory of a `run:` step: the intro page implies the parent
+#     of the checkout (`run: cd repo_workspace && npm ci`), while the python-ci
+#     example runs `flake8 src/` directly, i.e. the repo root. The CI step
+#     therefore locates the repo root defensively instead of assuming.
+#   * plain top-level `jobs:` (python-ci example) vs the `stages:` orchestration
+#     form (core-concepts page). `jobs:` is used because it comes from a
+#     complete, self-consistent example.
+#
+# Toolchain pin caveat: see the "Install MoonBit toolchain" step. The official
+# CDN only serves `latest`/`nightly`, so the pin is an assertion, not a
+# download.
+# ============================================================================
+
+name: moon_textstat CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - '.gitcode/workflows/**'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  max: 1
+  exceed-action: QUEUE
+
+permissions:
+  repository: read
+
+# Workflow-level environment. MOONBIT_VERSION is the toolchain measured on the
+# maintainer machine (`moon version` -> `moon 0.1.20261012 (748b63c
+# 2026-10-12)`); scripts/ci.sh asserts against it and exits 2 on mismatch.
+env:
+  MOONBIT_VERSION: "0.1.20261012"
+
+jobs:
+  gate:
+    name: CI gate (data identity + moon test + 366-cell gate)
+    # Three-part hosted-runner tag, per
+    # https://docs.gitcode.com/en/docs/help/home/org_project/pipeline/syntax-reference/runner-images-tools
+    # ("The default resource pool tag is `default=[ubuntu-latest, x64, small]`").
+    runs-on: [ubuntu-latest, x64, small]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        # python-ci / pr-code-check examples use the bare form. If the runner
+        # rejects it, the documented alternative (pipeline-intro1 page) is
+        # `uses: checkout-action@0.0.1`.
+        uses: checkout
+
+      - name: Install MoonBit toolchain
+        # Official installer: https://www.moonbitlang.com/download/ documents
+        #   curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+        # PINNING LIMITATION (measured 2026-10-23): the installer accepts a
+        # version argument, but the CDN refuses every dated key with HTTP 403
+        # AccessDenied -- only `latest` and `nightly` resolve:
+        #   https://cli.moonbitlang.com/binaries/latest/moonbit-linux-x86_64.tar.gz -> 200
+        #   https://cli.moonbitlang.com/binaries/0.1.20261012/moonbit-linux-x86_64.tar.gz -> 403
+        #   (same 403 on cli.moonbitlang.cn, and for every dated version probed)
+        # So the pin is enforced as an assertion on whatever toolchain the
+        # runner ends up with: the job fails loudly, it never silently passes.
+        run: |
+          set -eu
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh -o /tmp/install-moonbit.sh
+          sh /tmp/install-moonbit.sh
+          echo "$HOME/.moon/bin" >> "$ATOMGIT_PATH"
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon version
+          installed=$(moon version | head -n 1 | sed -e 's/^moon //' -e 's/ .*//')
+          if [ "$installed" != "$MOONBIT_VERSION" ]; then
+            echo "::error::MoonBit toolchain is $installed, pinned $MOONBIT_VERSION."
+            echo "::error::Bump MOONBIT_VERSION (workflow env) and scripts/ci.sh MOONBIT_VERSION_PIN"
+            echo "::error::if the pin was intentionally moved forward; the CDN has no dated builds."
+            exit 1
+          fi
+          echo "toolchain pin OK: $installed"
+
+      - name: Setup Python
+        # Documented built-in action ("setup-python: Configure the Python
+        # environment", pipeline-intro1 page) and the runner image ships
+        # python3 3.10/3.11/3.12. scripts/ci.sh reports SKIPPED (never passes)
+        # if no interpreter is present, so a missing python cannot fake green.
+        uses: setup-python
+        with:
+          python-version: '3.12'
+
+      - name: CI gate
+        # The whole gate lives in scripts/ci.sh so that a local run and a CI
+        # run are the same code path. Working-directory ambiguity is absorbed
+        # here (see the header note): probe the known candidates for the file
+        # that identifies the repository root.
+        run: |
+          set -eu
+          root=""
+          for candidate in "${ATOMGIT_WORKSPACE:-}" "$PWD" "$PWD"/*/ ; do
+            [ -n "$candidate" ] || continue
+            if [ -f "$candidate/lib/moon.mod" ] && [ -f "$candidate/scripts/ci.sh" ]; then
+              root=$candidate
+              break
+            fi
+          done
+          if [ -z "$root" ]; then
+            echo "::error::cannot locate repository root (lib/moon.mod + scripts/ci.sh)"
+            echo "::error::candidates tried: ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE:-<unset>} PWD=$PWD"
+            exit 1
+          fi
+          echo "repo root: $root"
+          cd "$root"
+          sh scripts/ci.sh
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## moon_textstat CI gate"
+            echo ""
+            echo "- job status: ${{ job.status }}"
+            echo "- pinned MoonBit: $MOONBIT_VERSION"
+            echo "- gate (all): \`moon run cmd/gate --target native\` -> \`cells=366 passed=366 floor=366 group=all inject=0\`"
+            echo "- negative check: \`--group=selfcheck --inject=1\` must exit 1"
+            echo ""
+            echo "Note: this workflow has never been executed on GitCode; see the"
+            echo "header comment in this file for the exact verification status."
+          } >> "$ATOMGIT_STEP_SUMMARY"
