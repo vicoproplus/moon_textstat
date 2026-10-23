@@ -167,14 +167,35 @@ PKG=0
 
 $ cd lib && python -c "import zipfile,hashlib; p='_build/publish/vicoproplus-moon_textstat-0.1.0.zip'; z=zipfile.ZipFile(p); print('entries',len(z.namelist())); print('sha256',hashlib.sha256(open(p,'rb').read()).hexdigest()); print('extra',[n for n in z.namelist() if n.endswith('.json') or n.startswith(('tools/','vendor/','textstat/'))])"
 entries 95
-sha256 12815538f7e9a985e0a675dc903a3d67acd287c830474a965ac6be1815c4de3e
+sha256 93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8
 extra []
 ```
 
-- **新 zip 条目数：95（未变）**
-- **新 sha256：`12815538f7e9a985e0a675dc903a3d67acd287c830474a965ac6be1815c4de3e`**
-- 条目集未变（`moon.mod` 内容变、文件名不变），越界条目仍为 0。
+- **当前 zip 条目数：95（未变）**
+- **当前 sha256：`93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8`**
+- 条目集未变（`moon.mod`、`NOTICE` 内容变、文件名不变），越界条目仍为 0。
 - `LICENSE`、`NOTICE`、`moon.mod` 均在包内 → 第三方条款随包发布，安装方无需回源仓库。
+
+**指纹的移动史（保留，以免读者误以为只有一个中间值）**：
+
+| 时点 | sha256 |
+| --- | --- |
+| 审计时（`license = "MIT"`，`T-54-publish-surface.md`） | `c02ffa4b0e7f7b019a36c20479833bd501932fee8eb0c5be4122f1ac39731b7d` |
+| 改 `license` 表达式后、`NOTICE` 表头仍旧 | `12815538f7e9a985e0a675dc903a3d67acd287c830474a965ac6be1815c4de3e` |
+| `2414de1` 修正 `NOTICE` 表头后（本次实测，当前值） | `93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8` |
+
+复测方式（不照抄任何既有数字，`2414de1` 之后实测）：
+
+```console
+$ cd lib && moon package >/dev/null 2>&1; echo PKG=$?
+PKG=0
+$ cd lib && python -c "import zipfile,hashlib; p='_build/publish/vicoproplus-moon_textstat-0.1.0.zip'; z=zipfile.ZipFile(p); print('entries',len(z.namelist())); print('sha256',hashlib.sha256(open(p,'rb').read()).hexdigest())"
+entries 95
+sha256 93e6ca6f4b0aeeb9a54c82cb49f00678e2ab1665a4635102889330dfd14ad8f8
+```
+
+注意：只要 `moon.mod` 或 `lib/NOTICE` 改动，指纹就会移动。真正执行 `moon publish`
+**之前**必须重新实测一次；本记录中的指纹只对「当前 HEAD + 当前工作树」有效。
 
 ## 6. 仍未完成（outstanding）
 
@@ -184,9 +205,24 @@ extra []
    本身）触发、以及「文件改名」条款是否适用于二进制模式表，**均未逐条核对**。
    本记录不宣称 LPPL 已合规，只宣称：`de_DE` 的 LPPL 来源已在 `lib/NOTICE:174-177`
    与 `:187-193`（源可获得性：Pyphen 0.17.2 + CTAN `dehyphn.tex`）中如实披露。
-2. **`lib/NOTICE:8` 已过期**。该行写「`license = "MIT"` in moon.mod」，而
-   `moon.mod` 现在是三条款 SPDX 表达式。`lib/NOTICE` 不在本次任务的可改范围内
-   （scope 明列「Do NOT touch `lib/NOTICE`」），故**未修**，登记为后续一行文案修正。
+2. ~~**`lib/NOTICE:8` 已过期**~~ → **已闭环**（commit `2414de1`
+   `docs(license): align the NOTICE header with the shipped license expression`）。
+   历史如实保留：本条是在 T-54 收尾时才被发现的——`license` 表达式先改，
+   `NOTICE` 表头仍是旧文案，两者一度不一致。后续经用户明确放行 `lib/NOTICE`
+   （原 scope 明列「Do NOT touch `lib/NOTICE`」），才修正。现在表头已与随包元数据一致：
+
+   ```text
+   5:License: MIT for the module's own source code (see LICENSE in this directory);
+   6:the package as a whole is `MIT AND MPL-1.1 AND LGPL-2.1-or-later` (moon.mod).
+   ...
+   8:This module's own source code is licensed under the MIT license (LICENSE in
+   9:this directory, `license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"` in
+   10:moon.mod). The MIT license covers the module's own code only. The
+   ```
+
+   第 5 行不再只声称 MIT，而是说明「自身代码 MIT / 整包三条款表达式」；第 8-10 行
+   引用的是 `moon.mod` 的**当前**表达式。「第三方数据不是 MIT」的段落与附录指引
+   未改实质内容（仅因表达式变长而重新折行）。`NOTICE` 由 1211 行变为 1213 行。
 3. **P-1 假设的表述本身未回写 spec**。裁决选择了「不重开 §4.8.1/§4.9」，
    因此 spec 中 P-1 的字面表述保持原样；本记录是它的解释性补丁，不是对 spec 的修改。
 
@@ -196,15 +232,17 @@ extra []
 `lib/NOTICE` 随包携带 MPL 1.1 / LGPL 2.1 全文与 `de_DE` 头部副本，发布面审计
 `SURFACE: CLEAN`，打包 EXIT=0。T-54 不再因许可问题受阻。
 
-**仍阻塞 `moon publish` 的项**：
+**仍阻塞 `moon publish` 的项**（仅此三项，均已核实）：
 
-- 发布需**单独明确授权**（本次任务明令禁止执行 `moon publish`）。
+- §6 第 1 项：**LPPL 对 `dehyphn.tex` 的合规分析未做**（只命名，未逐条核对）。
 - `A-7.1` / `A-7.2` / `A-7.3` 仍为 `[LOCAL_DEAD_LINK]`（`moon view` 未成功验证），
   见 `T-53-backfill.md` §3。
-- §6 第 1 项（LPPL 分析）与第 2 项（`NOTICE:8` 文案过期）未闭环。
+- 发布需**单独明确授权**（本次任务明令禁止执行 `moon publish`）。
 
-即：**许可裁决不再挡发布，但发布本身仍需用户另行开闸，且 LPPL 与 NOTICE 文案两项
-仍是公开的未完成项。**
+已不在此列的：`NOTICE:8` 文案过期——已于 `2414de1` 闭环（见 §6 第 2 项）。
+
+即：**许可裁决与 NOTICE 文案都不再挡发布；剩下的是 LPPL 分析、A-7.x 死链、以及用户
+对 `moon publish` 的单独开闸。**
 
 ## 8. 验证原始输出（2026-10-23，`lib/`，win32/x64，`moon 0.1.20261012 (748b63c 2026-10-12)`）
 

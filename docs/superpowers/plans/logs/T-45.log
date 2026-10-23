@@ -163,6 +163,7 @@ LPPL 未完成项）：`docs/superpowers/plans/logs/T-54-license-ruling.md`。
   该写法经 `moon check`（EXIT=0）与 `moon package`（EXIT=0）实测接受；`moon package`
   对 `license` 做 SPDX 词项校验（伪造词项 → `invalid license expression ... unknown term`，
   EXIT=255），故这不是沉默容忍。
-- 仍未完成：LPPL 对 `dehyphn.tex` 的合规分析只被命名、未执行；`lib/NOTICE:8` 的
-  「`license = "MIT"` in moon.mod」文案已过期（`lib/NOTICE` 不在 T-54 可改范围内）。
+- 仍未完成：LPPL 对 `dehyphn.tex` 的合规分析只被命名、未执行。
+  `lib/NOTICE:8` 的旧文案（「`license = "MIT"` in moon.mod」）曾一度过期，
+  已由 commit `2414de1` 修正，表头现与随包元数据一致（见裁决记录 §6 第 2 项）。
 - `moon publish` 仍需用户单独明确授权。
