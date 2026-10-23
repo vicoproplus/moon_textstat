@@ -17,7 +17,7 @@ readme = "README.mbt.md"
 
 repository = "https://gitcode.com/vicoproplus/moon_textstat"
 
-license = "MIT"
+license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"
 
 keywords = [
   "readability",

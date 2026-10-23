@@ -139,3 +139,30 @@ LGPL 2.1 全文、`hyph_de_DE.dic` 文件头逐字副本），即 NOTICE 侧已�
   A-7.1 / A-7.2 / A-7.3 仍为 `[LOCAL_DEAD_LINK]`（见 `T-53-backfill.md` §3）。
 - 终评的文档修复只做了可做的一半：**NOTICE 已按实情带全文**（MPL 1.1 §3.1 /
   LGPL 2.1 / `hyph_de_DE.dic` 文件头 / CMUdict 免责与致谢），**裁决本身仍待用户**。
+
+## 8. 裁决已作出（2026-10-23 追记）
+
+**§7 请求的裁决已由用户作出，选择选项 A（接受逐文件拆分）。** 用户裁决原文：
+
+> 「T-54选择平滑迁移方案,确保功能可用」
+
+状态更新：**T-54 已由用户裁决解除阻塞；T-54 继续推进（unblocked by the user's ruling;
+T-54 proceeds）。** §7.3 保留原样作为审计轨迹——它记录的是裁决**之前**的状态，
+不回填、不修改。
+
+裁决记录（含保留项/接受项、证据链、`moon.mod` 承载形式的实测、发布面指纹更新、
+LPPL 未完成项）：`docs/superpowers/plans/logs/T-54-license-ruling.md`。
+
+要点（细节以该记录为准）：
+
+- 十本字典全部继续内嵌，`hyph_de_DE.dic` 保留，德语断字路径不变；366 冻结格未改；
+  spec §4.8.1 / §4.9 与 AD §1.2 不重开（否决选项 B、C）。
+- 许可口径改为按实情：模块自身代码 MIT；九本 MPL 1.1；`hyph_de_DE.dic` LGPL 2.0+；
+  其 TeX 源 `dehyphn.tex` 为 LPPL。
+- `lib/moon.mod` 改为 `license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"`。
+  该写法经 `moon check`（EXIT=0）与 `moon package`（EXIT=0）实测接受；`moon package`
+  对 `license` 做 SPDX 词项校验（伪造词项 → `invalid license expression ... unknown term`，
+  EXIT=255），故这不是沉默容忍。
+- 仍未完成：LPPL 对 `dehyphn.tex` 的合规分析只被命名、未执行；`lib/NOTICE:8` 的
+  「`license = "MIT"` in moon.mod」文案已过期（`lib/NOTICE` 不在 T-54 可改范围内）。
+- `moon publish` 仍需用户单独明确授权。
