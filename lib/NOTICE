@@ -2,17 +2,19 @@ moon_textstat — NOTICE
 ======================
 
 Module:  vicoproplus/moon_textstat 0.1.0
-License: MIT (see LICENSE in this directory)
+License: MIT for the module's own source code (see LICENSE in this directory);
+the package as a whole is `MIT AND MPL-1.1 AND LGPL-2.1-or-later` (moon.mod).
 
 This module's own source code is licensed under the MIT license (LICENSE in
-this directory, `license = "MIT"` in moon.mod). The MIT license covers the
-module's own code only. The third-party data embedded in this module is NOT
-MIT: the hyphenation patterns are under the Mozilla Public License 1.1
-(file-level) and, for `hyph_de_DE.dic`, the GNU Lesser General Public
-License 2.0 or later (with the underlying TeX tables under the LaTeX Project
-Public License); the English pronunciation table is under Carnegie Mellon
-University's BSD-2-Clause-style terms. Those terms govern that data, and they
-travel with it: the complete MPL 1.1 text is reproduced in Appendix A, the
+this directory, `license = "MIT AND MPL-1.1 AND LGPL-2.1-or-later"` in
+moon.mod). The MIT license covers the module's own code only. The
+third-party data embedded in this module is NOT MIT: the hyphenation
+patterns are under the Mozilla Public License 1.1 (file-level) and, for
+`hyph_de_DE.dic`, the GNU Lesser General Public License 2.0 or later
+(with the underlying TeX tables under the LaTeX Project Public License);
+the English pronunciation table is under Carnegie Mellon University's
+BSD-2-Clause-style terms. Those terms govern that data, and they travel
+with it: the complete MPL 1.1 text is reproduced in Appendix A, the
 complete LGPL 2.1 text in Appendix B, the CMUdict disclaimer and funding
 acknowledgement in section 2, and the `hyph_de_DE.dic` header verbatim in
 section 3. A recipient of this package therefore needs nothing from the
