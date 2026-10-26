@@ -31,13 +31,13 @@ whose optional arguments carry the same defaults as `analyze`.
 moon add vicoproplus/moon_textstat
 ```
 
-That writes `import { "vicoproplus/moon_textstat@0.1.0", }` into your
+That writes `import { "vicoproplus/moon_textstat@0.2.0", }` into your
 `moon.mod` and is the normal install path.
 
 For local development against a checkout, use a path dependency instead: a
 `moon.work` beside your module with `members = ["demo", "../moon_textstat/lib"]`,
 and in `demo/moon.mod` the versioned
-`import { "vicoproplus/moon_textstat@0.1.0" }`.
+`import { "vicoproplus/moon_textstat@0.2.0" }`.
 
 Either way, import the module from a package's `moon.pkg`:
 
