@@ -504,7 +504,7 @@ $ git status --porcelain
 `tools/l2_manifest.json`）加一个新的日志文件；其余 ` M` 属并行 worker，
 `?? .qoder/` 是既存的用户产物。
 
-提交时按两个连贯块切分（详见 §13）：
+提交时按两个连贯块切分（文件归属见本节表格，验证见 §12）：
 
 1. `feat(release): ship 0.2.0 with the Chinese baseline unit` —— `lib/moon.mod`、
    `lib/README.mbt.md`、`scripts/ci.sh`、`tools/l2_manifest.json`、本日志。
@@ -608,3 +608,27 @@ python -c "import zipfile,glob; z=sorted(glob.glob('_build/publish/*.zip'))[-1];
 
 第 6 项是**唯一**非零退出码，且正是设计要求的 `1`。第 9 项 22.93 s。
 跑完删除运行期失败记录目录 `lib/_gate/`（10 个 `failures-native-*.jsonl`）。
+
+## 13. 提交与推送
+
+两个提交，均按显式路径 `git add --` 暂存，未暂存 `lib/_gate/`、`lib/_build/`、`.qoder/`：
+
+| 提交 | 内容 |
+| --- | --- |
+| `08f77fd feat(release): ship 0.2.0 with the Chinese baseline unit` | `lib/moon.mod`、`lib/README.mbt.md`、`scripts/ci.sh`、`tools/l2_manifest.json`、本日志（5 files, +723/−15） |
+| `e16851b docs: correct stale shipping counts and rotted citations across the chain` | 5 个 `docs/superpowers/{designs,specs}/*` + `申报书-…md`（6 files, +115/−99） |
+
+```console
+$ git push origin main
+"…git-credential-manager.exe" store: line 1: …: No such file or directory
+remote: Start Git Hooks Checking 					[PASSED]        
+To https://gitcode.com/vicoproplus/moon_textstat.git
+   36fd3c7..e16851b  main -> main
+PUSH_EXIT=0
+```
+
+（第一行是 `git-credential-manager.exe` 的 store 辅助程序缺失告警，凭据此前已缓存，
+推送本身成功。仓库侧钩子检查 `PASSED`。）
+
+推送后复验：`python tools/gen_data.py --check` → `FILES=7 OK=7 DIFF=0 MISSING=0` /
+`MANIFEST OK` / `CHECK=PASS`；工作树只剩 `?? .qoder/`（既存用户产物）。
