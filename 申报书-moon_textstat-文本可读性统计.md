@@ -5,7 +5,7 @@
 - 项目名称：moon_textstat —— 文本可读性与统计指标库
 - 项目类型：移植项目（Python → MoonBit）
 - 项目方向：新生态项目建设；通用性：内容质量评估的基础件，服务内容平台、教育、写作工具等通用场景
-- GitCode 仓库：https://gitcode.com/vicoproplus/moon_textstat（main 分支 89 个 commits，满足"不少于 10 个有效 commits"；已发布 mooncakes.io：vicoproplus/moon_textstat@0.1.0）
+- GitCode 仓库：https://gitcode.com/vicoproplus/moon_textstat（main 分支截至 2026-10-26 共 94 个 commits——点时快照，随提交增长，满足"不少于 10 个有效 commits"；已发布 mooncakes.io：vicoproplus/moon_textstat@0.2.0，2026-10-26 发布、共 2 个版本——含中文基线单元；0.1.0 为不含中文单元的早期版本，版本状态为点时快照）
 
 **项目简介**
 
@@ -50,4 +50,4 @@
 
 - 原项目名称：textstat —— to calculate statistics from text: readability, complexity, grade level
 - 原项目链接：https://github.com/textstat/textstat
-- 原项目许可证：MIT；本项目自身代码许可证：MIT（与原项目一致），随包发布的整包许可证表达式为 MIT AND MPL-1.1 AND LGPL-2.1-or-later：10 本 pyphen 断字词典按 MPL-1.1 逐文件授权（hyph_de_DE.dic 按其自身头部为 LGPL 2.0+，其上游 TeX 源为 LPPL，此处仅具名来源义务、未作合规结论）、CMUdict 发音数据为 CMU 的 BSD-2-Clause 式条款、textstat 两张易读词表为 MIT；各第三方条款原文完整收录于 lib/NOTICE。
+- 原项目许可证：MIT；本项目自身代码许可证：MIT（与原项目一致），随包发布的整包许可证表达式为 MIT AND MPL-1.1 AND LGPL-2.1-or-later：12 本 pyphen 断字词典中 10 本按 MPL-1.1 逐文件授权，2 本（hyph_de_DE.dic 与 hyph_de_AT.dic）按其自身头部为 LGPL 2.0+（两本均具名其上游 TeX 源 dehyphn.tex 属 LPPL，此处仅具名来源义务、未作合规结论）、CMUdict 发音数据为 CMU 的 BSD-2-Clause 式条款、textstat 两张易读词表为 MIT；各第三方条款原文完整收录于 lib/NOTICE。

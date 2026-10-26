@@ -3,12 +3,12 @@
 | 项 | 内容 |
 | --- | --- |
 | 文档标题 | moon_textstat 移植 — 中文基线 spec |
-| 版本 | v1.0 |
-| 日期 | 2026-10-23 |
+| 版本 | v1.2 |
+| 日期 | 2026-10-26 |
 | 任务名 | moon-textstat-移植 |
 | 覆盖单元 | 单元 B：中文基线（中文分句、句长分布、常用字覆盖率、README 中文局限章节） |
 | 上游 PRD | PRD-MOON-TEXTSTAT-ZH v0.1（条目 id：US-01..US-05、FR-01..FR-10、10.3 数据字典、10.6 拆分声明、10.7 敏感数据流声明） |
-| 上游 design | 《moon_textstat 移植 — 中文基线 design》v1.0（决策 D-Z1、D-Z1b、D-Z2、D-Z3、D-Z4、D-Z5、D-Z6、D-Z7、D-Z8；ZU-1..ZU-5） |
+| 上游 design | 《moon_textstat 移植 — 中文基线 design》（决策 D-Z1、D-Z1b、D-Z2、D-Z3、D-Z4、D-Z5、D-Z6、D-Z7、D-Z8；ZU-1..ZU-5）；本 spec 初稿按 **v1.0** 写，当前为 **v1.2**（只更正行号与随包版本，裁决未变） |
 | 权威派生约定 | 《moon_textstat 移植 — 数据与门禁约定（AD 权威派生文档）》当前 v1.4，路径 `docs/superpowers/designs/202610201517-moon-textstat-移植-数据与门禁约定.md`（本 spec 按完整标题引用，不简写；本单元要求把该文档扩展到 **v1.5**，扩展点见 §4.7） |
 | 事实源 | `docs/facts/upstream-api-inventory.md`、`moonbit-compile-probe.md`、`env-baseline.md`、`oracle_smoke.json`；本单元新增 `vendor/upstream/togscc/README` |
 | 下游消费者 | 单元 B 的实现（`lib/zh/`、`lib/gate/zh/`、`cmd/gate` 的 `zh` 分支）与门禁 |
@@ -62,16 +62,16 @@
 | ZE-11 | `Map`/`Set` 迭代顺序随插入顺序变化，且都不是插入序 | 同一集合、两种插入顺序的迭代输出 | 同 ZE-9 探针 | `order_a = 龘 人 瓤 罐`（插入序 `人人人龘龘人罐瓤`）；`order_b = 龘 瓤 人 罐`（插入序 `瓤罐人龘人龘人`）；`map_a = 人=4 龘=2 罐=1 瓤=1`；`map_b = 瓤=1 罐=1 人=3 龘=2` |
 | ZE-12 | 首现顺序只能由显式序列产生 | 两种输入下的首现序列 | 同 ZE-9 探针（显式 `Array` 记录首现） | `人龘罐瓤` 与 `瓤罐人龘`（严格随输入变化） |
 | ZE-13 | `--group=zh` 今天被拒绝 | 门禁对未知组名的退出码与诊断 | 在 `lib/` 下 `moon run cmd/gate --target native --group=zh` | 首行 `moon run cmd/gate --target native`；次行 `gate: unknown --group value: zh`；**EXIT=2** |
-| ZE-14 | 门禁的封闭组名集合 | `is_known_group` 的匹配分支数 | 读 `lib/cmd/gate/main.mbt:62-75` | 恰 9 个值：`all`、`count`、`variant`、`formula`、`lang`、`degenerate`、`errors`、`data`、`selfcheck`；无 `zh` |
+| ZE-14 | 门禁的封闭组名集合（**决策时**的形态） | `is_known_group` 的匹配分支数 | 读 `git show 5de4045^:lib/cmd/gate/main.mbt:62-75`（决策时）；现状为 `lib/cmd/gate/main.mbt:63-77`，**10 个值**（`zh` 于本轮加入），见 §4.7.1 | 决策时恰 9 个值：`all`、`count`、`variant`、`formula`、`lang`、`degenerate`、`errors`、`data`、`selfcheck`；无 `zh`。现状 10 个（多 `zh`） |
 | ZE-15 | 字段索引是封闭 19 名，且第 20 名是硬失败 | `ALIGN_FIELD_COUNT` 的值 + 未知字段名的诊断文本 | 读 `lib/cmd/gate/field_index.mbt:144`、`:374-384`、`:423-430`；读既有负例 `lib/cmd/gate/field_index_wbtest.mbt:107-121` | `const ALIGN_FIELD_COUNT : Int32 = 19`；未知名报 `field index: cell … uses the unknown field …`；名数 ≠ 19 报 `20 distinct field names observed, expected 19`；既有负例**正是**用 `zh_char_count` 演示该失败 |
-| ZE-16 | 字段索引只在 `all`/`selfcheck` 上执行，且读全表 | `enforce_field_index` 的调用点与数据源 | 读 `lib/cmd/gate/field_index.mbt:449-450`、`lib/cmd/gate/main.mbt:420-423` | `let cells = @gate_data.all_cells()`；`match config.group { "all" \| "selfcheck" => enforce_field_index() … }` |
+| ZE-16 | 字段索引只在 `all`/`selfcheck` 上执行，且读全表 | `enforce_field_index` 的调用点与数据源 | 读 `lib/cmd/gate/field_index.mbt:449-450`、`lib/cmd/gate/main.mbt:428-431`（决策时该 `match` 在 `git show 5de4045^:lib/cmd/gate/main.mbt:420-423`） | `let cells = @gate_data.all_cells()`；`match config.group { "all" \| "selfcheck" => enforce_field_index() … }` |
 | ZE-17 | 冻结下限是 366 | 常量值与门禁自报 | 读 `lib/cmd/gate/main.mbt:9`；`moon run cmd/gate --target native --group=selfcheck` | `const FROZEN_FLOOR : Int32 = 366`；`cells=366 passed=366 floor=366 group=selfcheck inject=0`，EXIT=0 |
 | ZE-18 | 数据身份组是 34 项检查 | `DATA_CHECK_COUNT` 的值与门禁自报 | 读 `lib/cmd/gate/data_checks.mbt:226`；`moon run cmd/gate --target native --group=data` | `const DATA_CHECK_COUNT : Int32 = 34`；`cells=34 passed=34 floor=366 group=data inject=0`，EXIT=0 |
 | ZE-19 | `--inject` 只在 `selfcheck` 生效 | 非 selfcheck 组带 `--inject` 的退出码 | `moon run cmd/gate --target native --group=count --inject=1` | `gate: --inject=<n> is only valid with --group=selfcheck`；**EXIT=2** |
-| ZE-20 | `--bench` 与 `--group` 互斥 | 组合调用的诊断 | 读 `lib/cmd/gate/main.mbt:130-132` | `--bench cannot be combined with --group or --inject` |
+| ZE-20 | `--bench` 与 `--group` 互斥 | 组合调用的诊断 | 读 `lib/cmd/gate/main.mbt:132-134`（决策时 `git show 5de4045^:lib/cmd/gate/main.mbt:130-132`） | `--bench cannot be combined with --group or --inject` |
 | ZE-21 | `--bench` 当前基线 | 100 次采样的中位数与稳定性 | `moon run cmd/gate --target native --bench` | `bench runs=100 median_ms=13.759 stable=true warmup_ms=14.212`，EXIT=0 |
-| ZE-22 | `select_cells` 对未知组返回零单元格 | `cells_for_group` 的筛选语义与既有断言 | 读 `lib/cmd/gate/main.mbt:149-154`、`lib/gate/data/cell.mbt:54-62`、`lib/gate/data/l3_test.mbt:35-37` | 非 `all`/`selfcheck` 走 `cells_for_group`；该函数只返回 `cell.group == group` 的 L3 单元格；`data`/`selfcheck`/`""` 各返回 0（既有断言） |
-| ZE-23 | 零单元格选择会被判为环境失败 | 分支与诊断 | 读 `lib/cmd/gate/main.mbt:367-369` | `gate_fail("group " + config.group + " selected no cells")` |
+| ZE-22 | `select_cells` 对未知组返回零单元格 | `cells_for_group` 的筛选语义与既有断言 | 读 `lib/cmd/gate/main.mbt:151-156`（决策时 `:149-154`）、`lib/gate/data/cell.mbt:54-62`、`lib/gate/data/l3_test.mbt:35-37` | 非 `all`/`selfcheck` 走 `cells_for_group`；该函数只返回 `cell.group == group` 的 L3 单元格；`data`/`selfcheck`/`""` 各返回 0（既有断言） |
+| ZE-23 | 零单元格选择会被判为环境失败 | 分支与诊断 | 读 `lib/cmd/gate/main.mbt:373-375`（决策时在 `git show 5de4045^:lib/cmd/gate/main.mbt:367-369`） | `gate_fail("group " + config.group + " selected no cells")` |
 | ZE-24 | 中文单元格若进 L3，会让 `--group=all` 直接红 | 两条断言的组合后果 | ZE-15 + ZE-16 的推论，无需再跑：`--group=all` 选全表 → `enforce_field_index` → 未知名 + 名数 20 | 必然 EXIT=2（design D-Z6 的否决依据） |
 | ZE-25 | `TextStats` 恰好 19 字段且无 `zh_` | 结构体字段清单 | 读 `lib/types.mbt:16-36`；`lib/pkg.generated.mbti` 的 `pub(all) struct TextStats` | 19 个字段：9 个 `Int` 计数 + 1 个 `Array[String]` + 9 个 `Double`；无任何 `zh_` 前缀字段 |
 | ZE-26 | 结构体字面量必须列全字段 | 缺字段的编译诊断 | 探针工程：`pub struct Two { a : Int; b : Int }` 后写 `{ a: 1 }`，`moon check --target native --no-render` | `[E4044] Record fields b are undefined for type Two`，EXIT=255 |
@@ -156,8 +156,8 @@
 
 | 路径 | 数据源 | 选择方式 | 字段索引 | 366 下限 | 本单元是否使用 |
 | --- | --- | --- | --- | --- | --- |
-| 英文 L3 路径 | `@gate_data.all_cells()` | `select_cells`（`lib/cmd/gate/main.mbt:149-154`） | `enforce_field_index` 在 `all`/`selfcheck` 上执行（`:420-423`） | 是（`enforce_floor`，`:228-238`） | 否 |
-| 中文路径（本单元新增） | `@gate_zh.all_cells()` | `run_zh_group`，在 `select_cells` **之前**分支（与 `data` 分支同构，`:362-365`） | 不使用 L3 的 19 名索引 | **不适用**（中文组自报 192，不抬高 floor） | 是 |
+| 英文 L3 路径 | `@gate_data.all_cells()` | `select_cells`（现状 `lib/cmd/gate/main.mbt:151-156`，决策时 `:149-154`） | `enforce_field_index` 在 `all`/`selfcheck` 上执行（现状 `:428-431`，决策时 `:420-423`） | 是（`enforce_floor`，现状定义 `:230-240`、调用 `:427`；决策时 `:228-238`） | 否 |
+| 中文路径（本单元新增） | `@gate_zh.all_cells()` | `run_zh_group`，在 `select_cells` **之前**分支（与 `data` 分支同构；决策时 `data` 分支在 `:362-365`，现状 `:364-367`，`zh` 分支本身在 `:368-371`） | 不使用 L3 的 19 名索引 | **不适用**（中文组自报 192，不抬高 floor） | 是 |
 
 两条路径共享的只有三样东西：门禁的**首行规范调用串**、**退出码语义**（0/1/2）、**失败记录 schema**（`lib/cmd/gate/records.mbt:145-164`）。这三样由 AD-3 与 AD §2.5 定义，本单元只引用、不改写（§4.7）。
 
@@ -182,7 +182,7 @@
 
 ### 3.2 确定性范式：顺序只从显式序列取，不依赖容器迭代
 
-- 12 个字段的取值只依赖输入文本与随包字表，不依赖调用历史、不依赖语种参数（§4.3.6）、不依赖容器容量或哈希布局。
+- 12 个字段的取值只依赖输入文本与随包字表（该表与 `zh` 子包自 **0.2.0** 起随包——`moon view` 实测 `@0.2.0` 已发布，0.2.0 的 publish zip 含 13 个 `zh/`+`gate/zh/` 条目；0.1.0 的 zip 内无 `zh` 条目，见 design §1.1），不依赖调用历史、不依赖语种参数（§4.3.6）、不依赖容器容量或哈希布局。
 - **唯一涉及顺序的字段**是 `zh_uncovered_char_list`。它的顺序由「首现序列」这个只追加的数组决定，`Map`/`Set` 只回答成员关系（design D-Z5）。
 - 依据不是偏好而是实测：同一字符集合、两种插入顺序，`Set`/`Map` 的迭代顺序不同且都不是插入序（ZE-11）；显式序列在两种输入下给出严格随输入变化的顺序（ZE-12）。
 - 可检形式：同一文本连跑 100 次，12 个字段逐位相同（§4.8 A-Z11 复用 `--bench` 的稳定性判据）。
@@ -444,10 +444,10 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 | 改动点 | 现状（已实测） | 目标 | 为什么必须在这里 |
 | --- | --- | --- | --- |
 | 封闭组集合 | `is_known_group` 的 9 个值，无 `zh`（ZE-14）；`--group=zh` → `gate: unknown --group value: zh`、EXIT=2（ZE-13） | 增一个值 `"zh"` | 该函数是**唯一的**组名校验点；不加则参数解析阶段就退出 |
-| 分流位置 | `run_gate` 现有分支：`bench` → `run_bench`；`group == "data"` → `run_data_group`；其余 → `select_cells`（`lib/cmd/gate/main.mbt:358-369`） | 在 `select_cells` **之前**增加 `group == "zh"` → `run_zh_group` | `select_cells` 对非 `all`/`selfcheck` 一律走 `@gate_data.cells_for_group`（`:149-154`），而该函数只筛 L3 单元格（`lib/gate/data/cell.mbt:54-62`）；`zh` 在其中必然返回 0，随后命中 `gate_fail("group … selected no cells")`（`:367-369`，ZE-22/ZE-23） |
+| 分流位置 | `run_gate` 决策时的分支链：`bench` → `run_bench`；`group == "data"` → `run_data_group`；其余 → `select_cells`（决策时 `git show 5de4045^:lib/cmd/gate/main.mbt:358-369`；现状同一分支链已多出一条 `group == "zh"` → `run_zh_group`，位于 `lib/cmd/gate/main.mbt:360-375`） | 在 `select_cells` **之前**增加 `group == "zh"` → `run_zh_group` | `select_cells` 对非 `all`/`selfcheck` 一律走 `@gate_data.cells_for_group`（现状 `:151-156`，决策时 `:149-154`），而该函数只筛 L3 单元格（`lib/gate/data/cell.mbt:54-62`）；`zh` 在其中必然返回 0，随后命中 `gate_fail("group … selected no cells")`（决策时 `:367-369`，现状 `:373-375`，ZE-22/ZE-23） |
 | 数据来源 | 无 | 新包 `lib/gate/zh/`，自有 `Cell` 类型与 `all_cells()` | 复用 `@gate_data.Cell` 会让中文单元格在类型上就可能被误传进 `field_index_problems`；独立类型把「进不去」变成编译期事实 |
 
-**AD 文档同步（必须与代码同批）**：AD §6「门禁参数契约」的 `--group` 表是**封闭集的定义**（AD §11.2 的裁决：文档是权威、程序是实现）。因此新增 `zh` 必须在同一次改动里：给 AD §6 的 `--group` 表加一行 `--group=zh`（语义：中文 192 单元格，不进入 L3、不抬高 366），并把该节的 `--inject=<n>` 生效范围由「`selfcheck`」改为「`selfcheck`、`zh`」，同时把 AD 文档版本由 v1.4 升到 **v1.5**。只改代码不改 AD，就是仓库明令禁止的双形态漂移。
+**AD 文档同步（必须与代码同批）**：AD §6「门禁参数契约」的 `--group` 表是**封闭集的定义**（AD §11.2 的裁决：文档是权威、程序是实现）。因此新增 `zh` 必须在同一次改动里：给 AD §6 的 `--group` 表加一行 `--group=zh`（语义：中文 192 单元格，不进入 L3、不抬高 366），并把该节的 `--inject=<n>` 生效范围由「`selfcheck`」改为「`selfcheck`、`zh`」，同时把 AD 文档版本由 v1.4 升到 **v1.5**（已执行；AD 现为 **v1.6**，v1.6 只更正文档漂移，未改 §6 与本条要求）。只改代码不改 AD，就是仓库明令禁止的双形态漂移。
 
 **中文组的报告行**：沿用 AD §6 的两行契约（首行规范调用串 + 次行自报），`cells=` 是**中文组自己**的 192，`floor=366` 字段保持原样显示（它是 L3 的下限，与中文组无关）。这与既有 `--group=data` 的处置同构（该组自报 34 而 `floor=366`，ZE-18）。
 
@@ -455,7 +455,7 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 
 **单元格数**：16 个用例 × 12 个字段 = **192**。用例见 §4.7.6 的逐格表。
 
-**负向证明（证明判等真的会红）**：`--inject=<n>` 现在只在 `selfcheck` 生效（`lib/cmd/gate/main.mbt:371-374`，ZE-19 实测 EXIT=2）。中文组的选择是**把作用域扩为 `selfcheck | zh`**，语义不变：
+**负向证明（证明判等真的会红）**：决策时 `--inject=<n>` 只在 `selfcheck` 生效（`git show 5de4045^:lib/cmd/gate/main.mbt:371-374`，ZE-19 实测 EXIT=2）；现状 L3 路径的守卫已改为接受 `selfcheck` 与 `zh`（`lib/cmd/gate/main.mbt:377-382`），`zh` 组另在 `lib/cmd/gate/zh_group.mbt:189-204` 实现同一语义的注入。中文组的选择是**把作用域扩为 `selfcheck | zh`**，语义不变：
 
 | 步骤 | 命令 | 期望 |
 | --- | --- | --- |
@@ -486,10 +486,10 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 
 | 行 | 为何本地不可验 | 分类 | 重填触发条件 | 状态 |
 | --- | --- | --- | --- | --- |
-| FR-07 阶段 (ii)：合并入口（中英字段同一次调用、同一值对象） | 需要单元 A 把 `TextStats` 从 19 字段扩展为 31 字段（ZE-25），而该类型由 A 独占（PRD-B 10.6）；A 已按 0.1.0 发布，`lib/types.mbt:14-15` 明文声明不含中文扩展 | **能力未验证**（依赖另一单元的类型扩展） | **单元 A 完成 `TextStats` 类型扩展并发布**；核对方式：`moon info` 的 `pub(all) struct TextStats` 出现 12 个 `zh_` 字段、总字段数 31，且 `analyze` 的返回类型不变 | unresolved |
-| FR-09 的「README 中文章节可渲染」 | 注册表页面渲染依赖发布与站点，本地无渲染面 | **渲染未验证** | 首次发布含中文章节的版本后核对注册表页面 | unresolved |
+| FR-07 阶段 (ii)：合并入口（中英字段同一次调用、同一值对象） | 需要单元 A 把 `TextStats` 从 19 字段扩展为 31 字段（ZE-25），而该类型由 A 独占（PRD-B 10.6）；A 已按 0.2.0 发布（`moon view vicoproplus/moon_textstat` 实测；该版本随包的 `pkg.generated.mbti` 里 `TextStats` 仍为 19 字段、无 `zh_`），`lib/types.mbt:14-15` 明文声明不含中文扩展 | **能力未验证**（依赖另一单元的类型扩展） | **单元 A 完成 `TextStats` 类型扩展并发布**；核对方式：`moon info` 的 `pub(all) struct TextStats` 出现 12 个 `zh_` 字段、总字段数 31，且 `analyze` 的返回类型不变 | unresolved |
+| FR-09 的「README 中文章节可渲染」 | ~~注册表页面渲染依赖发布与站点，本地无渲染面~~ **已解除**：0.2.0（2026-10-26 发布）是首个含中文章节的版本 | 渲染面已可验 | 已于 2026-10-26 触发并核对 `https://mooncakes.io/docs/vicoproplus/moon_textstat`：`## Chinese metrics`、三条声明、12 字段示例、`--group=zh` 的 192 单元格说明均正常渲染 | **resolved**（0.2.0） |
 
-**两条纪律**：带 `[LOCAL_DEAD_LINK]` 的行在交付说明里必须写「未验证」，不得改写为「已验证」；阶段 (ii) 不得用阶段 (i) 的结果代替（design 第九节）。
+**两条纪律**：带 `[LOCAL_DEAD_LINK]` 的行在交付说明里必须写「未验证」，不得改写为「已验证」——已解除的行必须附**触发证据**（本表 FR-09 行的解除依据是 0.2.0 的注册表页面，见 §4.8 A-Z8）；阶段 (ii) 不得用阶段 (i) 的结果代替（design 第九节）。
 
 #### 4.7.5 README 契约
 
@@ -499,7 +499,7 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 2. **常用字表来源与覆盖范围**：一级 3,500 字、《通用规范汉字表》（教育部 2013-06-01）、经 npm `togscc` 1.3.1（MIT）转写、双渠道交叉验证；覆盖范围是「一级字表」，因此二级/三级字会被算作未覆盖（`龘`/`爨`/`齉` 即此类，ZE-4）。
 3. **按字计量口径**：以码点为计数单位，不按空白切词；句内标点计入句长、句末终止符不计入。
 
-**已改写**（本轮交付时完成）：`## Scope` 段已由原来的「中文指标 out of scope for this module version」改写为「本模块覆盖英文指标 + 上文的**中文基线**；不移植 textstat 的其余语言专面、不做中文难度评级、本版本不把中文字段并入 `TextStats`」。改写后该段位于 `lib/README.mbt.md:174-181`（标题第 174 行，正文第 176-181 行）；改写前它位于 `lib/README.mbt.md:93-98`（`git show HEAD:lib/README.mbt.md`）。改写由单元 A 出章节、B 出措辞（design ZU-4 的处置），PRD-B 10.6 的边界未变，**本 spec 不改 PRD**。
+**已改写**（本轮交付时完成）：`## Scope` 段已由原来的「中文指标 out of scope for this module version」改写为「本模块覆盖英文指标 + 上文的**中文基线**；不移植 textstat 的其余语言专面、不做中文难度评级、本版本不把中文字段并入 `TextStats`」。改写后该段位于 `lib/README.mbt.md:174-181`（标题第 174 行，正文第 176-181 行）；改写前它位于 `lib/README.mbt.md:93-98`（六行：标题 93、空行 94、正文 95-98；复核命令是 `git show 5de4045^:lib/README.mbt.md`——改写本身发生在 `5de4045`，此后 `HEAD` 已是改写后形态，用 `git show HEAD` 复核改写前位置会得到错的范围）。改写由单元 A 出章节、B 出措辞（design ZU-4 的处置），PRD-B 10.6 的边界未变，**本 spec 不改 PRD**。
 
 **示例**：README 的调用示例必须打印 12 个字段名，且名字与 §4.2 逐字一致（可机检：`grep -c 'zh_sentence_count' README`）。
 
@@ -546,7 +546,7 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 | A-Z6 | 未覆盖字 | FR-06 的首现顺序与长度恒等式 | `--group=zh`（Z-09、Z-14） | Z-09 清单恰为 `[龘]`；`len(unc) == dist - match` 在 16 行全成立 | 已回填（R1 全绿；R3 对 16 行比对清单长度，违例 0 行；Z-09 实测 `["龘"]`） |
 | A-Z7 | 字段集合（阶段 i） | FR-07 (i)：独立入口恰返回 12 个 `zh_` 字段 | `moon info` 后读 `lib/zh/pkg.generated.mbti` | 值对象恰 12 个字段，全部 `zh_` 前缀，类型与 §4.2 一致 | 已回填（R4：`ZhStats` 恰 12 个字段，`grep -c 'zh_'` = 12） |
 | A-Z7b | 字段集合（阶段 ii） | FR-07 (ii)：合并入口返回 19 + 12 = 31 字段 | `moon info` 读 `lib/pkg.generated.mbti` | `TextStats` 含 12 个 `zh_` 字段、总数 31；两类取值互不影响 | `[LOCAL_DEAD_LINK]`（见 §4.7.4） |
-| A-Z8 | 文档 | FR-09 三项声明 + 示例字段名 | `grep -c 'zh_sentence_count' lib/README.mbt.md`；人工核对三项声明 | ≥ 1；三项声明齐备；示例输出 12 个字段名与 §4.2 逐字一致 | 本地部分已回填（R5：grep 计数 1；`## Chinese metrics` 的三条声明齐备；示例 12 个字段名与 §4.2 逐字一致）；**渲染面为 `[LOCAL_DEAD_LINK]`，未验证** |
+| A-Z8 | 文档 | FR-09 三项声明 + 示例字段名 | `grep -c 'zh_sentence_count' lib/README.mbt.md`；人工核对三项声明；渲染面读已发布注册表页面 `https://mooncakes.io/docs/vicoproplus/moon_textstat`（0.2.0） | ≥ 1；三项声明齐备；示例输出 12 个字段名与 §4.2 逐字一致；注册表页面出现 `## Chinese metrics` 与三条声明 | 本地部分已回填（R5：grep 计数 1；`## Chinese metrics` 的三条声明齐备；示例 12 个字段名与 §4.2 逐字一致）；**渲染面已回填**：2026-10-26 读 0.2.0 的注册表页面，`## Chinese metrics`、`### What these numbers are, and are not` 及其三条声明、12 字段示例、`--group=zh` 的 192 单元格说明均正常渲染（页面顶部版本选择器为 `0.2.0 (latest)`） |
 | A-Z9 | 语种无关 | FR-08：同一样本三语种逐字段相等 | `--group=zh`（Z-01 / Z-15 / Z-16） | 三行 12 个字段逐位相同 | 已回填（R1 全绿；R3 逐字段比对 Z-01/Z-15/Z-16，12 个字段全等） |
 | A-Z10 | 汉字计数 | FR-10：总字数按出现次数、不小于不同字数 | `--group=zh`（Z-09） | `tot=6`、`dist=2`、`tot >= dist` | 已回填（R1 全绿；R3 实测 Z-09 `tot=6`、`dist=2`） |
 | A-Z11 | 性能与确定性 | 2,000 字样本 100 次中位数 ≤ 30 ms；100 次结果逐位相同 | `moon run cmd/gate --target native --bench`（含中文报告行） | 中文行 `median_ms <= 30`、`stable=true`；英文行保持 `median_ms <= 50` | 已回填（R6：`bench-zh runs=100 median_ms=0.053 stable=true`，英文行 `median_ms=12.058 stable=true`） |
@@ -572,7 +572,7 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 | R8 | `cd . && python tools/verify_l1.py` | `CHARACTERS_CHECKED=1 CHARACTERS_MISMATCH=0 []`、`DIC_CHECKED=12 DIC_MISMATCH=0`、`WORDLIST_CHECKED=4`、`CMUDICT_CHECKED=1`、`CR: []`，EXIT=0 |
 | R9 | `cd lib && rm -rf _gate && moon run cmd/gate --target native --group=zh --inject=1`；`grep -c '"injected":true' _gate/failures-native-*.jsonl` | `cells=192 passed=191 floor=366 group=zh inject=1`，EXIT=1；`_gate/failures-native-1792762335330.jsonl` 1 行，`{"sample_id":"zh-Z-01","metric":"zh_sentence_count","lang":"zh_CN","expected":4,"actual":3,"target":"native","injected":true…}`，grep 计数 = 1 |
 
-**未验证项（原样保留）**：A-Z7b（阶段 (ii) 合并入口：`TextStats` 仍是 19 字段）与 A-Z8 的渲染面（注册表页面渲染）仍为 `[LOCAL_DEAD_LINK]`，状态 `unresolved`，不得写作「已验证」。
+**未验证项**：A-Z7b（阶段 (ii) 合并入口：`TextStats` 仍是 19 字段）仍为 `[LOCAL_DEAD_LINK]`、`unresolved`，不得写作「已验证」。A-Z8 的渲染面**已回填**（2026-10-26 核对 0.2.0 的注册表页面，见 §4.8）。
 
 ### 4.9 方言红线（DR-Z1～DR-Z6）
 
@@ -599,7 +599,7 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 | --- | --- | --- | --- |
 | （待评审轮次填写） | — | — | — |
 
-**当前口径**（本轮回填后实测）：验收表 **15 行**（`A-Z1`..`A-Z14` 共 14 个 id，加 `A-Z7b` 共 15 个唯一 id；旧稿写「14 行」漏计了 `A-Z7b` 那一行）；其中 **13 行 `已回填`**（A-Z1～A-Z7、A-Z9～A-Z14）、**1 行部分回填**（A-Z8：本地三要素齐备，渲染面未验证）、**1 行 `[LOCAL_DEAD_LINK]`**（A-Z7b）。事实表 **38 行**（ZE-1..ZE-38）；单元格 **192**（16 用例 × 12 字段，`--group=zh` 自报 `cells=192 passed=192`）；`[LOCAL_DEAD_LINK]` **2 处**（A-Z7b 整行、A-Z8 的渲染面），状态均 `unresolved`。
+**当前口径**（本轮回填后实测）：验收表 **15 行**（`A-Z1`..`A-Z14` 共 14 个 id，加 `A-Z7b` 共 15 个唯一 id；旧稿写「14 行」漏计了 `A-Z7b` 那一行）；其中 **14 行 `已回填`**（A-Z1～A-Z7、A-Z8、A-Z9～A-Z14；A-Z8 的渲染面于 2026-10-26 对 0.2.0 注册表页面回填）、**1 行 `[LOCAL_DEAD_LINK]`**（A-Z7b）。事实表 **38 行**（ZE-1..ZE-38）；单元格 **192**（16 用例 × 12 字段，`--group=zh` 自报 `cells=192 passed=192`）；`[LOCAL_DEAD_LINK]` **1 处**（A-Z7b 整行），状态 `unresolved`。
 
 ---
 
@@ -608,4 +608,5 @@ Z-09 的逐字手算：文本 7 个码点（`人 人 人 。 龘 龘 人`），�
 | 版本 | 日期 | 变更说明 |
 | --- | --- | --- |
 | v1.0 | 2026-10-23 | 首版：PRD 回链（5 US + 10 FR 全覆盖，FR-07 拆两阶段）、事实表 38 行、公开面差距表（13 行 `[EXT]`、0 行 `[ALIGN]`）、架构与门禁双路径、`zh_` 12 字段 schema（逐字引自 PRD-B 10.3）、分句/句长/分档/覆盖率契约、退化输入逐字段表、门禁登记契约（`--group=zh` + 192 单元格 + 注入负向证明 + 失败记录 schema + 2 条 `[LOCAL_DEAD_LINK]`）、验收表 14 行、方言红线 6 条 |
-| v1.1 | 2026-10-23 | 交付回填：§4.7.5 的 README 改写由「必须改写」改为「已改写」并更正行号（旧稿 `lib/README.mbt.md:113-118` 在任何提交过的版本里都不成立；改写前实际为 `:93-98`，改写后 `## Scope` 位于 `:174-181`，中文章节追加在 `:113-172`）；§4.8 按实跑回填 13 行 `已回填`、1 行部分回填（A-Z8 渲染面仍 `[LOCAL_DEAD_LINK]`）、1 行 `[LOCAL_DEAD_LINK]`（A-Z7b），并新增「回填记录」R1～R9 与目标环境标识；§5 的「当前口径」更正为 15 行验收（旧稿「14 行」漏计 A-Z7b）、13 行已回填、192 单元格、2 处 `[LOCAL_DEAD_LINK]`。契约文字与期望值表未改 |
+| v1.1 | 2026-10-23 | 交付回填：§4.7.5 的 README 改写由「必须改写」改为「已改写」并更正行号（旧稿 `lib/README.mbt.md:113-118` 在任何提交过的版本里都不成立；改写前实际为 `:93-98`（复核用 `git show 5de4045^:lib/README.mbt.md`，与 §4.7.5 同一口径），改写后 `## Scope` 位于 `:174-181`，中文章节追加在 `:113-172`）；§4.8 按实跑回填 13 行 `已回填`、1 行部分回填（A-Z8 渲染面仍 `[LOCAL_DEAD_LINK]`）、1 行 `[LOCAL_DEAD_LINK]`（A-Z7b），并新增「回填记录」R1～R9 与目标环境标识；§5 的「当前口径」更正为 15 行验收（旧稿「14 行」漏计 A-Z7b）、13 行已回填、192 单元格、2 处 `[LOCAL_DEAD_LINK]`。契约文字与期望值表未改 |
+| v1.2 | 2026-10-26 | 文档漂移更正 + 渲染面回填（不改任何契约）：A-Z8 的渲染面与 §4.7.4 的 FR-09 行由 `unresolved` 改为 `resolved`（依据 2026-10-26 的 0.2.0 注册表页面，见 §4.8），`[LOCAL_DEAD_LINK]` 由 2 处降为 1 处（A-Z7b 仍 unresolved）；ZE-14/ZE-16/ZE-20/ZE-22/ZE-23 与 §2.3、§4.7.1、§4.7.2 的 `lib/cmd/gate/*.mbt` 行号按现状重测，并区分「决策时（`git show 5de4045^:…`）」与「现状」（`zh` 组已存在、`--inject` 已覆盖 `zh`）；§3.2 的「随包字表」加 0.2.0 版本限定（`moon view` 实测）；§4.7.5 与 §6 v1.1 行的 `## Scope` 行号口径统一为「改写前 `:93-98`，复核用 `git show 5de4045^:lib/README.mbt.md`」。**契约文字、期望值表与验收表未改** |
