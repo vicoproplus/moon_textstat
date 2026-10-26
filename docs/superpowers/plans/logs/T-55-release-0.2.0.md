@@ -611,24 +611,67 @@ python -c "import zipfile,glob; z=sorted(glob.glob('_build/publish/*.zip'))[-1];
 
 ## 13. 提交与推送
 
-两个提交，均按显式路径 `git add --` 暂存，未暂存 `lib/_gate/`、`lib/_build/`、`.qoder/`：
+**三个**提交（本日志的发布相关改动；本节的更正提交不在表内，见 §14 末条），
+均按显式路径 `git add --` 暂存，未暂存 `lib/_gate/`、`lib/_build/`、`.qoder/`：
 
 | 提交 | 内容 |
 | --- | --- |
 | `08f77fd feat(release): ship 0.2.0 with the Chinese baseline unit` | `lib/moon.mod`、`lib/README.mbt.md`、`scripts/ci.sh`、`tools/l2_manifest.json`、本日志（5 files, +723/−15） |
 | `e16851b docs: correct stale shipping counts and rotted citations across the chain` | 5 个 `docs/superpowers/{designs,specs}/*` + `申报书-…md`（6 files, +115/−99） |
+| `b3a9fa0 docs(plans): finish the T-55 release log with the commit and push record` | 仅本日志（1 file, +25/−1） |
+
+第三个提交存在一个**真实的先后约束**，不是事后补记的借口：§13 这张表要写前两个提交的
+hash 与推送输出，而 hash 只能在提交之后才存在 —— 本日志无法在自己的第一个提交里
+记录自己的 hash。因此顺序只能是「先提交前两块 → 再提交日志的收尾」。这也是本节初版
+只写了两个提交的原因（见 §14）。
+
+两次推送（逐字）：
 
 ```console
-$ git push origin main
+$ git push origin main          # 08f77fd + e16851b
 "…git-credential-manager.exe" store: line 1: …: No such file or directory
 remote: Start Git Hooks Checking 					[PASSED]        
 To https://gitcode.com/vicoproplus/moon_textstat.git
    36fd3c7..e16851b  main -> main
 PUSH_EXIT=0
+
+$ git push origin main          # b3a9fa0
+remote: Start Git Hooks Checking 					[PASSED]        
+To https://gitcode.com/vicoproplus/moon_textstat.git
+   e16851b..b3a9fa0  main -> main
+PUSH_EXIT=0
 ```
 
-（第一行是 `git-credential-manager.exe` 的 store 辅助程序缺失告警，凭据此前已缓存，
-推送本身成功。仓库侧钩子检查 `PASSED`。）
+（第一次推送的首行是 `git-credential-manager.exe` 的 store 辅助程序缺失告警，凭据此前
+已缓存，推送本身成功；第二次推送没有该告警。两次仓库侧钩子检查均为 `PASSED`。）
+
+推送后的状态（**实测快照**：`b3a9fa0` 推送完成时；本节的更正提交尚未产生，
+它落地后两个数各 +1，`git log` 为准）：
+
+```console
+$ git rev-list --count HEAD
+97
+$ git rev-list --count origin/main
+97
+$ git status --porcelain
+?? .qoder/
+```
+
+（`?? .qoder/` 是既存的用户产物，自始至终未被暂存。）
 
 推送后复验：`python tools/gen_data.py --check` → `FILES=7 OK=7 DIFF=0 MISSING=0` /
-`MANIFEST OK` / `CHECK=PASS`；工作树只剩 `?? .qoder/`（既存用户产物）。
+`MANIFEST OK` / `CHECK=PASS`。
+
+## 14. 本日志自身的修订记录
+
+- **§13 初版只记了两个提交**（`08f77fd`、`e16851b`，推送写作 `36fd3c7..e16851b`），
+  因为写它的时候第三个提交尚不存在。第三次提交 `b3a9fa0` 落地后，§13 的「两个提交」
+  与「只记一次推送」就成了**当时为真、现在为假**的陈述 —— 已在本版更正为三个提交、
+  两次推送、以及最终的 97/97。看到过早期版本（或早期提交里那份日志）的读者请以本版为准。
+- 这一条是本轮反复处理的同一类问题：散文断言会随事实推移而腐坏，只有把断言写成
+  可复算的形式（或随事实同步更新）才靠得住。
+- **§13 的提交表永远落后自己一个提交**：更正本身也要提交。写 `b3a9fa0` 那一行时
+  只有三个提交，更正落地后就是四个 —— 表里记的是「本日志成文时的发布相关提交」，
+  更正提交（`docs(plans): correct the T-55 commit count to three`）按定义不可能在表内。
+  这不是遗漏，而是自指文档的固有边界；所以 §13 与 §14 都写明「表内 / 表外」，
+  并给出可用 `git log` 复算的口径，而不是让读者去数表格行数。
